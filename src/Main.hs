@@ -1,4 +1,5 @@
 import System.Console.Haskeline
+import GlyphCompletion
 
 mainloop :: InputT IO ()
 mainloop = do
@@ -8,6 +9,6 @@ mainloop = do
         Nothing -> return ()
         Just s -> do outputStrLn $ "input was: " ++ s
                      mainloop
-
 main :: IO ()
-main = runInputT defaultSettings mainloop
+main = runInputT settings mainloop
+    where settings = setComplete completeGlyph defaultSettings
