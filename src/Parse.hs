@@ -1,28 +1,28 @@
 {-
  -
- - statement => expression <EOS>             (EOS is end of statement: no tokens left)
+ - statement => expr <EOS>                   (EOS is end of statement: no tokens left)
  -
- - expression => ⎕ ← der_arr
- -            => der_arr ← der_arr | der_fn | op
- -            => [expression] ⍝ <discard-until-newline-or-⋄>
- -            => expression {⋄ expression} [⋄]
+ - expr => ⎕ ← der_arr
+ -      => assignment
+ -      => der_arr | der_fn | op
+ -      => [expr] ⍝ <ignore-until-eol> (don't recursively match expr: check after above match is found)
+ -      => expr {⋄ expr} [⋄]           (don't recursively match expr: check after above match is found)
  -
- - assignment => ID ← arr | fn | op
+ - assignment => der_arr ← der_arr | der_fn | op
  -
- - dfn_decl => { dfn_expression }
+ - dfn_decl => { dfn_expr }
  -
- - dfn_expression => der_arr ← der_arr | der_fn | op
- -                => [dfn_expression] ⍝ <discard-until-newline-or-⋄>
- -                => dfn_expression {⋄ dfn_expression} [⋄]
+ - dfn_expr => assignment
+ -          => der_arr | der_fn | op
+ -          => [dfn_expr] ⍝ <discard-until-newline-or-⋄>
+ -          => dfn_expr {⋄ dfn_expr} [⋄]
  -
- - der_arr => der_fn arr                     (der_fn must be monadic)
- -         => arr der_fn arr                 (der_fn must be dyadic)
- -         => (der_arr)
+ - der_arr => der_fn der_arr                 (der_fn must be monadic)
+ -         => arr der_fn der_arr             (der_fn must be dyadic)
  -         => arr
  -
  - der_fn => train
  -        => op_der_fn
- -        => (der_fn)
  -
  - train => {odf odf} odf                    (nested forks) (where odf = op_der_fn)
  -       => odf {odf odf} odf                (atop, nested forks)
@@ -31,7 +31,8 @@
  -                                            optional iff op is dyadic)
  -                                           (∘ may match (f|a) if the following op is .
  -                                            (this allows for outer product))
- -        => fn
+ -                                           (∘ must not match op if . follows it)
+ -           => fn
  -
  - op => ¨ ⍨ ⌸ ⌶                             (monadic)
  -    => ⍣ . ∘ ⍤ ⍥ @ ⍠ ⌺                     (dyadic)
@@ -50,15 +51,16 @@
  -    => ⎕ID                                 (if ⎕ID is a d_fn)
  -    => ⍺⍺ | ⍵⍵ | ∇                         (if dfn_decl state matches these)
  -    => dfn_decl                            (if dfn_decl is fn)
+ -    => (der_fn)
  -    => op_or_fn
  -
  - op_or_fn => / ⌿ \ ⍀                       (monadic operators / dyadic functions)
  -
  - arr => scalar {scalar}
- -     => (arr)
  -     => ID                                 (if ID is arr)
  -     => ⎕ID                                (if ⎕ID is arr)
- -     => assignment                         (if assignment is arr)
+ -     => (assignment)                       (if assignment is arr)
+ -     => (der_arr)
  -     => ⍺ | ⍵                              (if dfn_decl state matches these)
  -     => ⍬
  -     => arr arr {arr}
