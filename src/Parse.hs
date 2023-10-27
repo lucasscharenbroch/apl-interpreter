@@ -1,0 +1,79 @@
+{-
+ -
+ - statement => expression <EOS>             (EOS is end of statement: no tokens left)
+ -
+ - expression => ⎕ ← der_arr
+ -            => der_arr ← der_arr | der_fn | op
+ -            => [expression] ⍝ <discard-until-newline-or-⋄>
+ -            => expression {⋄ expression} [⋄]
+ -
+ - assignment => ID ← arr | fn | op
+ -
+ - dfn_decl => { dfn_expression }
+ -
+ - dfn_expression => der_arr ← der_arr | der_fn | op
+ -                => [dfn_expression] ⍝ <discard-until-newline-or-⋄>
+ -                => dfn_expression {⋄ dfn_expression} [⋄]
+ -
+ - der_arr => der_fn arr                     (der_fn must be monadic)
+ -         => arr der_fn arr                 (der_fn must be dyadic)
+ -         => (der_arr)
+ -         => arr
+ -
+ - der_fn => train
+ -        => op_der_fn
+ -        => (der_fn)
+ -
+ - train => {odf odf} odf                    (nested forks) (where odf = op_der_fn)
+ -       => odf {odf odf} odf                (atop, nested forks)
+ -
+ - op_der_fn => (f|a) op [f|a] {op [f|a]}    (where (f|a) is fn or arr; match the
+ -                                            optional iff op is dyadic)
+ -                                           (∘ may match (f|a) if the following op is .
+ -                                            (this allows for outer product))
+ -        => fn
+ -
+ - op => ¨ ⍨ ⌸ ⌶                             (monadic)
+ -    => ⍣ . ∘ ⍤ ⍥ @ ⍠ ⌺                     (dyadic)
+ -    => assignment                          (if assignment is op)
+ -    => dfn_decl                            (if dfn_decl is op)
+ -    => op_or_fn
+ -
+ - fn => = ≤ < > ≥ ∨ ∧ ⍲ ⍱ ⍷ ∩               (dyadic)
+ -    => + - × ÷ * ⍟ ⌹ ○ ! ? | ⌈ ⌊ ⊥ ⊤       (monadic or dyadic)
+ -    => ⊣ ⊢ ≠ ≡ ≢ ↑ ↓ ⊂ ⊃ ⊆ ⌷ ⍋ ⍒ ⍳ ⍸       (monadic or dyadic)
+ -    => ∊ ∪ ~ , ⍪ ⍴ ⌽ ⊖ ⍉ ⍎ ⍕               (monadic or dyadic)
+ -    => ⊃[der_arr]                          (monadic)
+ -    => ⊆[der_arr]                          (dyadic)
+ -    => ⌷[da] ⌽[da] ⊖[da] ,[da] ⍪[da]       (monadic or dyadic) (da = der_arr)
+ -    => ↓[da] ↑[da] \[da] /[da] ⊂[da]       (monadic or dyadic) (da = der_arr)
+ -    => ⎕ID                                 (if ⎕ID is a d_fn)
+ -    => ⍺⍺ | ⍵⍵ | ∇                         (if dfn_decl state matches these)
+ -    => dfn_decl                            (if dfn_decl is fn)
+ -    => op_or_fn
+ -
+ - op_or_fn => / ⌿ \ ⍀                       (monadic operators / dyadic functions)
+ -
+ - arr => scalar {scalar}
+ -     => (arr)
+ -     => ID                                 (if ID is arr)
+ -     => ⎕ID                                (if ⎕ID is arr)
+ -     => assignment                         (if assignment is arr)
+ -     => ⍺ | ⍵                              (if dfn_decl state matches these)
+ -     => ⍬
+ -     => arr arr {arr}
+ -     => arr[index_list]
+ -
+ - index_list => (der_arr|;)*
+ -
+ - scalar => NUM
+ -        => STR
+ -        => ID                             (if ID is a scalar)
+ -
+ - Tokens:
+ - NUM: ¯?[0-9]*\.?[0-9]+
+ - STR: '([^']|'')*'
+ - ID: [a-zA-Z_][a-zA-Z_0-9]*
+ - (all other non-whitespace tokens are read literally)
+ -
+ -}
