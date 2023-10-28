@@ -1,6 +1,7 @@
 import System.Console.Haskeline
 import GlyphCompletion
 import Lex (Token, tokenize)
+import Parse
 
 mainloop :: InputT IO ()
 mainloop = do
