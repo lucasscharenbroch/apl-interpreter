@@ -7,13 +7,13 @@ import GrammarTree
  - statement => expr <EOS>                   (EOS is end of statement: no tokens left)
  -
  - expr => ⎕ ← der_arr
- -      => [der_arr ←] der_arr | train | op
+ -      => der_arr | train | op
  -      => [expr] ⍝ <ignore-until-eol> (don't recursively match expr: check after above match is found)
  -      => expr {⋄ expr} [⋄]           (don't recursively match expr: check after above match is found)
  -
  - dfn_decl => { dfn_expr }
  -
- - dfn_expr => [der_arr ←] der_arr | train | op
+ - dfn_expr => der_arr | train | op
  -          => der_arr : der_arr
  -          => [dfn_expr] ⍝ <discard-until-newline-or-⋄>
  -          => dfn_expr {⋄ dfn_expr} [⋄]
@@ -42,7 +42,7 @@ import GrammarTree
  -    => (ID ← dfn_decl)                     (if dfn_decl is op)
  -    => op_or_fn
  -
- - fn => = ≤ < > ≥ ∨ ∧ ⍲ ⍱ ⍷ ∩               (dyadic)
+ - fn => = ≤ < > ≥ ∨ ∧ ⍲ ⍱ ⍷ ∩ ←             (dyadic)
  -    => + - × ÷ * ⍟ ⌹ ○ ! ? | ⌈ ⌊ ⊥ ⊤       (monadic or dyadic)
  -    => ⊣ ⊢ ≠ ≡ ≢ ↑ ↓ ⊂ ⊃ ⊆ ⌷ ⍋ ⍒ ⍳ ⍸       (monadic or dyadic)
  -    => ∊ ∪ ~ , ⍪ ⍴ ⌽ ⊖ ⍉ ⍎ ⍕               (monadic or dyadic)
@@ -65,7 +65,7 @@ import GrammarTree
  -          => STR
  -          => ID                            (if ID is arr)
  -          => ⎕ID                           (if ⎕ID is arr)
- -          => (der_arr [← der_arr])
+ -          => (der_arr)
  -          => ⍺ | ⍵                         (if dfn_decl state matches these and ⍺/w is arr)
  -          => ⍬
  -
@@ -83,13 +83,13 @@ import GrammarTree
 
 {- Matching Functions -}
 
-chFst :: (a -> a) -> Maybe (a, b) -> Maybe (a, b)
+chFst :: (a -> b) -> Maybe (a, c) -> Maybe (b, c)
 -- chain first: apply function to first element of maybe-wrapped tuple
 chFst f m = case m of
     Nothing -> Nothing
     Just (x, y) -> Just (f x, y)
 
-mchFst :: (a -> Maybe a) -> Maybe (a, b) -> Maybe (a, b)
+mchFst :: (a -> Maybe b) -> Maybe (a, c) -> Maybe (b, c)
 -- maybe chain first
 mchFst f m = case m of
     Nothing -> Nothing
@@ -97,13 +97,15 @@ mchFst f m = case m of
         Nothing -> Nothing
         Just z -> Just(z, y)
 
-matchOne :: [[Token] -> Maybe (a, [Token])] -> [Token] -> Maybe (a, [Token])
+type MatchFn a = [Token] -> Maybe (a, [Token])
+
+matchOne :: [MatchFn a] -> MatchFn a
 -- return first successful match, else Nothing
 matchOne fns toks = foldl try Nothing fns
     where try (Just x) _ = Just x -- already found match
           try Nothing f = f toks
 
-matchAll :: [[Token] -> Maybe (a, [Token])] -> [Token] -> Maybe ([a], [Token])
+matchAll :: [MatchFn a] -> [Token] -> Maybe ([a], [Token])
 -- match every function in list (sequentially), returning their results, else Nothing
 matchAll fns toks = chFst (reverse) . foldl try (Just ([], toks)) $ fns
     where try Nothing _ = Nothing
@@ -111,7 +113,7 @@ matchAll fns toks = chFst (reverse) . foldl try (Just ([], toks)) $ fns
               Just (r, ts') -> Just(r:rs, ts')
               _ -> Nothing
 
-matchMax :: [[Token] -> Maybe (a, [Token])] -> [Token] -> Maybe ([[a]], [Token])
+matchMax :: [MatchFn a] -> [Token] -> Maybe ([[a]], [Token])
 -- match 0 or more repetitions of the entire function list
 matchMax fns toks = case matchAll fns toks of
     Nothing -> Nothing
@@ -119,11 +121,78 @@ matchMax fns toks = case matchAll fns toks of
         Nothing -> Just ([r], ts)
         Just (rs, ts') -> Just (r:rs, ts')
 
+matchAllThenMax :: [MatchFn a] -> [Token] -> Maybe([[a]], [Token])
+-- match 1 or more repetitions of entire function list
+matchAllThenMax fns = chFst (concat) . matchAll [
+        chFst (:[]) . matchAll fns,
+        matchMax fns
+    ]
+
+{- Tuple Matching (hard-coded) -}
+
+matchT2 :: (MatchFn a, MatchFn b) -> MatchFn (a, b)
+matchT2 (fa, fb) ts = case fa ts of
+    Nothing -> Nothing
+    Just (a, ts') -> case fb ts' of
+        Nothing -> Nothing
+        Just (b, ts'') -> Just ((a, b), ts'')
+
+matchT3 :: (MatchFn a, MatchFn b, MatchFn c) -> MatchFn (a, b, c)
+matchT3 (fa, fb, fc) ts = case fa ts of
+    Nothing -> Nothing
+    Just (a, ts') -> case fb ts' of
+        Nothing -> Nothing
+        Just (b, ts'') -> case fc ts'' of
+            Nothing -> Nothing
+            Just (c, ts''') -> Just ((a, b, c), ts''')
+
+matchT4 :: (MatchFn a, MatchFn b, MatchFn c, MatchFn d) -> MatchFn (a, b, c, d)
+matchT4 (fa, fb, fc, fd) ts = case fa ts of
+    Nothing -> Nothing
+    Just (a, ts') -> case fb ts' of
+        Nothing -> Nothing
+        Just (b, ts'') -> case fc ts'' of
+            Nothing -> Nothing
+            Just (c, ts''') -> case fd ts''' of
+                Nothing -> Nothing
+                Just (d, ts'''') -> Just ((a, b, c, d), ts'''')
+
+matchT5 :: (MatchFn a, MatchFn b, MatchFn c, MatchFn d, MatchFn e) -> MatchFn (a, b, c, d, e)
+matchT5 (fa, fb, fc, fd, fe) ts = case fa ts of
+    Nothing -> Nothing
+    Just (a, ts') -> case fb ts' of
+        Nothing -> Nothing
+        Just (b, ts'') -> case fc ts'' of
+            Nothing -> Nothing
+            Just (c, ts''') -> case fd ts''' of
+                Nothing -> Nothing
+                Just (d, ts'''') -> case fe ts'''' of
+                    Nothing -> Nothing
+                    Just (e, ts5) -> Just ((a, b, c, d, e), ts5)
+
+matchCh :: Char -> [Token] -> Maybe (Char, [Token])
+matchCh c (ChTok c':ts)
+    | c == c' = Just (c, ts)
+    | otherwise = Nothing
+matchCh _ _ = Nothing
+
+matchId :: [Token] -> Maybe (String, [Token])
+matchId (IdTok s:ts) = Just (s, ts)
+matchId _ = Nothing
+
+matchStrLiteral :: [Token] -> Maybe (String, [Token])
+matchStrLiteral (StrTok s:ts) = Just (s, ts)
+matchStrLiteral _ = Nothing
+
+matchNumLiteral :: [Token] -> Maybe (Double, [Token])
+matchNumLiteral (NumTok n:ts) = Just (n, ts)
+matchNumLiteral _ = Nothing
+
 {- Data Types -}
 
 data ExprResult = ResArr ArrTreeNode
                 | ResFn FnTreeNode
-                | ResOp Operator
+                | ResOp String
 
 {- Parsing Functions -}
 
@@ -140,6 +209,9 @@ parseExpr _ = Nothing -- TODO
 -- parseDfnDecl :: [Token] -> Maybe (???, [Token])
 -- parseDfnExpr :: [Token] -> Maybe (???, [Token])
 
+parseIdxList :: [Token] -> Maybe ([ArrTreeNode], [Token])
+parseIdxList _ = Nothing -- TODO
+
 parseDerArr :: [Token] -> Maybe (ArrTreeNode, [Token])
 parseDerArr _ = Nothing -- TODO
 
@@ -149,23 +221,60 @@ parseTrain _ = Nothing -- TODO
 parseDerFn :: [Token] -> Maybe (FnTreeNode, [Token])
 parseDerFn _ = Nothing -- TODO
 
-parseOp :: [Token] -> Maybe (Operator, [Token])
+parseOp :: [Token] -> Maybe (String, [Token])
 parseOp _ = Nothing -- TODO
 
-parseFn :: [Token] -> Maybe (Function, [Token])
+parseFn :: [Token] -> Maybe (String, [Token])
 parseFn _ = Nothing -- TODO
 
-parseOpOrFn :: [Token] -> Maybe ((Operator, Function), [Token])
+parseOpOrFn :: [Token] -> Maybe (String, [Token])
 parseOpOrFn _ = Nothing -- TODO
 
-parseArr :: [Token] -> Maybe (Array, [Token]) -- parse an entire literal array
-parseArr _ = Nothing -- TODO
+parseArr :: [Token] -> Maybe (ArrTreeNode, [Token]) -- parse an entire literal array
+parseArr = chFst (squeezeNodes . concat) . matchAllThenMax [
+        matchOne [
+            chFst (setSubscript) . matchT4 (
+                parseArrComp,
+                matchCh '[',
+                parseIdxList,
+                matchCh ']'
+            ),
+            parseArrComp
+        ]
+    ]
+        where squeezeNodes (a:[]) = a
+              squeezeNodes as = ArrLeaf . arrFromList . map (ScalarArr) $ as
+              setSubscript (lhs, _, ss, _) = mkDyadFnCall (FnLeaf "[]") lhs (squeezeNodes ss)
 
-parseArrComp :: [Token] -> Maybe (Array, [Token]) -- parse array "component"
-parseArrComp _ = Nothing
-
-parseIdxList :: [Token] -> Maybe ([ArrTreeNode], [Token])
-parseIdxList _ = Nothing -- TODO
+parseArrComp :: [Token] -> Maybe (ArrTreeNode, [Token]) -- parse array "component"
+parseArrComp = matchOne [
+            -- scalar {scalar}
+            chFst (ArrLeaf . arrFromList . concat) . matchAllThenMax [parseScalar],
+            -- STR
+            chFst (ArrLeaf . arrFromList . map ScalarCh) . matchStrLiteral,
+            -- ID
+            -- TODO (where ID is arr)
+            -- ⎕ID
+            -- TODO (where ⎕ID is arr)
+            -- ⍺ | ⍵
+            -- TODO (where ⍺ or ⍵ is in namespace, and is array)
+            -- ⍬
+            chFst (\_ -> (ArrLeaf . arrFromList) []) . matchCh '⍬',
+            -- (der_arr)
+            chFst (\(_, da, _) -> da) . matchT3 (
+                matchCh '(',
+                parseDerArr,
+                matchCh ')'
+            )
+    ]
 
 parseScalar :: [Token] -> Maybe (Scalar, [Token])
-parseScalar _ = Nothing -- TODO
+parseScalar = matchOne [
+        -- NUM
+        chFst (\n -> ScalarNum n) . matchNumLiteral
+        -- ID
+        -- matchId -- TODO (where ID is a scalar)
+        -- ⍺ | ⍵
+        -- matchCh '⍺' -- TODO (where ⍺ is a scalar)
+        -- matchCh '⍵' -- TODO (where ⍵ is a scalar)
+    ]
