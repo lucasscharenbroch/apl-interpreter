@@ -81,9 +81,51 @@ import GrammarTree
  -
  -}
 
+{- Matching Functions -}
+
+chFst :: (a -> a) -> Maybe (a, b) -> Maybe (a, b)
+-- chain first: apply function to first element of maybe-wrapped tuple
+chFst f m = case m of
+    Nothing -> Nothing
+    Just (x, y) -> Just (f x, y)
+
+mchFst :: (a -> Maybe a) -> Maybe (a, b) -> Maybe (a, b)
+-- maybe chain first
+mchFst f m = case m of
+    Nothing -> Nothing
+    Just (x, y) -> case (f x) of
+        Nothing -> Nothing
+        Just z -> Just(z, y)
+
+matchOne :: [[Token] -> Maybe (a, [Token])] -> [Token] -> Maybe (a, [Token])
+-- return first successful match, else Nothing
+matchOne fns toks = foldl try Nothing fns
+    where try (Just x) _ = Just x -- already found match
+          try Nothing f = f toks
+
+matchAll :: [[Token] -> Maybe (a, [Token])] -> [Token] -> Maybe ([a], [Token])
+-- match every function in list (sequentially), returning their results, else Nothing
+matchAll fns toks = chFst (reverse) . foldl try (Just ([], toks)) $ fns
+    where try Nothing _ = Nothing
+          try (Just (rs, ts)) f = case f ts of
+              Just (r, ts') -> Just(r:rs, ts')
+              _ -> Nothing
+
+matchMax :: [[Token] -> Maybe (a, [Token])] -> [Token] -> Maybe ([[a]], [Token])
+-- match 0 or more repetitions of the entire function list
+matchMax fns toks = case matchAll fns toks of
+    Nothing -> Nothing
+    Just (r, ts) -> case matchMax fns ts of
+        Nothing -> Just ([r], ts)
+        Just (rs, ts') -> Just (r:rs, ts')
+
+{- Data Types -}
+
 data ExprResult = ResArr ArrTreeNode
                 | ResFn FnTreeNode
                 | ResOp Operator
+
+{- Parsing Functions -}
 
 parseStatement :: [Token] -> Maybe [ExprResult]
 parseStatement toks = case (parseExpr toks) of
@@ -120,26 +162,10 @@ parseArr :: [Token] -> Maybe (Array, [Token]) -- parse an entire literal array
 parseArr _ = Nothing -- TODO
 
 parseArrComp :: [Token] -> Maybe (Array, [Token]) -- parse array "component"
-parseArrComp (StrTok s:ts) = Just (arrFromList [length s] s', ts)
-    where s' = map (ScalarCh) s
--- parseArrComp (IdTok i :ts) = Just (?, ts) -- TODO: implement id table
--- parseArrComp (ChTok '⎕':IdTok i:ts) = Just (?, ts) -- TODO implement quad-id
-parseArrComp (t:ts)
-    | t == '⍬' = Just (arrFromList [0], [], ts)
-    -- | t == '⍺' = ? -- TODO implement dfns
-    -- | t == '⍵' = ? -- TODO implement dfns
-    | t == '(' = let next = parseDerArr ts
-                 in 
-    | otherwise = Nothing
 parseArrComp _ = Nothing
 
 parseIdxList :: [Token] -> Maybe ([ArrTreeNode], [Token])
 parseIdxList _ = Nothing -- TODO
 
 parseScalar :: [Token] -> Maybe (Scalar, [Token])
-parseScalar (NumTok n:ts) = Just (ScalarNum n, ts)
--- parseScalar (IdTok i:ts) = Just (?, ts) -- TODO: implement id table
--- parseArrComp (ChTok '⎕':IdTok i:ts) = Just (?, ts) -- TODO implement quad-id
--- parseArrComp (ChTok '⍺':ts) = Just (?, ts) -- TODO implement dfns
--- parseArrComp (ChTok '⍵':ts) = Just (?, ts) -- TODO implement dfns
-parseScalar _ = Nothing
+parseScalar _ = Nothing -- TODO
