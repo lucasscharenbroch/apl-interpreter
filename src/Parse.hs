@@ -1,6 +1,7 @@
 module Parse where
 import Lex (Token(..))
 import GrammarTree
+import Glyphs
 
 {-
  -
@@ -66,12 +67,11 @@ import GrammarTree
  -          => ID                            (if ID is arr)
  -          => ⎕ID                           (if ⎕ID is arr)
  -          => (der_arr)
- -          => ⍺ | ⍵                         (if dfn_decl state matches these and ⍺/w is arr)
+ -          => ⍺ | ⍵                         (if ⍺/w is in namespace)
+ -          => ⍺⍺ | ⍵⍵                       (if ⍺⍺/ww is in namespace and is array)
  -          => ⍬
  -
  - scalar => NUM
- -        => ID                              (if ID is a scalar)
- -        => ⍺ | ⍵                           (if dfn_decl state matches these and ⍺/⍵ is scalar)
  -
  - Tokens:
  - NUM: ¯?[0-9]*\.?[0-9]+
@@ -192,7 +192,7 @@ matchNumLiteral _ = Nothing
 
 data ExprResult = ResArr ArrTreeNode
                 | ResFn FnTreeNode
-                | ResOp String
+                | ResOp Operator
 
 {- Parsing Functions -}
 
@@ -221,13 +221,13 @@ parseTrain _ = Nothing -- TODO
 parseDerFn :: [Token] -> Maybe (FnTreeNode, [Token])
 parseDerFn _ = Nothing -- TODO
 
-parseOp :: [Token] -> Maybe (String, [Token])
+parseOp :: [Token] -> Maybe (Operator, [Token])
 parseOp _ = Nothing -- TODO
 
-parseFn :: [Token] -> Maybe (String, [Token])
+parseFn :: [Token] -> Maybe (Function, [Token])
 parseFn _ = Nothing -- TODO
 
-parseOpOrFn :: [Token] -> Maybe (String, [Token])
+parseOpOrFn :: [Token] -> Maybe ((Operator, Function), [Token])
 parseOpOrFn _ = Nothing -- TODO
 
 parseArr :: [Token] -> Maybe (ArrTreeNode, [Token]) -- parse an entire literal array
@@ -243,8 +243,10 @@ parseArr = chFst (squeezeNodes . concat) . matchAllThenMax [
         ]
     ]
         where squeezeNodes (a:[]) = a
-              squeezeNodes as = ArrLeaf . arrFromList . map (ScalarArr) $ as
-              setSubscript (lhs, _, ss, _) = mkDyadFnCall (FnLeaf "[]") lhs (squeezeNodes ss)
+              squeezeNodes as = ArrLeaf . arrFromList . map (scalarify) $ as
+                where scalarify (ArrLeaf a@(Array [1] _)) = a `at` 0 -- don't box scalar
+                      scalarify a = ScalarArr a
+              setSubscript (lhs, _, ss, _) = mkDyadFnCall (FnLeaf fAssign) lhs (squeezeNodes ss)
 
 parseArrComp :: [Token] -> Maybe (ArrTreeNode, [Token]) -- parse array "component"
 parseArrComp = matchOne [
@@ -257,7 +259,9 @@ parseArrComp = matchOne [
             -- ⎕ID
             -- TODO (where ⎕ID is arr)
             -- ⍺ | ⍵
-            -- TODO (where ⍺ or ⍵ is in namespace, and is array)
+            -- TODO (where ⍺ or ⍵ is in namespace)
+            -- ⍺⍺ | ⍵⍵
+            -- TODO (where ⍺⍺ or ⍵⍵ is in namespace and is array)
             -- ⍬
             chFst (\_ -> (ArrLeaf . arrFromList) []) . matchCh '⍬',
             -- (der_arr)
@@ -269,12 +273,4 @@ parseArrComp = matchOne [
     ]
 
 parseScalar :: [Token] -> Maybe (Scalar, [Token])
-parseScalar = matchOne [
-        -- NUM
-        chFst (\n -> ScalarNum n) . matchNumLiteral
-        -- ID
-        -- matchId -- TODO (where ID is a scalar)
-        -- ⍺ | ⍵
-        -- matchCh '⍺' -- TODO (where ⍺ is a scalar)
-        -- matchCh '⍵' -- TODO (where ⍵ is a scalar)
-    ]
+parseScalar = chFst (\n -> ScalarNum n) . matchNumLiteral -- NUM
