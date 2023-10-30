@@ -35,15 +35,17 @@ type OpArg = Either ArrTreeNode FnTreeNode
 
 data Operator = MonOp String (OpArg -> Function)
               | DyadOp String (OpArg -> OpArg -> Function)
-              | MonDyadOp String (OpArg -> Function) (OpArg -> OpArg -> Function)
 
 {- Tree Nodes -}
 
 -- "function tree": a tree that makes up a derived function:
--- the internal nodes are operators, and the leaves are functions
-data FnTreeNode = FnLeaf Function
-                | FnInternalOp Operator FnTreeNode (Maybe FnTreeNode) -- 1 or 2 children
-                | FnInternalTrain FnTreeNode FnTreeNode (Maybe FnTreeNode) -- 2 or 3 children
+-- the internal nodes are operators, and the leaves are functions or (derived) arrays
+data FnTreeNode = FnLeafFn Function
+                | FnLeafArr ArrTreeNode
+                | FnInternalMonOp Operator FnTreeNode
+                | FnInternalDyadOp Operator FnTreeNode FnTreeNode
+                | FnInternalDyadTrain FnTreeNode FnTreeNode
+                | FnInternalTriTrain FnTreeNode FnTreeNode FnTreeNode
 
 -- "array tree": a tree that makes up a derived array
 data ArrTreeNode = ArrLeaf Array

@@ -39,6 +39,7 @@ import Glyphs
  -
  - op => ¨ ⍨ ⌸ ⌶                             (monadic)
  -    => ⍣ . ∘ ⍤ ⍥ @ ⍠ ⌺                     (dyadic)
+ -    => [der_arr]                           (monadic)
  -    => dfn_decl                            (if dfn_decl is op)
  -    => (ID ← dfn_decl)                     (if dfn_decl is op)
  -    => op_or_fn
@@ -47,10 +48,6 @@ import Glyphs
  -    => + - × ÷ * ⍟ ⌹ ○ ! ? | ⌈ ⌊ ⊥ ⊤       (monadic or dyadic)
  -    => ⊣ ⊢ ≠ ≡ ≢ ↑ ↓ ⊂ ⊃ ⊆ ⌷ ⍋ ⍒ ⍳ ⍸       (monadic or dyadic)
  -    => ∊ ∪ ~ , ⍪ ⍴ ⌽ ⊖ ⍉ ⍎ ⍕               (monadic or dyadic)
- -    => ⊃[der_arr]                          (monadic)
- -    => ⊆[der_arr]                          (dyadic)
- -    => ⌷[da] ⌽[da] ⊖[da] ,[da] ⍪[da]       (monadic or dyadic) (da = der_arr)
- -    => ↓[da] ↑[da] \[da] /[da] ⊂[da]       (monadic or dyadic) (da = der_arr)
  -    => ⎕ID                                 (if ⎕ID is a d_fn)
  -    => ⍺⍺ | ⍵⍵ | ∇                         (if dfn_decl state matches these)
  -    => dfn_decl                            (if dfn_decl is fn)
@@ -219,16 +216,52 @@ parseTrain :: [Token] -> Maybe (FnTreeNode, [Token])
 parseTrain _ = Nothing -- TODO
 
 parseDerFn :: [Token] -> Maybe (FnTreeNode, [Token])
-parseDerFn _ = Nothing -- TODO
+parseDerFn = (=<<) (parseDerFnRec) . (=<<) (finishOpMatch) . matchT2 (_parseArg, parseOp)
+    where _parseArg = matchOne [parseFn, chFst (FnLeafArr) . parseArr]
+          finishOpMatch :: ((FnTreeNode, Operator), [Token]) -> Maybe (FnTreeNode, [Token])
+          finishOpMatch ((lhs, op@(DyadOp _ _)), toks) = chFst (FnInternalDyadOp op lhs) . _parseArg $ toks
+          finishOpMatch ((lhs, op), toks) = Just (FnInternalMonOp op lhs, toks)
+          parseDerFnRec :: (FnTreeNode, [Token]) -> Maybe (FnTreeNode, [Token])
+          parseDerFnRec (lhs, toks) = case (=<<) (finishOpMatch) . chFst (\op -> (lhs, op)) . parseOp $ toks of
+              Nothing -> Just (lhs, toks)
+              Just res -> parseDerFnRec res
 
 parseOp :: [Token] -> Maybe (Operator, [Token])
-parseOp _ = Nothing -- TODO
+parseOp = matchOne [
+        -- TODO big list of operators
+        chFst (\(_, da, _) -> oAxisSpec da) . matchT3 (
+            matchCh '[',
+            parseDerArr,
+            matchCh ']'
+        ),
+        -- TODO dfn_decl
+        -- TODO (ID ← dfn_decl)
+        chFst (fst) . parseOpOrFn
+    ]
 
-parseFn :: [Token] -> Maybe (Function, [Token])
-parseFn _ = Nothing -- TODO
+parseFn :: [Token] -> Maybe (FnTreeNode, [Token])
+parseFn = matchOne [
+        chFst (\_ -> FnLeafFn fPlus) . matchCh '+',
+        chFst (\_ -> FnLeafFn fIota) . matchCh '⍳',
+        -- TODO big list of functions
+        -- TODO ⎕ID
+        -- TODO ⍺⍺ ⌊ ⍵⍵ | ∇
+        -- TODO (ID ← dfn_decl)
+        chFst (\(_, t, _) -> t) . matchT3 (
+            matchCh '(',
+            parseTrain,
+            matchCh ')'
+        ),
+        chFst (snd) . parseOpOrFn
+    ]
 
-parseOpOrFn :: [Token] -> Maybe ((Operator, Function), [Token])
-parseOpOrFn _ = Nothing -- TODO
+parseOpOrFn :: [Token] -> Maybe ((Operator, FnTreeNode), [Token])
+parseOpOrFn = matchOne [
+        chFst (\_ -> (oReduce, FnLeafFn fReplicate)) . matchCh '/',
+        chFst (\_ -> (oScan, FnLeafFn fExpand)) . matchCh '\\',
+        chFst (\_ -> (oReduceFirst, FnLeafFn fReplicateFirst)) . matchCh '⌿',
+        chFst (\_ -> (oScanFirst, FnLeafFn fExpandFirst)) . matchCh '⍀'
+    ]
 
 parseArr :: [Token] -> Maybe (ArrTreeNode, [Token]) -- parse an entire literal array
 parseArr = chFst (squeezeNodes . concat) . matchAllThenMax [
@@ -246,7 +279,7 @@ parseArr = chFst (squeezeNodes . concat) . matchAllThenMax [
               squeezeNodes as = ArrLeaf . arrFromList . map (scalarify) $ as
                 where scalarify (ArrLeaf a@(Array [1] _)) = a `at` 0 -- don't box scalar
                       scalarify a = ScalarArr a
-              setSubscript (lhs, _, ss, _) = mkDyadFnCall (FnLeaf fAssign) lhs (squeezeNodes ss)
+              setSubscript (lhs, _, ss, _) = mkDyadFnCall (FnLeafFn fSubscript) lhs (squeezeNodes ss)
 
 parseArrComp :: [Token] -> Maybe (ArrTreeNode, [Token]) -- parse array "component"
 parseArrComp = matchOne [

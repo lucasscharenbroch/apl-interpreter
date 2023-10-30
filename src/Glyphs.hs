@@ -15,7 +15,21 @@ dOPH :: String -> OpArg -> OpArg -> Function
 dOPH name _ _ = DyadFn ("derived from dyadic op: " ++ name) (dFPH "_derived_")
 
 {- Functions -}
-fAssign = MonFn "[]" (mFPH "[]")
+fSubscript = MonFn "[]" (mFPH "[]")
+
+fReplicate = DyadFn "/" (dFPH "/")
+fExpand = DyadFn "\\" (dFPH "\\")
+fReplicateFirst = DyadFn "⌿" (dFPH "⌿")
+fExpandFirst = DyadFn "⍀" (dFPH "⍀")
+
+fPlus = MonDyadFn "+" (mFPH "+") (dFPH "+")
+fIota = MonDyadFn "⍳" (mFPH "⍳") (dFPH "⍳")
 
 {- Operators -}
 
+oReduce = MonOp "/" (mOPH "/")
+oScan = MonOp "\\" (mOPH "\\")
+oReduceFirst = MonOp "⌿" (mOPH "⌿")
+oScanFirst = MonOp "⍀" (mOPH "⍀")
+
+oAxisSpec axis = MonOp "[]" (mOPH "[]") -- TODO remove `axis' arg and add arg to called fn
