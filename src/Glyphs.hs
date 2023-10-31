@@ -16,6 +16,7 @@ dOPH name _ _ = DyadFn ("derived from dyadic op: " ++ name) (dFPH "_derived_")
 
 {- Functions -}
 fSubscript = MonFn "[]" (mFPH "[]")
+fAssignToQuad = MonFn "⎕←" (mFPH "⎕←")
 
 fReplicate = DyadFn "/" (dFPH "/")
 fExpand = DyadFn "\\" (dFPH "\\")

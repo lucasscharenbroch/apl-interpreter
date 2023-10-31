@@ -5,24 +5,18 @@ import Glyphs
 
 {-
  -
- - statement => expr <EOS>                   (EOS is end of statement: no tokens left)
+ - statement => expr_list <EOS>              (EOS is end of statement: no tokens left)
  -
- - expr => ⎕ ← der_arr
- -      => der_arr | train | op
- -      => [expr] ⍝ <ignore-until-eol> (don't recursively match expr: check after above match is found)
- -      => expr {⋄ expr} [⋄]           (don't recursively match expr: check after above match is found)
+ - expr_list => expr {⋄ expr}
  -
- - dfn_decl => { dfn_expr }
+ - expr => [([⎕ ←] der_arr) | train | op] ⍝ <ignore-until-eol>
  -
- - dfn_expr => der_arr | train | op
- -          => der_arr : der_arr
- -          => [dfn_expr] ⍝ <discard-until-newline-or-⋄>
- -          => dfn_expr {⋄ dfn_expr} [⋄]
+ - dfn_decl => { <skip tokens> }             (result is operator iff ⍺⍺ or ⍵⍵ ∊ tokens)
  -
  - index_list => (der_arr|;)*
  -
- - der_arr => train der_arr                  (train must be monadic)
- -         => arr der_fn der_arr             (der_fn must be dyadic)
+ - der_arr => train der_arr
+ -         => arr der_fn der_arr
  -         => arr
  -
  - train => {df df} df                       (nested forks) (where df = der_fn)
@@ -194,26 +188,69 @@ data ExprResult = ResArr ArrTreeNode
 {- Parsing Functions -}
 
 parseStatement :: [Token] -> Maybe [ExprResult]
-parseStatement toks = case (parseExpr toks) of
+parseStatement toks = case (parseExprList toks) of
     Nothing -> Nothing
-    Just (res, rest) -> if (length rest) == 0
-                        then Just res
-                        else Nothing
+    Just (res, []) -> Just res
+    _ -> Nothing
 
-parseExpr :: [Token] -> Maybe ([ExprResult], [Token])
-parseExpr _ = Nothing -- TODO
+parseExprList :: [Token] -> Maybe ([ExprResult], [Token])
+parseExprList = chFst (\(car, cdr) -> car : (map snd . concat) cdr) . matchT2 (
+        parseExpr,
+        matchMax [matchT2 (matchCh '⋄', parseExpr)]
+    )
+
+parseExpr :: [Token] -> Maybe (ExprResult, [Token])
+parseExpr = matchOne [
+        chFst (\(_, _, a) -> ResArr . ArrInternalMonFn (FnLeafFn fAssignToQuad) $ a) . matchT3 (
+            matchCh '⎕',
+            matchCh '←',
+            parseDerArr
+        ),
+        chFst (ResArr) . parseDerArr,
+        chFst (ResFn) . parseTrain,
+        chFst (ResOp) . parseOp
+    ]
 
 -- parseDfnDecl :: [Token] -> Maybe (???, [Token])
 -- parseDfnExpr :: [Token] -> Maybe (???, [Token])
 
 parseIdxList :: [Token] -> Maybe ([ArrTreeNode], [Token])
-parseIdxList _ = Nothing -- TODO
+parseIdxList = chFst (foldIdxList . concat) . matchMax [
+        matchOne [
+            chFst (Right) . matchCh ';',
+            chFst (Left) . parseDerArr
+        ]
+    ]
+    where emptyArr = ArrLeaf . arrFromList $ []
+          foldIdxList [] = [emptyArr]
+          foldIdxList (Left arr:[]) = [arr]
+          foldIdxList (Right _:rest) = emptyArr : foldIdxList rest
+          foldIdxList (Left arr:Right _:rest) = arr : foldIdxList rest
 
 parseDerArr :: [Token] -> Maybe (ArrTreeNode, [Token])
-parseDerArr _ = Nothing -- TODO
+parseDerArr = matchOne [
+        chFst (\(t, da) -> ArrInternalMonFn t da) . matchT2 (parseTrain, parseDerArr),
+        chFst (\(lhs, f, rhs) -> ArrInternalDyadFn f lhs rhs) . matchT3 (
+            parseArr,
+            parseDerFn,
+            parseDerArr
+        ),
+        parseArr
+    ]
 
 parseTrain :: [Token] -> Maybe (FnTreeNode, [Token])
-parseTrain _ = Nothing -- TODO
+parseTrain = matchOne [
+        chFst (tranify . (\(a, dfss) ->  FnLeafArr a : concat dfss)) . matchT2 ( -- arr df {df df} df
+            parseArr,
+            matchAllThenMax [parseDerFn, parseDerFn]
+        ),
+        chFst (tranify . concat) . matchAllThenMax [parseDerFn]
+    ] where
+    tranify nodes
+        | even . length $ nodes = FnInternalAtop (head nodes) (forkify . tail $ nodes)
+        | otherwise = forkify nodes
+        where forkify (n1:n2:n3:[]) = FnInternalFork n1 n2 n3
+              forkify (n1:n2:rest) = FnInternalFork n1 n2 (forkify rest)
 
 parseDerFn :: [Token] -> Maybe (FnTreeNode, [Token])
 parseDerFn = (=<<) (parseDerFnRec) . (=<<) (finishOpMatch) . matchT2 (_parseArg, parseOp)
@@ -279,7 +316,7 @@ parseArr = chFst (squeezeNodes . concat) . matchAllThenMax [
               squeezeNodes as = ArrLeaf . arrFromList . map (scalarify) $ as
                 where scalarify (ArrLeaf a@(Array [1] _)) = a `at` 0 -- don't box scalar
                       scalarify a = ScalarArr a
-              setSubscript (lhs, _, ss, _) = mkDyadFnCall (FnLeafFn fSubscript) lhs (squeezeNodes ss)
+              setSubscript (lhs, _, ss, _) = ArrInternalDyadFn (FnLeafFn fSubscript) lhs (squeezeNodes ss)
 
 parseArrComp :: [Token] -> Maybe (ArrTreeNode, [Token]) -- parse array "component"
 parseArrComp = matchOne [

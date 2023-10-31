@@ -44,15 +44,10 @@ data FnTreeNode = FnLeafFn Function
                 | FnLeafArr ArrTreeNode
                 | FnInternalMonOp Operator FnTreeNode
                 | FnInternalDyadOp Operator FnTreeNode FnTreeNode
-                | FnInternalDyadTrain FnTreeNode FnTreeNode
-                | FnInternalTriTrain FnTreeNode FnTreeNode FnTreeNode
+                | FnInternalAtop FnTreeNode FnTreeNode
+                | FnInternalFork FnTreeNode FnTreeNode FnTreeNode
 
 -- "array tree": a tree that makes up a derived array
 data ArrTreeNode = ArrLeaf Array
-                 | ArrInternalFn FnTreeNode (Maybe ArrTreeNode) ArrTreeNode -- 1 or 2 children
-
-mkMonFnCall :: FnTreeNode -> ArrTreeNode -> ArrTreeNode
-mkMonFnCall fn arg = ArrInternalFn fn Nothing arg
-
-mkDyadFnCall :: FnTreeNode -> ArrTreeNode -> ArrTreeNode -> ArrTreeNode
-mkDyadFnCall fn arg1 arg2 = ArrInternalFn fn (Just arg1) arg2
+                 | ArrInternalMonFn FnTreeNode ArrTreeNode
+                 | ArrInternalDyadFn FnTreeNode ArrTreeNode ArrTreeNode
