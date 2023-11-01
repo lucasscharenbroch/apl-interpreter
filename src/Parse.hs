@@ -107,7 +107,7 @@ matchAll fns toks = chFst (reverse) . foldl try (Just ([], toks)) $ fns
 matchMax :: [MatchFn a] -> [Token] -> Maybe ([[a]], [Token])
 -- match 0 or more repetitions of the entire function list
 matchMax fns toks = case matchAll fns toks of
-    Nothing -> Nothing
+    Nothing -> Just ([], toks)
     Just (r, ts) -> case matchMax fns ts of
         Nothing -> Just ([r], ts)
         Just (rs, ts') -> Just (r:rs, ts')
@@ -175,7 +175,7 @@ matchStrLiteral :: [Token] -> Maybe (String, [Token])
 matchStrLiteral (StrTok s:ts) = Just (s, ts)
 matchStrLiteral _ = Nothing
 
-matchNumLiteral :: [Token] -> Maybe (Double, [Token])
+matchNumLiteral :: [Token] -> Maybe (Either Int Double, [Token])
 matchNumLiteral (NumTok n:ts) = Just (n, ts)
 matchNumLiteral _ = Nothing
 
@@ -184,6 +184,7 @@ matchNumLiteral _ = Nothing
 data ExprResult = ResArr ArrTreeNode
                 | ResFn FnTreeNode
                 | ResOp Operator
+    deriving (Show) -- TODO remove (debug)
 
 {- Parsing Functions -}
 
@@ -247,13 +248,17 @@ parseTrain = matchOne [
         chFst (tranify . concat) . matchAllThenMax [parseDerFn]
     ] where
     tranify nodes
+        | length nodes == 1 = head nodes
         | even . length $ nodes = FnInternalAtop (head nodes) (forkify . tail $ nodes)
         | otherwise = forkify nodes
         where forkify (n1:n2:n3:[]) = FnInternalFork n1 n2 n3
               forkify (n1:n2:rest) = FnInternalFork n1 n2 (forkify rest)
 
 parseDerFn :: [Token] -> Maybe (FnTreeNode, [Token])
-parseDerFn = (=<<) (parseDerFnRec) . (=<<) (finishOpMatch) . matchT2 (_parseArg, parseOp)
+parseDerFn = matchOne [
+        (=<<) (parseDerFnRec) . (=<<) (finishOpMatch) . matchT2 (_parseArg, parseOp),
+        parseFn
+    ]
     where _parseArg = matchOne [parseFn, chFst (FnLeafArr) . parseArr]
           finishOpMatch :: ((FnTreeNode, Operator), [Token]) -> Maybe (FnTreeNode, [Token])
           finishOpMatch ((lhs, op@(DyadOp _ _)), toks) = chFst (FnInternalDyadOp op lhs) . _parseArg $ toks
