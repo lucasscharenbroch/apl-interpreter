@@ -1,6 +1,6 @@
 module GrammarTree where
 import qualified Data.Array as A
-import Data.List (intersperse)
+import Data.List (intersperse, zip4)
 
 data Scalar = ScalarNum (Either Int Double)
             | ScalarCh Char
@@ -17,10 +17,12 @@ data Array = Array {
              , cells :: A.Array Int Scalar
              }
 
-gridify :: [[[String]]] -> String -- convert 2d array of justified multi-line-cells to a grid
-gridify = concat . intersperse "\n" . map (concat . intersperse " ") . concat . map (rowify)
-    where rowify row = foldr (zipWith (:)) (replicate height []) $ row
-              where height = length . head $ row -- assume all cells have same height (justified)
+rowify :: ([[String]], Int) -> [[String]]
+rowify (row, height) = foldr (zipWith (:)) (replicate height []) $ row
+
+gridify :: String -> [Int] -> [Int] -> [[[String]]] -> String
+gridify delim heights widths cellRows = concat . intersperse "\n" . map (concat . intersperse delim) . concat $ stringRowGroups
+    where stringRowGroups = map (rowify) $ zip cellRows heights
 
 boxify :: [Int] -> [Int] -> [[[String]]] -> String
 boxify heights widths cellRows = concat . intersperse "\n" $ [topLine] ++ ls ++ [botLine]
@@ -30,18 +32,39 @@ boxify heights widths cellRows = concat . intersperse "\n" $ [topLine] ++ ls ++ 
           ls = concat . intersperse [midLine] $ lsGrouped
           lsGrouped = map (map (\ss -> "│" ++ (concat . intersperse "│" $ ss) ++ "│")) stringRowGroups
           stringRowGroups = map (rowify) $ zip cellRows heights
-          rowify (row, height) = foldr (zipWith (:)) (replicate height []) $ row
 
 justify :: Int -> Int -> [String] -> [String] -- height -> width -> lines -> justified-lines
 justify height width ls = map (colPad) rowPadded
     where rowPadded = ls ++ (replicate (height - (length ls)) "")
           colPad s = replicate (width - (length s)) ' ' ++ s
 
--- TODO if one is boxed, box the whole thing
--- TODO if all are chars, print without spaces
+groupBy :: Int -> [a] -> [[a]]
+groupBy _ [] = []
+groupBy n x = [take n x] ++ groupBy n (drop n x)
+
+isScalarArr :: Scalar -> Bool
+isScalarArr (ScalarArr _) = True
+isScalarArr _ = False
+
+isScalarCh :: Scalar -> Bool
+isScalarCh (ScalarCh _) = True
+isScalarCh _ = False
+
 instance Show Array where
-    show (Array shape cells) = "\n" ++ (boxify heights widths justifiedCells)
-        where heights = map (foldr (max . fst) 0) heightWidth
+    show (Array shape cells) = concat . map (\(h, w, r, n) -> replicate n '\n' ++ showFn h w r) $ tups
+        where tups = zip4 (groupBy subgNumRows heights) (replicate (length newlineCnts) widths) (groupBy subgNumRows justifiedCells) newlineCnts
+              newlineCnts = 0 : map (\i -> sum . map (fromEnum) . map (\p -> i `mod` p == 0) $ shapeProducts) indicesExcept0
+              indicesExcept0 = tail [0,subgSz..(sz - 1)]
+              shapeProducts = scanl (*) subgSz (drop 2 shape)
+              subgSz = (shape' !! 0) * (shape' !! 1)
+              subgNumRows = subgSz `div` (length widths)
+              showFn = if any (isScalarArr) $ cellsAsList
+                       then boxify
+                       else if all (isScalarCh) $ cellsAsList
+                            then gridify "" -- print strings without spaces in grid
+                            else gridify " "
+              cellsAsList = map (cells A.!) [0..(sz - 1)] :: [Scalar]
+              heights = map (foldr (max . fst) 0) heightWidth
               widths = foldr (zipWith (\hw mx -> max mx (snd hw))) (replicate numCols 0) heightWidth
               justifiedCells = map (map (\((h, w), s) -> justify h w (lines s))) $ zipWith (zip) justHeightWidth strMatrix
               justHeightWidth = [[(h, w) | w <- widths] | h <- heights]
@@ -52,7 +75,7 @@ instance Show Array where
                        else shape
               sz = foldr (*) 1 shape
               numCols = shape' !! 1
-              numRows = numCols `div` sz
+              numRows = sz `div` numCols
               getHeightWidthAt idx = let ls = lines . show $ cells A.! idx
                                      in (length ls, foldr (max . length) 0 ls)
 
