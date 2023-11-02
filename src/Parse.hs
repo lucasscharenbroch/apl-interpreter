@@ -54,15 +54,15 @@ import Glyphs
  - arr => arr_comp[index_list] {arr_comp[index_list]}
  -
  - arr_comp => scalar {scalar}
- -          => STR
- -          => ID                            (if ID is arr)
- -          => ⎕ID                           (if ⎕ID is arr)
- -          => (der_arr)
- -          => ⍺ | ⍵                         (if ⍺/w is in namespace)
- -          => ⍺⍺ | ⍵⍵                       (if ⍺⍺/ww is in namespace and is array)
- -          => ⍬
  -
  - scalar => NUM
+ -        => STR
+ -        => ID                            (if ID is arr)
+ -        => ⎕ID                           (if ⎕ID is arr)
+ -        => (der_arr)
+ -        => ⍺ | ⍵                         (if ⍺/w is in namespace)
+ -        => ⍺⍺ | ⍵⍵                       (if ⍺⍺/ww is in namespace and is array)
+ -        => ⍬
  -
  - Tokens:
  - NUM: ¯?[0-9]*\.?[0-9]+
@@ -324,11 +324,14 @@ parseArr = chFst (squeezeNodes . concat) . matchAllThenMax [
               setSubscript (lhs, _, ss, _) = ArrInternalDyadFn (FnLeafFn fSubscript) lhs (squeezeNodes ss)
 
 parseArrComp :: [Token] -> Maybe (ArrTreeNode, [Token]) -- parse array "component"
-parseArrComp = matchOne [
-            -- scalar {scalar}
-            chFst (ArrLeaf . arrFromList . concat) . matchAllThenMax [parseScalar],
+parseArrComp = chFst (ArrLeaf . arrFromList . concat) . matchAllThenMax [parseScalar]
+
+parseScalar :: [Token] -> Maybe (Scalar, [Token])
+parseScalar = matchOne [
+            -- NUM
+            chFst (\n -> ScalarNum n) . matchNumLiteral,
             -- STR
-            chFst (ArrLeaf . arrFromList . map ScalarCh) . matchStrLiteral,
+            chFst (ScalarArr . ArrLeaf . arrFromList . map ScalarCh) . matchStrLiteral,
             -- ID
             -- TODO (where ID is arr)
             -- ⎕ID
@@ -338,14 +341,11 @@ parseArrComp = matchOne [
             -- ⍺⍺ | ⍵⍵
             -- TODO (where ⍺⍺ or ⍵⍵ is in namespace and is array)
             -- ⍬
-            chFst (\_ -> (ArrLeaf . arrFromList) []) . matchCh '⍬',
+            chFst (\_ -> (ScalarArr . ArrLeaf . arrFromList) []) . matchCh '⍬',
             -- (der_arr)
-            chFst (\(_, da, _) -> da) . matchT3 (
+            chFst (\(_, da, _) -> ScalarArr da) . matchT3 (
                 matchCh '(',
                 parseDerArr,
                 matchCh ')'
             )
     ]
-
-parseScalar :: [Token] -> Maybe (Scalar, [Token])
-parseScalar = chFst (\n -> ScalarNum n) . matchNumLiteral -- NUM

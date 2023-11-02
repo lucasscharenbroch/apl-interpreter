@@ -51,6 +51,7 @@ isScalarCh (ScalarCh _) = True
 isScalarCh _ = False
 
 instance Show Array where
+    show (Array [0] _) = ""
     show (Array shape cells) = concat . map (\(h, w, r, n) -> replicate n '\n' ++ showFn h w r) $ tups
         where tups = zip4 (groupBy subgNumRows heights) (replicate (length newlineCnts) widths) (groupBy subgNumRows justifiedCells) newlineCnts
               newlineCnts = 0 : map (\i -> sum . map (fromEnum) . map (\p -> i `mod` p == 0) $ shapeProducts) indicesExcept0
