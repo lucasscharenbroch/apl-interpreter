@@ -51,7 +51,7 @@ import Glyphs
  -
  - op_or_fn => / ⌿ \ ⍀                       (monadic operators / dyadic functions)
  -
- - arr => arr_comp[index_list] {arr_comp[index_list]}
+ - arr => arr_comp {arr_comp | [index_list]}
  -
  - arr_comp => scalar {scalar}
  -
@@ -184,7 +184,11 @@ matchNumLiteral _ = Nothing
 data ExprResult = ResArr ArrTreeNode
                 | ResFn FnTreeNode
                 | ResOp Operator
-    deriving (Show) -- TODO remove (debug)
+
+instance Show ExprResult where
+    show (ResArr a) = show a
+    show (ResFn f) = show f
+    show (ResOp o) = show o
 
 {- Parsing Functions -}
 
@@ -215,14 +219,14 @@ parseExpr = matchOne [
 -- parseDfnDecl :: [Token] -> Maybe (???, [Token])
 -- parseDfnExpr :: [Token] -> Maybe (???, [Token])
 
-parseIdxList :: [Token] -> Maybe ([ArrTreeNode], [Token])
-parseIdxList = chFst (foldIdxList . concat) . matchMax [
+parseIdxList :: [Token] -> Maybe (ArrTreeNode, [Token])
+parseIdxList = chFst (ArrLeafArr . arrFromList . map ScalarArr . foldIdxList . concat) . matchMax [
         matchOne [
             chFst (Right) . matchCh ';',
             chFst (Left) . parseDerArr
         ]
     ]
-    where emptyArr = ArrLeaf . arrFromList $ []
+    where emptyArr = ArrLeafArr . arrFromList $ []
           foldIdxList [] = [emptyArr]
           foldIdxList (Left arr:[]) = [arr]
           foldIdxList (Right _:rest) = emptyArr : foldIdxList rest
@@ -306,32 +310,30 @@ parseOpOrFn = matchOne [
     ]
 
 parseArr :: [Token] -> Maybe (ArrTreeNode, [Token]) -- parse an entire literal array
-parseArr = chFst (squeezeNodes . concat) . matchAllThenMax [
-        matchOne [
-            chFst (setSubscript) . matchT4 (
-                parseArrComp,
+parseArr = chFst (_roll) . matchT2 (
+        parseArrComp,
+        chFst (concat) . matchMax [ matchOne [
+            chFst (Left) . parseArrComp,
+            chFst (\(_, il, _) -> Right il) . matchT3 (
                 matchCh '[',
                 parseIdxList,
                 matchCh ']'
-            ),
-            parseArrComp
-        ]
-    ]
-        where squeezeNodes (a:[]) = a
-              squeezeNodes as = ArrLeaf . arrFromList . map (scalarify) $ as
-                where scalarify (ArrLeaf a@(Array [1] _)) = a `at` 0 -- don't box scalar
-                      scalarify a = ScalarArr a
-              setSubscript (lhs, _, ss, _) = ArrInternalDyadFn (FnLeafFn fSubscript) lhs (squeezeNodes ss)
+            )
+        ]]
+    )
+        where _roll (ss, xs) = foldl (_merge) (ArrLeafArr . arrFromList $ ss) xs
+              _merge a (Right i) = ArrInternalDyadFn (FnLeafFn fSubscript) a i
+              _merge a (Left ss) = ArrLeafArr . arrFromList $ (ScalarArr a) : ss
 
-parseArrComp :: [Token] -> Maybe (ArrTreeNode, [Token]) -- parse array "component"
-parseArrComp = chFst (ArrLeaf . arrFromList . concat) . matchAllThenMax [parseScalar]
+parseArrComp :: [Token] -> Maybe ([Scalar], [Token]) -- parse array "component"
+parseArrComp = chFst (concat) . matchAllThenMax [parseScalar]
 
 parseScalar :: [Token] -> Maybe (Scalar, [Token])
 parseScalar = matchOne [
             -- NUM
             chFst (\n -> ScalarNum n) . matchNumLiteral,
             -- STR
-            chFst (ScalarArr . ArrLeaf . arrFromList . map ScalarCh) . matchStrLiteral,
+            chFst (toScalarStr . map ScalarCh) . matchStrLiteral,
             -- ID
             -- TODO (where ID is arr)
             -- ⎕ID
@@ -341,11 +343,13 @@ parseScalar = matchOne [
             -- ⍺⍺ | ⍵⍵
             -- TODO (where ⍺⍺ or ⍵⍵ is in namespace and is array)
             -- ⍬
-            chFst (\_ -> (ScalarArr . ArrLeaf . arrFromList) []) . matchCh '⍬',
+            chFst (\_ -> (ScalarArr . ArrLeafArr . arrFromList) []) . matchCh '⍬',
             -- (der_arr)
-            chFst (\(_, da, _) -> ScalarArr da) . matchT3 (
+            chFst (\(_, da, _) -> ScalarArr . ArrInternalMonFn (FnLeafFn fUnwrapScalar) $ da) . matchT3 (
                 matchCh '(',
                 parseDerArr,
                 matchCh ')'
             )
     ]
+    where toScalarStr (c:[]) = c
+          toScalarStr s = ScalarArr . ArrLeafArr . arrFromList $ s

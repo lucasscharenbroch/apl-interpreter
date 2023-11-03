@@ -10,6 +10,13 @@ mainloop = do
     input <- getInputLine $ if isInterractive then "    " else ""
     case input of
         Nothing -> return ()
+        Just s -> do case parseStatement . tokenize $ s of
+                         Nothing -> outputStrLn "parse error"
+                         Just xs -> outputStrLn . show $ head xs
+                     mainloop
+
+
+{-
         Just s -> do outputStrLn $ "tokens: " ++ (show . length $ s)
                      outputStrLn $ "statement: " ++ (show . parseStatement . tokenize $ s)
                      outputStrLn $ "expr: " ++ (show . parseExpr . tokenize $ s)
@@ -23,6 +30,8 @@ mainloop = do
                      outputStrLn $ "all " ++ (show . matchAll [parseScalar] . tokenize $ s)
                      outputStrLn $ "max " ++ (show . matchMax [parseScalar] . tokenize $ s)
                      outputStrLn $ "scalar " ++ (show . parseScalar . tokenize $ s)
+
+-}
                      mainloop
 main :: IO ()
 main = runInputT settings mainloop

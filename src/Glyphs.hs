@@ -17,6 +17,13 @@ dOPH name _ _ = DyadFn ("derived from dyadic op: " ++ name) (dFPH "_derived_")
 {- Functions -}
 fSubscript = MonFn "[]" (mFPH "[]")
 fAssignToQuad = MonFn "⎕←" (mFPH "⎕←")
+fUnwrapScalar = MonFn ")(" (mFPH ")(") -- convert a scalar-array to a normal scalar, if possible
+
+{- TODO do this in unwrapScalar function
+where scalarify (ArrLeaf a@(Array [1] _)) = a `at` 0 -- don't box scalar
+      scalarify a = ScalarArr a
+-}
+
 
 fReplicate = DyadFn "/" (dFPH "/")
 fExpand = DyadFn "\\" (dFPH "\\")

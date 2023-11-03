@@ -95,13 +95,17 @@ shapedArrFromList shape cells = Array {
 arrFromList :: [Scalar] -> Array
 arrFromList l = shapedArrFromList [length l] l
 
+arrToList :: Array -> [Scalar]
+arrToList (Array shape cells) = [cells A.! i | i <- [0..(sz - 1)]]
+    where sz = foldr (*) 1 shape
+
 {- Functions and Operators -}
 
 data Function = MonFn String (ArrTreeNode -> Array)
               | DyadFn String (ArrTreeNode -> ArrTreeNode -> Array)
               | MonDyadFn String (ArrTreeNode -> Array) (ArrTreeNode -> ArrTreeNode -> Array)
 
-instance Show Function where -- TODO remove (debug)
+instance Show Function where
     show (MonFn name _) = name
     show (DyadFn name _)  = name
     show (MonDyadFn name _ _) = name
@@ -111,7 +115,7 @@ type OpArg = Either ArrTreeNode FnTreeNode
 data Operator = MonOp String (OpArg -> Function)
               | DyadOp String (OpArg -> OpArg -> Function)
 
-instance Show Operator where -- TODO remove (debug)
+instance Show Operator where
     show (MonOp name _) = name
     show (DyadOp name _) = name
 
@@ -128,7 +132,13 @@ data FnTreeNode = FnLeafFn Function
     deriving (Show) -- TODO remove (debug)
 
 -- "array tree": a tree that makes up a derived array
-data ArrTreeNode = ArrLeaf Array
+data ArrTreeNode = ArrLeafArr Array
+                 | ArrLeafSc Scalar
                  | ArrInternalMonFn FnTreeNode ArrTreeNode
                  | ArrInternalDyadFn FnTreeNode ArrTreeNode ArrTreeNode
-    deriving (Show) -- TODO remove (debug)
+
+instance Show ArrTreeNode where
+    show (ArrLeafArr a) = show a
+    show (ArrLeafSc s) = show s
+    show (ArrInternalMonFn f r) = show f ++ "(" ++ show r ++ ")"
+    show (ArrInternalDyadFn f l r) = "(" ++ show l ++ ")" ++ show f ++ "(" ++ show r ++ ")"
