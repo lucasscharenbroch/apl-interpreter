@@ -134,15 +134,16 @@ horizCat :: String -> String -> (String, Int)
 horizCat s1 s2 = (res, relOffset)
     where l1 = lines s1
           l2 = lines s2
-          relOffset = foldr (max) 0 $ zipWith ((-) . (+1)) (map (length) l1) (map (numLeading ' ') l2)
+          relOffset = foldr (max) (minBound :: Int) $ zipWith ((-) . (+1)) (map (length) l1) (map (numLeading ' ') l2)
           numLeading y (x:xs)
               | y == x = 1 + numLeading x xs
               | otherwise = 0
           numLeading x _ = 0
-          l2Just = map ((++) (replicate relOffset ' ')) l2
+          l1Augmented = map ((++) (replicate (max 0 (-relOffset)) ' ')) l1
+          l2Just = map ((++) (replicate (max 0 relOffset) ' ')) l2
+          l2Stripped = zipWith (\a b -> drop (length a)  b) l1' l2Just
           netLines = max (length l1) (length l2)
-          l1' = l1 ++ (replicate (netLines - (length l1)) "")
-          l2Stripped = zipWith (\a b -> drop (length a) b) l1' l2Just
+          l1' = l1Augmented ++ (replicate (netLines - (length l1)) "")
           l2' = l2Stripped ++ (replicate (netLines - (length l2)) "")
           res = (concat $ intersperse "\n" subtrees)
           subtrees = zipWith (++) l1' l2'
@@ -158,12 +159,13 @@ showFtnHelper (FnInternalDyadOp op f1 f2) = (res, padSz)
     where (s1, p1) = showFtnHelper f1
           (s2, p2) = showFtnHelper f2
           (subtrees, relOffset) = horizCat s1 s2
-          ln1Offset = ((p2 + relOffset - p1))
-          prePipeSpace =  ((ln1Offset - 1) `div` 2)
-          padSz = 1 + p1 + prePipeSpace
+          branchWidth = p2 + relOffset - p1 - 1
+          prePipeSpace =  (branchWidth - 1) `div` 2
+          branchPadSz = p1 - (min 0 relOffset)
+          padSz = 1 + prePipeSpace + branchPadSz
           pad = replicate padSz ' '
-          branches = "┌" ++ replicate prePipeSpace '─' ++ "┴" ++ replicate (ln1Offset - prePipeSpace - 2) '─' ++ "┐"
-          res = pad ++ (show op) ++ "\n" ++ replicate p1 ' ' ++ branches ++ "\n" ++ subtrees
+          branches = "┌" ++ replicate prePipeSpace '─' ++ "┴" ++ replicate (branchWidth - 1 - prePipeSpace) '─' ++ "┐"
+          res = pad ++ (show op) ++ "\n" ++ replicate branchPadSz ' ' ++ branches ++ "\n" ++ subtrees
 showFtnHelper (FnInternalAtop f1 f2) = (concat . intersperse "\n" . tail . lines $ res', padSz')
     where (res', padSz') = showFtnHelper (FnInternalDyadOp dummyOp f1 f2)
           dummyOp = DyadOp "_" (\_ _ -> MonFn "_" (\_ -> arrFromList []))
@@ -174,21 +176,15 @@ showFtnHelper (FnInternalFork f1 f2 f3) = (res, padSz)
           (merge2, offset2) = horizCat s1 s2
           (merge3, offset3) = horizCat merge2 s3
           leftBranchWidth = p2 + offset2 - p1
-          rightBranchWidth = p3 + offset3 - leftBranchWidth - p1
+          rightBranchWidth = p3 + offset3 - leftBranchWidth - branchPadSz
           branches = "┌" ++ replicate (leftBranchWidth - 1) '─' ++
                      "┼" ++ replicate (rightBranchWidth - 1) '─' ++ "┐"
-          padSz = p1 + leftBranchWidth
-          res = replicate p1 ' ' ++ branches ++ "\n" ++ merge3
+          branchPadSz = p1 - (min 0 offset2)
+          padSz = branchPadSz + leftBranchWidth
+          res = replicate branchPadSz ' ' ++ branches ++ "\n" ++ merge3
 
 instance Show FnTreeNode where
     show = fst . showFtnHelper
-
-{-
-┌ ┴ ┐
-
-┼
-─
--}
 
 -- "array tree": a tree that makes up a derived array
 data ArrTreeNode = ArrLeaf Array
