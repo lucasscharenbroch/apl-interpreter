@@ -130,6 +130,23 @@ data FnTreeNode = FnLeafFn Function
                 | FnInternalAtop FnTreeNode FnTreeNode
                 | FnInternalFork FnTreeNode FnTreeNode FnTreeNode
 
+horizCat :: String -> String -> (String, Int)
+horizCat s1 s2 = (res, relOffset)
+    where l1 = lines s1
+          l2 = lines s2
+          relOffset = foldr (max) 0 $ zipWith ((-) . (+1)) (map (length) l1) (map (numLeading ' ') l2)
+          numLeading y (x:xs)
+              | y == x = 1 + numLeading x xs
+              | otherwise = 0
+          numLeading x _ = 0
+          l2Just = map ((++) (replicate relOffset ' ')) l2
+          netLines = max (length l1) (length l2)
+          l1' = l1 ++ (replicate (netLines - (length l1)) "")
+          l2Stripped = zipWith (\a b -> drop (length a) b) l1' l2Just
+          l2' = l2Stripped ++ (replicate (netLines - (length l2)) "")
+          res = (concat $ intersperse "\n" subtrees)
+          subtrees = zipWith (++) l1' l2'
+
 showFtnHelper :: FnTreeNode -> (String, Int) -- node -> (shown, amount-of-padding)
 showFtnHelper (FnLeafFn fn) = (show fn, 0)
 showFtnHelper (FnLeafArr arr) = (show arr, 0)
@@ -140,27 +157,28 @@ showFtnHelper (FnInternalMonOp op fn) = (res, padSz + 2)
 showFtnHelper (FnInternalDyadOp op f1 f2) = (res, padSz)
     where (s1, p1) = showFtnHelper f1
           (s2, p2) = showFtnHelper f2
-          l1 = lines s1
-          l2 = lines s2
-          relOffset = foldr (max) 0 $ zipWith ((-) . (+1)) (map (length) l1) (map (numLeading ' ') l2)
-          numLeading y (x:xs)
-              | y == x = 1 + numLeading x xs
-              | otherwise = 0
-          numLeading x _ = 0
-          netLines = max (length l1) (length l2)
-          l1' = l1 ++ (replicate (netLines - (length l1)) "")
-          l2' = l2 ++ (replicate (netLines - (length l2)) "")
-          l2'' = zipWith (\a b -> drop (max 0 ((length a) - relOffset)) b) l1' l2'
+          (subtrees, relOffset) = horizCat s1 s2
           ln1Offset = ((p2 + relOffset - p1))
           prePipeSpace =  ((ln1Offset - 1) `div` 2)
           padSz = 1 + p1 + prePipeSpace
           pad = replicate padSz ' '
-          res = pad ++ (show op) ++ "\n" ++ replicate p1 ' ' ++ branches ++ "\n" ++ (concat $ intersperse "\n" subtrees)
           branches = "┌" ++ replicate prePipeSpace '─' ++ "┴" ++ replicate (ln1Offset - prePipeSpace - 2) '─' ++ "┐"
-          subtrees = zipWith (\a b -> a ++ (replicate (max 0 (relOffset - (length a))) ' ') ++ b) l1' l2''
+          res = pad ++ (show op) ++ "\n" ++ replicate p1 ' ' ++ branches ++ "\n" ++ subtrees
 showFtnHelper (FnInternalAtop f1 f2) = (concat . intersperse "\n" . tail . lines $ res', padSz')
     where (res', padSz') = showFtnHelper (FnInternalDyadOp dummyOp f1 f2)
           dummyOp = DyadOp "_" (\_ _ -> MonFn "_" (\_ -> arrFromList []))
+showFtnHelper (FnInternalFork f1 f2 f3) = (res, padSz)
+    where (s1, p1) = showFtnHelper f1
+          (s2, p2) = showFtnHelper f2
+          (s3, p3) = showFtnHelper f3
+          (merge2, offset2) = horizCat s1 s2
+          (merge3, offset3) = horizCat merge2 s3
+          leftBranchWidth = p2 + offset2 - p1
+          rightBranchWidth = p3 + offset3 - leftBranchWidth - p1
+          branches = "┌" ++ replicate (leftBranchWidth - 1) '─' ++
+                     "┼" ++ replicate (rightBranchWidth - 1) '─' ++ "┐"
+          padSz = p1 + leftBranchWidth
+          res = replicate p1 ' ' ++ branches ++ "\n" ++ merge3
 
 instance Show FnTreeNode where
     show = fst . showFtnHelper
