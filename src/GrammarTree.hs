@@ -1,6 +1,6 @@
 module GrammarTree where
 import qualified Data.Array as A
-import Data.List (intersperse, zip4)
+import Data.List (intersperse, zip4, elemIndex)
 
 data Scalar = ScalarNum (Either Int Double)
             | ScalarCh Char
@@ -129,16 +129,55 @@ data FnTreeNode = FnLeafFn Function
                 | FnInternalDyadOp Operator FnTreeNode FnTreeNode
                 | FnInternalAtop FnTreeNode FnTreeNode
                 | FnInternalFork FnTreeNode FnTreeNode FnTreeNode
-    deriving (Show) -- TODO remove (debug)
+
+showFtnHelper :: FnTreeNode -> (String, Int) -- node -> (shown, amount-of-padding)
+showFtnHelper (FnLeafFn fn) = (show fn, 0)
+showFtnHelper (FnLeafArr arr) = (show arr, 0)
+showFtnHelper (FnInternalMonOp op fn) = (res, padSz + 2)
+    where (showFn, padSz) = showFtnHelper fn
+          pad = replicate padSz ' '
+          res = pad ++ "  " ++ (show op) ++ "\n" ++ pad ++ "┌─┘\n" ++ showFn
+showFtnHelper (FnInternalDyadOp op f1 f2) = (res, padSz)
+    where (s1, p1) = showFtnHelper f1
+          (s2, p2) = showFtnHelper f2
+          l1 = lines s1
+          l2 = lines s2
+          relOffset = foldr (max) 0 $ zipWith ((-) . (+1)) (map (length) l1) (map (numLeading ' ') l2)
+          numLeading y (x:xs)
+              | y == x = 1 + numLeading x xs
+              | otherwise = 0
+          numLeading x _ = 0
+          netLines = max (length l1) (length l2)
+          l1' = l1 ++ (replicate (netLines - (length l1)) "")
+          l2' = l2 ++ (replicate (netLines - (length l2)) "")
+          l2'' = zipWith (\a b -> drop (max 0 ((length a) - relOffset)) b) l1' l2'
+          ln1Offset = ((p2 + relOffset - p1))
+          prePipeSpace =  ((ln1Offset - 1) `div` 2)
+          padSz = 1 + p1 + prePipeSpace
+          pad = replicate padSz ' '
+          res = pad ++ (show op) ++ "\n" ++ replicate p1 ' ' ++ branches ++ "\n" ++ (concat $ intersperse "\n" subtrees)
+          branches = "┌" ++ replicate prePipeSpace '─' ++ "┴" ++ replicate (ln1Offset - prePipeSpace - 2) '─' ++ "┐"
+          subtrees = zipWith (\a b -> a ++ (replicate (max 0 (relOffset - (length a))) ' ') ++ b) l1' l2''
+showFtnHelper (FnInternalAtop f1 f2) = (concat . intersperse "\n" . tail . lines $ res', padSz')
+    where (res', padSz') = showFtnHelper (FnInternalDyadOp dummyOp f1 f2)
+          dummyOp = DyadOp "_" (\_ _ -> MonFn "_" (\_ -> arrFromList []))
+
+instance Show FnTreeNode where
+    show = fst . showFtnHelper
+
+{-
+┌ ┴ ┐
+
+┼
+─
+-}
 
 -- "array tree": a tree that makes up a derived array
-data ArrTreeNode = ArrLeafArr Array
-                 | ArrLeafSc Scalar
+data ArrTreeNode = ArrLeaf Array
                  | ArrInternalMonFn FnTreeNode ArrTreeNode
                  | ArrInternalDyadFn FnTreeNode ArrTreeNode ArrTreeNode
 
 instance Show ArrTreeNode where
-    show (ArrLeafArr a) = show a
-    show (ArrLeafSc s) = show s
+    show (ArrLeaf a) = show a
     show (ArrInternalMonFn f r) = show f ++ "(" ++ show r ++ ")"
     show (ArrInternalDyadFn f l r) = "(" ++ show l ++ ")" ++ show f ++ "(" ++ show r ++ ")"

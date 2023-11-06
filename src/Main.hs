@@ -2,6 +2,7 @@ import System.Console.Haskeline
 import GlyphCompletion
 import Lex (Token, tokenize)
 import Parse
+import Eval
 import GrammarTree -- TODO remove
 
 mainloop :: InputT IO ()
@@ -12,8 +13,15 @@ mainloop = do
         Nothing -> return ()
         Just s -> do case parseStatement . tokenize $ s of
                          Nothing -> outputStrLn "parse error"
-                         Just xs -> outputStrLn . show $ head xs
+                         Just xs -> outputStrLn . show . head $ xs
                      mainloop
+{-
+        Just s -> do case parseStatement . tokenize $ s of
+                         Nothing -> outputStrLn "parse error"
+                         Just xs -> case head xs of
+                                        (ResArr a) -> outputStrLn . show . evalArrTree $ a
+                     mainloop
+-}
 
 
 {-

@@ -220,13 +220,13 @@ parseExpr = matchOne [
 -- parseDfnExpr :: [Token] -> Maybe (???, [Token])
 
 parseIdxList :: [Token] -> Maybe (ArrTreeNode, [Token])
-parseIdxList = chFst (ArrLeafArr . arrFromList . map ScalarArr . foldIdxList . concat) . matchMax [
+parseIdxList = chFst (ArrLeaf . arrFromList . map ScalarArr . foldIdxList . concat) . matchMax [
         matchOne [
             chFst (Right) . matchCh ';',
             chFst (Left) . parseDerArr
         ]
     ]
-    where emptyArr = ArrLeafArr . arrFromList $ []
+    where emptyArr = ArrLeaf . arrFromList $ []
           foldIdxList [] = [emptyArr]
           foldIdxList (Left arr:[]) = [arr]
           foldIdxList (Right _:rest) = emptyArr : foldIdxList rest
@@ -253,6 +253,7 @@ parseTrain = matchOne [
     ] where
     tranify nodes
         | length nodes == 1 = head nodes
+        | length nodes == 2 = FnInternalAtop (nodes !! 0) (nodes !! 1)
         | even . length $ nodes = FnInternalAtop (head nodes) (forkify . tail $ nodes)
         | otherwise = forkify nodes
         where forkify (n1:n2:n3:[]) = FnInternalFork n1 n2 n3
@@ -275,6 +276,8 @@ parseDerFn = matchOne [
 parseOp :: [Token] -> Maybe (Operator, [Token])
 parseOp = matchOne [
         -- TODO big list of operators
+        chFst (\_ -> oSelfie) . matchCh '⍨',
+        chFst (\_ -> oAtop) . matchCh '⍤',
         chFst (\(_, da, _) -> oAxisSpec da) . matchT3 (
             matchCh '[',
             parseDerArr,
@@ -321,9 +324,9 @@ parseArr = chFst (_roll) . matchT2 (
             )
         ]]
     )
-        where _roll (ss, xs) = foldl (_merge) (ArrLeafArr . arrFromList $ ss) xs
+        where _roll (ss, xs) = foldl (_merge) (ArrLeaf . arrFromList $ ss) xs
               _merge a (Right i) = ArrInternalDyadFn (FnLeafFn fSubscript) a i
-              _merge a (Left ss) = ArrLeafArr . arrFromList $ (ScalarArr a) : ss
+              _merge a (Left ss) = ArrLeaf . arrFromList $ (ScalarArr a) : ss
 
 parseArrComp :: [Token] -> Maybe ([Scalar], [Token]) -- parse array "component"
 parseArrComp = chFst (concat) . matchAllThenMax [parseScalar]
@@ -343,13 +346,13 @@ parseScalar = matchOne [
             -- ⍺⍺ | ⍵⍵
             -- TODO (where ⍺⍺ or ⍵⍵ is in namespace and is array)
             -- ⍬
-            chFst (\_ -> (ScalarArr . ArrLeafArr . arrFromList) []) . matchCh '⍬',
+            chFst (\_ -> (ScalarArr . ArrLeaf . arrFromList) []) . matchCh '⍬',
             -- (der_arr)
-            chFst (\(_, da, _) -> ScalarArr . ArrInternalMonFn (FnLeafFn fUnwrapScalar) $ da) . matchT3 (
+            chFst (\(_, da, _) -> ScalarArr da) . matchT3 (
                 matchCh '(',
                 parseDerArr,
                 matchCh ')'
             )
     ]
     where toScalarStr (c:[]) = c
-          toScalarStr s = ScalarArr . ArrLeafArr . arrFromList $ s
+          toScalarStr s = ScalarArr . ArrLeaf . arrFromList $ s

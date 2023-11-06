@@ -17,7 +17,6 @@ dOPH name _ _ = DyadFn ("derived from dyadic op: " ++ name) (dFPH "_derived_")
 {- Functions -}
 fSubscript = MonFn "[]" (mFPH "[]")
 fAssignToQuad = MonFn "⎕←" (mFPH "⎕←")
-fUnwrapScalar = MonFn ")(" (mFPH ")(") -- convert a scalar-array to a normal scalar, if possible
 
 {- TODO do this in unwrapScalar function
 where scalarify (ArrLeaf a@(Array [1] _)) = a `at` 0 -- don't box scalar
@@ -39,5 +38,8 @@ oReduce = MonOp "/" (mOPH "/")
 oScan = MonOp "\\" (mOPH "\\")
 oReduceFirst = MonOp "⌿" (mOPH "⌿")
 oScanFirst = MonOp "⍀" (mOPH "⍀")
+
+oSelfie = MonOp "⍨" (mOPH "⍨")
+oAtop = DyadOp "⍤" (dOPH "⍤")
 
 oAxisSpec axis = MonOp "[]" (mOPH "[]") -- TODO remove `axis' arg and add arg to called fn
