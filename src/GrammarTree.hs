@@ -191,7 +191,29 @@ data ArrTreeNode = ArrLeaf Array
                  | ArrInternalMonFn FnTreeNode ArrTreeNode
                  | ArrInternalDyadFn FnTreeNode ArrTreeNode ArrTreeNode
 
+showAtnHelper :: ArrTreeNode -> (String, Int)
+showAtnHelper (ArrLeaf a) = (show a, 0)
+showAtnHelper (ArrInternalMonFn f a) = (res, padSz + 2)
+    where (showFn, padSz) = showAtnHelper a
+          pad = replicate padSz ' '
+          res = paddedF ++ pad ++ "┌─┘\n" ++ showFn
+          paddedF = unlines . map ((pad ++ "  ") ++) . lines $ boxify [length flines] [fwidth] [[flines]]
+          flines = lines $ show f
+          fwidth = foldl (max) 0 $ map (length) flines
+showAtnHelper (ArrInternalDyadFn f a1 a2) = (res, padSz)
+    where (s1, p1) = showAtnHelper a1
+          (s2, p2) = showAtnHelper a2
+          (subtrees, relOffset) = horizCat s1 s2
+          branchWidth = p2 + (max 0 relOffset) - branchPadSz - 1
+          prePipeSpace =  (branchWidth - 1) `div` 2
+          branchPadSz = p1 + (max 0 (-relOffset))
+          padSz = 1 + prePipeSpace + branchPadSz
+          pad = replicate padSz ' '
+          branches = "┌" ++ replicate prePipeSpace '─' ++ "┴" ++ replicate (branchWidth - 1 - prePipeSpace) '─' ++ "┐"
+          res = paddedF ++ replicate branchPadSz ' ' ++ branches ++ "\n" ++ subtrees
+          paddedF = unlines . map (pad ++) . lines $ boxify [length flines] [fwidth] [[flines]]
+          flines = lines $ show f
+          fwidth = foldl (max) 0 $ map (length) flines
+
 instance Show ArrTreeNode where
-    show (ArrLeaf a) = show a
-    show (ArrInternalMonFn f r) = show f ++ "(" ++ show r ++ ")"
-    show (ArrInternalDyadFn f l r) = "(" ++ show l ++ ")" ++ show f ++ "(" ++ show r ++ ")"
+    show = fst . showAtnHelper
