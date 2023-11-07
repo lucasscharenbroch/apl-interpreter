@@ -148,24 +148,29 @@ horizCat s1 s2 = (res, relOffset)
           res = (concat $ intersperse "\n" subtrees)
           subtrees = zipWith (++) l1' l2'
 
-showFtnHelper :: FnTreeNode -> (String, Int) -- node -> (shown, amount-of-padding)
-showFtnHelper (FnLeafFn fn) = (show fn, 0)
-showFtnHelper (FnLeafArr arr) = (show arr, 0)
-showFtnHelper (FnInternalMonOp op fn) = (res, padSz + 2)
-    where (showFn, padSz) = showFtnHelper fn
-          pad = replicate padSz ' '
-          res = pad ++ "  " ++ (show op) ++ "\n" ++ pad ++ "┌─┘\n" ++ showFn
-showFtnHelper (FnInternalDyadOp op f1 f2) = (res, padSz)
-    where (s1, p1) = showFtnHelper f1
-          (s2, p2) = showFtnHelper f2
-          (subtrees, relOffset) = horizCat s1 s2
+showMonTreeHelper :: (String, Int) -> String -> (String, Int)
+showMonTreeHelper (child, padSz) node = (res, padSz + 2)
+    where res = node' ++ "\n" ++ pad ++ "┌─┘\n" ++ child
+          pad = (replicate (padSz) ' ')
+          node' = concat . intersperse "\n" . map ((pad ++ "  ") ++) $ lines node
+
+showDyadTreeHelper :: (String, Int) -> (String, Int) -> String -> (String, Int)
+showDyadTreeHelper (s1, p1) (s2, p2) node = (res, padSz)
+    where (subtrees, relOffset) = horizCat s1 s2
           branchWidth = p2 + (max 0 relOffset) - branchPadSz - 1
           prePipeSpace =  (branchWidth - 1) `div` 2
           branchPadSz = p1 + (max 0 (-relOffset))
           padSz = 1 + prePipeSpace + branchPadSz
           pad = replicate padSz ' '
           branches = "┌" ++ replicate prePipeSpace '─' ++ "┴" ++ replicate (branchWidth - 1 - prePipeSpace) '─' ++ "┐"
-          res = pad ++ (show op) ++ "\n" ++ replicate branchPadSz ' ' ++ branches ++ "\n" ++ subtrees
+          res = node' ++ "\n" ++ replicate branchPadSz ' ' ++ branches ++ "\n" ++ subtrees
+          node' = concat . intersperse "\n" . map (pad ++) $ lines node
+
+showFtnHelper :: FnTreeNode -> (String, Int) -- node -> (shown, amount-of-padding)
+showFtnHelper (FnLeafFn fn) = (show fn, 0)
+showFtnHelper (FnLeafArr arr) = (show arr, 0)
+showFtnHelper (FnInternalMonOp op fn) = showMonTreeHelper (showFtnHelper fn) (show op)
+showFtnHelper (FnInternalDyadOp op f1 f2) = showDyadTreeHelper (showFtnHelper f1) (showFtnHelper f2) (show op)
 showFtnHelper (FnInternalAtop f1 f2) = (concat . intersperse "\n" . tail . lines $ res', padSz')
     where (res', padSz') = showFtnHelper (FnInternalDyadOp dummyOp f1 f2)
           dummyOp = DyadOp "_" (\_ _ -> MonFn "_" (\_ -> arrFromList []))
@@ -191,29 +196,17 @@ data ArrTreeNode = ArrLeaf Array
                  | ArrInternalMonFn FnTreeNode ArrTreeNode
                  | ArrInternalDyadFn FnTreeNode ArrTreeNode ArrTreeNode
 
+singleBoxify :: String -> String
+singleBoxify x = boxify [length xlines] [xwidth] [[xlines]]
+    where xlines = lines x
+          xwidth = foldl (max) 0 $ map (length) xlines
+
 showAtnHelper :: ArrTreeNode -> (String, Int)
 showAtnHelper (ArrLeaf a) = (show a, 0)
-showAtnHelper (ArrInternalMonFn f a) = (res, padSz + 2)
-    where (showFn, padSz) = showAtnHelper a
-          pad = replicate padSz ' '
-          res = paddedF ++ pad ++ "┌─┘\n" ++ showFn
-          paddedF = unlines . map ((pad ++ "  ") ++) . lines $ boxify [length flines] [fwidth] [[flines]]
-          flines = lines $ show f
-          fwidth = foldl (max) 0 $ map (length) flines
-showAtnHelper (ArrInternalDyadFn f a1 a2) = (res, padSz)
-    where (s1, p1) = showAtnHelper a1
-          (s2, p2) = showAtnHelper a2
-          (subtrees, relOffset) = horizCat s1 s2
-          branchWidth = p2 + (max 0 relOffset) - branchPadSz - 1
-          prePipeSpace =  (branchWidth - 1) `div` 2
-          branchPadSz = p1 + (max 0 (-relOffset))
-          padSz = 1 + prePipeSpace + branchPadSz
-          pad = replicate padSz ' '
-          branches = "┌" ++ replicate prePipeSpace '─' ++ "┴" ++ replicate (branchWidth - 1 - prePipeSpace) '─' ++ "┐"
-          res = paddedF ++ replicate branchPadSz ' ' ++ branches ++ "\n" ++ subtrees
-          paddedF = unlines . map (pad ++) . lines $ boxify [length flines] [fwidth] [[flines]]
-          flines = lines $ show f
-          fwidth = foldl (max) 0 $ map (length) flines
+showAtnHelper (ArrInternalMonFn f a) = showMonTreeHelper (showAtnHelper a) boxedf
+    where boxedf = singleBoxify $ show f
+showAtnHelper (ArrInternalDyadFn f a1 a2) = showDyadTreeHelper (showAtnHelper a1) (showAtnHelper a2) boxedf
+    where boxedf = singleBoxify $ show f
 
 instance Show ArrTreeNode where
     show = fst . showAtnHelper
