@@ -159,9 +159,9 @@ showFtnHelper (FnInternalDyadOp op f1 f2) = (res, padSz)
     where (s1, p1) = showFtnHelper f1
           (s2, p2) = showFtnHelper f2
           (subtrees, relOffset) = horizCat s1 s2
-          branchWidth = p2 + relOffset - p1 - 1
+          branchWidth = p2 + (max 0 relOffset) - branchPadSz - 1
           prePipeSpace =  (branchWidth - 1) `div` 2
-          branchPadSz = p1 - (min 0 relOffset)
+          branchPadSz = p1 + (max 0 (-relOffset))
           padSz = 1 + prePipeSpace + branchPadSz
           pad = replicate padSz ' '
           branches = "┌" ++ replicate prePipeSpace '─' ++ "┴" ++ replicate (branchWidth - 1 - prePipeSpace) '─' ++ "┐"
@@ -175,12 +175,12 @@ showFtnHelper (FnInternalFork f1 f2 f3) = (res, padSz)
           (s3, p3) = showFtnHelper f3
           (merge2, offset2) = horizCat s1 s2
           (merge3, offset3) = horizCat merge2 s3
-          leftBranchWidth = p2 + offset2 - p1
-          rightBranchWidth = p3 + offset3 - leftBranchWidth - branchPadSz
-          branches = "┌" ++ replicate (leftBranchWidth - 1) '─' ++
-                     "┼" ++ replicate (rightBranchWidth - 1) '─' ++ "┐"
-          branchPadSz = p1 - (min 0 offset2)
-          padSz = branchPadSz + leftBranchWidth
+          leftBranchWidth = p2 + (max 0 offset2) + (max 0 (-offset3)) - branchPadSz - 1
+          rightBranchWidth = p3 + (max 0 offset3) - branchPadSz - 1 - leftBranchWidth - 1
+          branches = "┌" ++ replicate (leftBranchWidth) '─' ++
+                     "┼" ++ replicate (rightBranchWidth) '─' ++ "┐"
+          branchPadSz = p1 + (max 0 (-offset2)) + (max 0 (-offset3))
+          padSz = branchPadSz + leftBranchWidth + 1
           res = replicate branchPadSz ' ' ++ branches ++ "\n" ++ merge3
 
 instance Show FnTreeNode where
