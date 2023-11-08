@@ -4,13 +4,13 @@ import Data.List (intersperse, zip4, elemIndex)
 
 data Scalar = ScalarNum (Either Int Double)
             | ScalarCh Char
-            | ScalarArr ArrTreeNode
+            | ScalarArr Array
 
 instance Show Scalar where
     show (ScalarNum (Left i)) = show i
     show (ScalarNum (Right d)) = show d
     show (ScalarCh c) = [c]
-    show (ScalarArr atn) = show atn -- TODO evaluate then show
+    show (ScalarArr a) = show a
 
 data Array = Array {
                shape :: [Int]
@@ -193,6 +193,7 @@ instance Show FnTreeNode where
 
 -- "array tree": a tree that makes up a derived array
 data ArrTreeNode = ArrLeaf Array
+                 | ArrInternalSubscript ArrTreeNode [ArrTreeNode]
                  | ArrInternalMonFn FnTreeNode ArrTreeNode
                  | ArrInternalDyadFn FnTreeNode ArrTreeNode ArrTreeNode
 

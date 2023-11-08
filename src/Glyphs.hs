@@ -15,7 +15,7 @@ dOPH :: String -> OpArg -> OpArg -> Function
 dOPH name _ _ = DyadFn ("derived from dyadic op: " ++ name) (dFPH "_derived_")
 
 {- Functions -}
-fSubscript = MonFn "[]" (mFPH "[]")
+fImplicitCat = MonFn "()" (mFPH "()")
 fAssignToQuad = MonFn "⎕←" (mFPH "⎕←")
 
 {- TODO do this in unwrapScalar function

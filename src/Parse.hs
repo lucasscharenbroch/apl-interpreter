@@ -219,8 +219,8 @@ parseExpr = matchOne [
 -- parseDfnDecl :: [Token] -> Maybe (???, [Token])
 -- parseDfnExpr :: [Token] -> Maybe (???, [Token])
 
-parseIdxList :: [Token] -> Maybe (ArrTreeNode, [Token])
-parseIdxList = chFst (ArrLeaf . arrFromList . map ScalarArr . foldIdxList . concat) . matchMax [
+parseIdxList :: [Token] -> Maybe ([ArrTreeNode], [Token])
+parseIdxList = chFst (foldIdxList . concat) . matchMax [
         matchOne [
             chFst (Right) . matchCh ';',
             chFst (Left) . parseDerArr
@@ -324,19 +324,20 @@ parseArr = chFst (_roll) . matchT2 (
             )
         ]]
     )
-        where _roll (ss, xs) = foldl (_merge) (ArrLeaf . arrFromList $ ss) xs
-              _merge a (Right i) = ArrInternalDyadFn (FnLeafFn fSubscript) a i
-              _merge a (Left ss) = ArrLeaf . arrFromList $ (ScalarArr a) : ss
+        where _roll (a, xs) = foldl (_merge) a xs
+              _merge a (Right i) = ArrInternalSubscript a i
+              _merge a (Left a2) = ArrInternalDyadFn (FnLeafFn fImplicitCat) a a2
 
-parseArrComp :: [Token] -> Maybe ([Scalar], [Token]) -- parse array "component"
-parseArrComp = chFst (concat) . matchAllThenMax [parseScalar]
+parseArrComp :: [Token] -> Maybe (ArrTreeNode, [Token]) -- parse array "component"
+parseArrComp = chFst (applyImplCat . concat) . matchAllThenMax [parseScalar]
+    where applyImplCat as@(_:_) = foldr (ArrInternalDyadFn (FnLeafFn fImplicitCat)) (last as) (init as)
 
-parseScalar :: [Token] -> Maybe (Scalar, [Token])
+parseScalar :: [Token] -> Maybe (ArrTreeNode, [Token])
 parseScalar = matchOne [
             -- NUM
-            chFst (\n -> ScalarNum n) . matchNumLiteral,
+            chFst (\n -> ArrLeaf . arrFromList . (:[]) . ScalarNum $ n) . matchNumLiteral,
             -- STR
-            chFst (toScalarStr . map ScalarCh) . matchStrLiteral,
+            chFst (ArrLeaf . arrFromList . map ScalarCh) . matchStrLiteral,
             -- ID
             -- TODO (where ID is arr)
             -- ⎕ID
@@ -346,13 +347,11 @@ parseScalar = matchOne [
             -- ⍺⍺ | ⍵⍵
             -- TODO (where ⍺⍺ or ⍵⍵ is in namespace and is array)
             -- ⍬
-            chFst (\_ -> (ScalarArr . ArrLeaf . arrFromList) []) . matchCh '⍬',
+            chFst (\_ -> (ArrLeaf . arrFromList) []) . matchCh '⍬',
             -- (der_arr)
-            chFst (\(_, da, _) -> ScalarArr da) . matchT3 (
+            chFst (\(_, da, _) -> da) . matchT3 (
                 matchCh '(',
                 parseDerArr,
                 matchCh ')'
             )
     ]
-    where toScalarStr (c:[]) = c
-          toScalarStr s = ScalarArr . ArrLeaf . arrFromList $ s
