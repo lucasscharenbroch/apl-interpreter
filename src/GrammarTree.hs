@@ -38,6 +38,11 @@ justify height width ls = map (colPad) rowPadded
     where rowPadded = ls ++ (replicate (height - (length ls)) "")
           colPad s = replicate (width - (length s)) ' ' ++ s
 
+leftJustify :: Int -> Int -> [String] -> [String]
+leftJustify height width ls = map (colPad) rowPadded
+    where rowPadded = ls ++ (replicate (height - (length ls)) "")
+          colPad s = s ++ replicate (width - (length s)) ' '
+
 groupBy :: Int -> [a] -> [[a]]
 groupBy _ [] = []
 groupBy n x = [take n x] ++ groupBy n (drop n x)
@@ -198,8 +203,9 @@ data ArrTreeNode = ArrLeaf Array
                  | ArrInternalDyadFn FnTreeNode ArrTreeNode ArrTreeNode
 
 singleBoxify :: String -> String
-singleBoxify x = boxify [length xlines] [xwidth] [[xlines]]
+singleBoxify x = boxify [xheight] [xwidth] [[leftJustify xheight xwidth xlines]]
     where xlines = lines x
+          xheight = length xlines
           xwidth = foldl (max) 0 $ map (length) xlines
 
 showAtnHelper :: ArrTreeNode -> (String, Int)
@@ -208,6 +214,8 @@ showAtnHelper (ArrInternalMonFn f a) = showMonTreeHelper (showAtnHelper a) boxed
     where boxedf = singleBoxify $ show f
 showAtnHelper (ArrInternalDyadFn f a1 a2) = showDyadTreeHelper (showAtnHelper a1) (showAtnHelper a2) boxedf
     where boxedf = singleBoxify $ show f
+showAtnHelper (ArrInternalSubscript a is) = showDyadTreeHelper (showAtnHelper a) (showIs is, 0) "[]"
+    where showIs = foldl (\s a -> fst . horizCat s $ (singleBoxify . show $ a)) ""
 
 instance Show ArrTreeNode where
     show = fst . showAtnHelper
