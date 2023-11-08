@@ -31,7 +31,7 @@ fExpand = DyadFn "\\" (dFPH "\\")
 fReplicateFirst = DyadFn "⌿" (dFPH "⌿")
 fExpandFirst = DyadFn "⍀" (dFPH "⍀")
 
-fPlus = MonDyadFn "+" (mFPH "+") (dFPH "+")
+fPlus = MonDyadFn "+" F.conjugate F.add
 fIota = MonDyadFn "⍳" (mFPH "⍳") (dFPH "⍳")
 
 {- Operators -}

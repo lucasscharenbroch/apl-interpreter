@@ -3,6 +3,7 @@
 test_files=(
         "array_literal"
         "function_tree"
+        "add_array_literals"
     )
 
 for file in ${test_files[*]}; do

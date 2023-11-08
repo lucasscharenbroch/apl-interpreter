@@ -110,6 +110,13 @@ arrCat x y = arrFromList $ (arrToList x) ++ (arrToList y)
 arrCons :: Scalar -> Array -> Array
 arrCons x y = arrFromList $ x : (arrToList y)
 
+arrZipWith :: (Scalar -> Scalar -> Scalar) -> Array -> Array -> Array
+arrZipWith f x y
+    | xsz /= ysz = undefined
+    | otherwise = shapedArrFromList (shape x) [(x `at` i) `f` (y `at` i) | i <- [0..xsz]]
+    where xsz = foldr (*) 1 $ shape x
+          ysz = foldr (*) 1 $ shape y
+
 {- Functions and Operators -}
 
 data Function = MonFn String (ArrTreeNode -> Array)

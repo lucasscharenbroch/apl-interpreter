@@ -35,6 +35,7 @@ evalArrTree (ArrInternalDyadFn ft at1 at2) = case evalFnTree ft of
     (Left (DyadFn _ f)) -> f at1 at2
     (Left (MonDyadFn _ _ f)) -> f at1 at2
     _ -> undefined -- TODO exception
+evalArrTree (ArrInternalSubscript a is) = undefined -- TODO implement
 
 evalFnTree :: FnTreeNode -> Either Function Array
 evalFnTree (FnLeafFn f) = Left f
