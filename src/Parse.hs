@@ -181,13 +181,13 @@ matchNumLiteral _ = Nothing
 
 {- Data Types -}
 
-data ExprResult = ResArr ArrTreeNode
-                | ResFn FnTreeNode
+data ExprResult = ResAtn ArrTreeNode
+                | ResFtn FnTreeNode
                 | ResOp Operator
 
 instance Show ExprResult where
-    show (ResArr a) = show a
-    show (ResFn f) = show f
+    show (ResAtn a) = show a
+    show (ResFtn f) = show f
     show (ResOp o) = show o
 
 {- Parsing Functions -}
@@ -206,13 +206,13 @@ parseExprList = chFst (\(car, cdr) -> car : (map snd . concat) cdr) . matchT2 (
 
 parseExpr :: [Token] -> Maybe (ExprResult, [Token])
 parseExpr = matchOne [
-        chFst (\(_, _, a) -> ResArr . ArrInternalMonFn (FnLeafFn fAssignToQuad) $ a) . matchT3 (
+        chFst (\(_, _, a) -> ResAtn . ArrInternalMonFn (FnLeafFn fAssignToQuad) $ a) . matchT3 (
             matchCh '⎕',
             matchCh '←',
             parseDerArr
         ),
-        chFst (ResArr) . parseDerArr,
-        chFst (ResFn) . parseTrain,
+        chFst (ResAtn) . parseDerArr,
+        chFst (ResFtn) . parseTrain,
         chFst (ResOp) . parseOp
     ]
 
@@ -337,7 +337,7 @@ parseScalar = matchOne [
             -- NUM
             chFst (\n -> ArrLeaf . arrFromList . (:[]) . ScalarNum $ n) . matchNumLiteral,
             -- STR
-            chFst (ArrLeaf . arrFromList . map ScalarCh) . matchStrLiteral,
+            chFst (toScalarStr . map ScalarCh) . matchStrLiteral,
             -- ID
             -- TODO (where ID is arr)
             -- ⎕ID
@@ -347,11 +347,13 @@ parseScalar = matchOne [
             -- ⍺⍺ | ⍵⍵
             -- TODO (where ⍺⍺ or ⍵⍵ is in namespace and is array)
             -- ⍬
-            chFst (\_ -> (ArrLeaf . arrFromList) []) . matchCh '⍬',
+            chFst (\_ -> ArrInternalMonFn (FnLeafFn fImplicitGroup) $ (ArrLeaf . arrFromList) []) . matchCh '⍬',
             -- (der_arr)
-            chFst (\(_, da, _) -> da) . matchT3 (
+            chFst (\(_, da, _) -> ArrInternalMonFn (FnLeafFn fImplicitGroup) da) . matchT3 (
                 matchCh '(',
                 parseDerArr,
                 matchCh ')'
             )
     ]
+    where toScalarStr (c:[]) = ArrLeaf . arrFromList $ [c]
+          toScalarStr s = ArrInternalMonFn (FnLeafFn fImplicitGroup) (ArrLeaf . arrFromList $ s)

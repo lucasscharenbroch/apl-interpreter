@@ -13,7 +13,11 @@ mainloop = do
         Nothing -> return ()
         Just s -> do case parseStatement . tokenize $ s of
                          Nothing -> outputStrLn "parse error"
-                         Just xs -> outputStrLn . show . head $ xs
+                         Just xs -> do -- outputStrLn . show . head $ xs
+                                       case head xs of
+                                           (ResAtn a) -> outputStrLn . show . evalArrTree $ a
+                                           (ResFtn f) -> outputStrLn . show $ f
+                                           (ResOp o) -> outputStrLn . show $ o
                      mainloop
 {-
         Just s -> do case parseStatement . tokenize $ s of

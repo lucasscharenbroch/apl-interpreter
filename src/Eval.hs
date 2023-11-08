@@ -1,6 +1,5 @@
 module Eval where
 import GrammarTree
-import Glyphs
 
 atop :: FnTreeNode -> FnTreeNode -> Function
 atop f' g' = case (f, g) of

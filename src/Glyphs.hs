@@ -1,5 +1,6 @@
 module Glyphs where
 import GrammarTree
+import qualified Functions as F
 
 {- placeholders (TODO remove) -}
 mFPH :: String -> ArrTreeNode -> Array
@@ -15,7 +16,8 @@ dOPH :: String -> FnTreeNode -> FnTreeNode -> Function
 dOPH name _ _ = DyadFn ("derived from dyadic op: " ++ name) (dFPH "_derived_")
 
 {- Functions -}
-fImplicitCat = MonFn "()" (mFPH "()")
+fImplicitCat = DyadFn ")(" F.implicitCat
+fImplicitGroup = MonFn "()" F.implicitGroup
 fAssignToQuad = MonFn "⎕←" (mFPH "⎕←")
 
 {- TODO do this in unwrapScalar function

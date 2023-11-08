@@ -104,6 +104,12 @@ arrToList :: Array -> [Scalar]
 arrToList (Array shape cells) = [cells A.! i | i <- [0..(sz - 1)]]
     where sz = foldr (*) 1 shape
 
+arrCat :: Array -> Array -> Array
+arrCat x y = arrFromList $ (arrToList x) ++ (arrToList y)
+
+arrCons :: Scalar -> Array -> Array
+arrCons x y = arrFromList $ x : (arrToList y)
+
 {- Functions and Operators -}
 
 data Function = MonFn String (ArrTreeNode -> Array)

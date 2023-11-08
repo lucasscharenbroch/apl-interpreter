@@ -1,11 +1,11 @@
 #!/bin/bash
 
 test_files=(
-        # "array_literal"
+        "array_literal"
         "function_tree"
     )
 
-for file in ${test_files}; do
+for file in ${test_files[*]}; do
     echo "Running ${file}..."
 
     box_prefix=$']box on -trains=tree\n'
