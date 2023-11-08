@@ -115,10 +115,8 @@ instance Show Function where
     show (DyadFn name _)  = name
     show (MonDyadFn name _ _) = name
 
-type OpArg = Either ArrTreeNode FnTreeNode
-
-data Operator = MonOp String (OpArg -> Function)
-              | DyadOp String (OpArg -> OpArg -> Function)
+data Operator = MonOp String (FnTreeNode -> Function)
+              | DyadOp String (FnTreeNode -> FnTreeNode -> Function)
 
 instance Show Operator where
     show (MonOp name _) = name
@@ -140,10 +138,7 @@ horizCat s1 s2 = (res, relOffset)
     where l1 = lines s1
           l2 = lines s2
           relOffset = foldr (max) (minBound :: Int) $ zipWith ((-) . (+1)) (map (length) l1) (map (numLeading ' ') l2)
-          numLeading y (x:xs)
-              | y == x = 1 + numLeading x xs
-              | otherwise = 0
-          numLeading x _ = 0
+          numLeading y = length . fst . span (==y)
           l1Augmented = map ((++) (replicate (max 0 (-relOffset)) ' ')) l1
           l2Just = map ((++) (replicate (max 0 relOffset) ' ')) l2
           l2Stripped = zipWith (\a b -> drop (length a)  b) l1' l2Just

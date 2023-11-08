@@ -8,10 +8,10 @@ mFPH name _ = arrFromList . map (ScalarCh) $ "result of monadic fn: " ++ name
 dFPH :: String -> ArrTreeNode -> ArrTreeNode -> Array
 dFPH name _ _ = arrFromList . map (ScalarCh) $ "result of dyadic fn: " ++ name
 
-mOPH :: String -> OpArg -> Function
+mOPH :: String -> FnTreeNode -> Function
 mOPH name _ = DyadFn ("derived from monadic op: " ++ name) (dFPH "_derived_")
 
-dOPH :: String -> OpArg -> OpArg -> Function
+dOPH :: String -> FnTreeNode -> FnTreeNode -> Function
 dOPH name _ _ = DyadFn ("derived from dyadic op: " ++ name) (dFPH "_derived_")
 
 {- Functions -}
