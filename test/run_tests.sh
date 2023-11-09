@@ -1,10 +1,11 @@
 #!/bin/bash
 
 test_files=(
-        "array_literal"
-        "function_tree"
+        "shape"
+        "comments"
         "add_array_literals"
-        "misc"
+        "function_tree"
+        "array_literal"
     )
 
 for file in ${test_files[*]}; do

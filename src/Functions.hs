@@ -5,6 +5,7 @@ import GrammarTree
 {- Constants -}
 
 intMax = maxBound :: Int
+iO = 1 :: Int -- index origin
 
 {- Helpers -}
 
@@ -16,6 +17,11 @@ rankMorph (x, y)
     | otherwise = undefined -- TODO throw rank/length error
         where xs = replicate (foldr (*) 1 (shape y)) (at x 0)
               ys = replicate (foldr (*) 1 (shape x)) (at y 0)
+
+toIntVec :: Array -> [Int]
+toIntVec = map (toInt) . arrToList
+    where toInt (ScalarNum (Left i)) = i
+          toInt _ = undefined -- TODO exception
 
 {- Specialized Functions (non-primitive) -}
 
@@ -51,11 +57,15 @@ add x' y'= arrZipWith (plus) x y
 conjugate :: ArrTreeNode -> Array
 conjugate = evalArrTree
 
+iota :: ArrTreeNode -> Array
+iota _ = arrFromList []
+
+indexOf :: ArrTreeNode -> ArrTreeNode -> Array
+indexOf _ _ = arrFromList []
+
 reshape :: ArrTreeNode -> ArrTreeNode -> Array
 reshape x y = shapedArrFromList newShape . take newSize . concat . replicate intMax $ baseList
-    where newShape = map (toInt) . arrToList $ evalArrTree x
-          toInt (ScalarNum (Left i)) = i
-          toInt _ = undefined -- TODO exception
+    where newShape = toIntVec $ evalArrTree x
           newSize = foldr (*) 1 newShape
           baseList = case arrToList . evalArrTree $ y of
                      [] -> [ScalarNum (Left 0)]

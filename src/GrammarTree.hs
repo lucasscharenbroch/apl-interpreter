@@ -33,8 +33,8 @@ boxify heights widths cellRows = concat . intersperse "\n" $ [topLine] ++ ls ++ 
           lsGrouped = map (map (\ss -> "│" ++ (concat . intersperse "│" $ ss) ++ "│")) stringRowGroups
           stringRowGroups = map (rowify) $ zip cellRows heights
 
-justify :: Int -> Int -> [String] -> [String] -- height -> width -> lines -> justified-lines
-justify height width ls = map (colPad) rowPadded
+rightJustify :: Int -> Int -> [String] -> [String] -- height -> width -> lines -> justified-lines
+rightJustify height width ls = map (colPad) rowPadded
     where rowPadded = ls ++ (replicate (height - (length ls)) "")
           colPad s = replicate (width - (length s)) ' ' ++ s
 
@@ -60,26 +60,26 @@ instance Show Array where
         | foldr (*) 1 shape == 0 = ""
     show (Array shape cells) = concat . map (\(h, w, r, n) -> replicate n '\n' ++ showFn h w r) $ tups
         where tups = zip4 (groupBy subgNumRows heights) (replicate (length newlineCnts) widths) (groupBy subgNumRows justifiedCells) newlineCnts
-              newlineCnts = 0 : map (\i -> (+1) . sum . map (fromEnum) . map (\p -> i `mod` p == 0) $ shapeProducts) indicesExcept0
+              newlineCnts = 0 : map (\i -> (newlineInc) . sum . map (fromEnum) . map (\p -> i `mod` p == 0) $ shapeProducts) indicesExcept0
               indicesExcept0 = tail [0,subgSz..(sz - 1)]
-              shapeProducts = scanl (*) subgSz (drop 2 shape)
+              shapeProducts = scanl (*) subgSz (drop 2 shape')
               subgSz = (shape' !! 0) * (shape' !! 1)
               subgNumRows = subgSz `div` (length widths)
-              showFn = if any (isScalarArr) $ cellsAsList
-                       then boxify
+              (showFn, justifyFn, newlineInc) = if any (isScalarArr) $ cellsAsList
+                       then (boxify, leftJustify, id)
                        else if all (isScalarCh) $ cellsAsList
-                            then gridify "" -- print strings without spaces in grid
-                            else gridify " "
+                            then (gridify "", rightJustify, (+1)) -- print strings without spaces in grid
+                            else (gridify " ", rightJustify, (+1))
               cellsAsList = map (cells A.!) [0..(sz - 1)] :: [Scalar]
               heights = map (foldr (max . fst) 0) heightWidth
               widths = foldr (zipWith (\hw mx -> max mx (snd hw))) (replicate numCols 0) heightWidth
-              justifiedCells = map (map (\((h, w), s) -> justify h w (lines s))) $ zipWith (zip) justHeightWidth strMatrix
+              justifiedCells = map (map (\((h, w), s) -> justifyFn h w (lines s))) $ zipWith (zip) justHeightWidth strMatrix
               justHeightWidth = [[(h, w) | w <- widths] | h <- heights]
               heightWidth =  [[getHeightWidthAt (i * numCols + j) | j <- [0..(numCols - 1)]] | i <- [0..(numRows - 1)]]
               strMatrix =  [[show $ cells A.! (i * numCols + j) | j <- [0..(numCols - 1)]] | i <- [0..(numRows - 1)]]
-              shape' = if length shape == 1
-                       then 1 : shape
-                       else shape
+              shape' = case reverse shape of
+                       (c:[]) -> 1 : [c]
+                       (c:r:ds) -> r : c : ds
               sz = foldr (*) 1 shape
               numCols = shape' !! 1
               numRows = sz `div` numCols

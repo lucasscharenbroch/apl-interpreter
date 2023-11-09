@@ -29,7 +29,7 @@ fReplicateFirst = DyadFn "⌿" (dFPH "⌿")
 fExpandFirst = DyadFn "⍀" (dFPH "⍀")
 
 fPlus = MonDyadFn "+" F.conjugate F.add
-fIota = MonDyadFn "⍳" (mFPH "⍳") (dFPH "⍳")
+fIota = MonDyadFn "⍳" F.iota F.indexOf
 fShape = MonDyadFn "⍴" F.shapeOf F.reshape
 
 {- Operators -}
