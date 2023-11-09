@@ -2,6 +2,10 @@ module Functions where
 import Eval
 import GrammarTree
 
+{- Constants -}
+
+intMax = maxBound :: Int
+
 {- Helpers -}
 
 rankMorph :: ((Array, Array) -> (Array, Array))
@@ -46,3 +50,16 @@ add x' y'= arrZipWith (plus) x y
 
 conjugate :: ArrTreeNode -> Array
 conjugate = evalArrTree
+
+reshape :: ArrTreeNode -> ArrTreeNode -> Array
+reshape x y = shapedArrFromList newShape . take newSize . concat . replicate intMax $ baseList
+    where newShape = map (toInt) . arrToList $ evalArrTree x
+          toInt (ScalarNum (Left i)) = i
+          toInt _ = undefined -- TODO exception
+          newSize = foldr (*) 1 newShape
+          baseList = case arrToList . evalArrTree $ y of
+                     [] -> [ScalarNum (Left 0)]
+                     ss -> ss
+
+shapeOf :: ArrTreeNode -> Array
+shapeOf x = arrFromList . map (ScalarNum . Left) . shape . evalArrTree $ x

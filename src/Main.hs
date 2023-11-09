@@ -18,6 +18,7 @@ mainloop = do
                                            (ResAtn a) -> outputStrLn . show . evalArrTree $ a
                                            (ResFtn f) -> outputStrLn . show $ f
                                            (ResOp o) -> outputStrLn . show $ o
+                                           (ResNull) -> return ()
                      mainloop
 
 {-

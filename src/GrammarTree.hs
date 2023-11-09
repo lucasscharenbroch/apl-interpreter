@@ -56,10 +56,11 @@ isScalarCh (ScalarCh _) = True
 isScalarCh _ = False
 
 instance Show Array where
-    show (Array [0] _) = ""
+    show (Array shape _)
+        | foldr (*) 1 shape == 0 = ""
     show (Array shape cells) = concat . map (\(h, w, r, n) -> replicate n '\n' ++ showFn h w r) $ tups
         where tups = zip4 (groupBy subgNumRows heights) (replicate (length newlineCnts) widths) (groupBy subgNumRows justifiedCells) newlineCnts
-              newlineCnts = 0 : map (\i -> sum . map (fromEnum) . map (\p -> i `mod` p == 0) $ shapeProducts) indicesExcept0
+              newlineCnts = 0 : map (\i -> (+1) . sum . map (fromEnum) . map (\p -> i `mod` p == 0) $ shapeProducts) indicesExcept0
               indicesExcept0 = tail [0,subgSz..(sz - 1)]
               shapeProducts = scanl (*) subgSz (drop 2 shape)
               subgSz = (shape' !! 0) * (shape' !! 1)

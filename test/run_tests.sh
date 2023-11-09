@@ -4,6 +4,7 @@ test_files=(
         "array_literal"
         "function_tree"
         "add_array_literals"
+        "misc"
     )
 
 for file in ${test_files[*]}; do

@@ -188,6 +188,7 @@ matchComment _ = Nothing
 data ExprResult = ResAtn ArrTreeNode
                 | ResFtn FnTreeNode
                 | ResOp Operator
+                | ResNull
 
 instance Show ExprResult where
     show (ResAtn a) = show a
@@ -208,7 +209,8 @@ parseExpr = (=<<) (Just . fst) . matchOne [
         ),
         chFst (\(atn, _) -> ResAtn atn) . matchT2 (parseDerArr, matchOne [matchComment, matchEos]),
         chFst (\(ftn, _) -> ResFtn ftn) . matchT2(parseTrain, matchOne [matchComment, matchEos]),
-        chFst (\(op, _) -> ResOp op) . matchT2(parseOp, matchOne [matchComment, matchEos])
+        chFst (\(op, _) -> ResOp op) . matchT2(parseOp, matchOne [matchComment, matchEos]),
+        chFst (\_ -> ResNull) . matchOne [matchComment, matchEos]
     ]
 
 -- parseDfnDecl :: [Token] -> Maybe (???, [Token])
@@ -287,6 +289,7 @@ parseFn :: [Token] -> Maybe (FnTreeNode, [Token])
 parseFn = matchOne [
         chFst (\_ -> FnLeafFn fPlus) . matchCh '+',
         chFst (\_ -> FnLeafFn fIota) . matchCh '⍳',
+        chFst (\_ -> FnLeafFn fShape) . matchCh '⍴',
         -- TODO big list of functions
         -- TODO ⎕ID
         -- TODO ⍺⍺ ⌊ ⍵⍵ | ∇
