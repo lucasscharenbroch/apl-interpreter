@@ -11,26 +11,17 @@ mainloop = do
     input <- getInputLine $ if isInterractive then "    " else ""
     case input of
         Nothing -> return ()
-        Just s -> do case parseStatement . tokenize $ s of
+        Just s -> do case parseExpr . tokenize $ s of
                          Nothing -> outputStrLn "parse error"
-                         Just xs -> do -- outputStrLn . show . head $ xs
-                                       case head xs of
+                         Just x -> do -- outputStrLn . show $ x
+                                       case x of
                                            (ResAtn a) -> outputStrLn . show . evalArrTree $ a
                                            (ResFtn f) -> outputStrLn . show $ f
                                            (ResOp o) -> outputStrLn . show $ o
                      mainloop
-{-
-        Just s -> do case parseStatement . tokenize $ s of
-                         Nothing -> outputStrLn "parse error"
-                         Just xs -> case head xs of
-                                        (ResArr a) -> outputStrLn . show . evalArrTree $ a
-                     mainloop
--}
-
 
 {-
         Just s -> do outputStrLn $ "tokens: " ++ (show . length $ s)
-                     outputStrLn $ "statement: " ++ (show . parseStatement . tokenize $ s)
                      outputStrLn $ "expr: " ++ (show . parseExpr . tokenize $ s)
                      outputStrLn $ "der arr: " ++ (show . parseDerArr . tokenize $ s)
                      outputStrLn $ "train: " ++ (show . parseTrain . tokenize $ s)
@@ -42,9 +33,9 @@ mainloop = do
                      outputStrLn $ "all " ++ (show . matchAll [parseScalar] . tokenize $ s)
                      outputStrLn $ "max " ++ (show . matchMax [parseScalar] . tokenize $ s)
                      outputStrLn $ "scalar " ++ (show . parseScalar . tokenize $ s)
-
--}
                      mainloop
+-}
+
 main :: IO ()
 main = runInputT settings mainloop
     where settings = setComplete completeGlyph defaultSettings

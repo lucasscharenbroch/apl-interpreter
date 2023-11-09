@@ -5,11 +5,7 @@ import Glyphs
 
 {-
  -
- - statement => expr_list <EOS>              (EOS is end of statement: no tokens left)
- -
- - expr_list => expr {⋄ expr}
- -
- - expr => [([⎕ ←] der_arr) | train | op] ⍝ <ignore-until-eol>
+ - expr => [([⎕ ←] der_arr) | train | op] [⍝ <ignore-until-EOS> | EOS ]
  -
  - dfn_decl => { <skip tokens> }             (result is operator iff ⍺⍺ or ⍵⍵ ∊ tokens)
  -
@@ -179,6 +175,14 @@ matchNumLiteral :: [Token] -> Maybe (Either Int Double, [Token])
 matchNumLiteral (NumTok n:ts) = Just (n, ts)
 matchNumLiteral _ = Nothing
 
+matchEos :: [Token] -> Maybe ((), [Token])
+matchEos [] = Just ((), [])
+matchEos _ = Nothing
+
+matchComment :: [Token] -> Maybe ((), [Token])
+matchComment (ChTok '⍝':_) = Just((), [])
+matchComment _ = Nothing
+
 {- Data Types -}
 
 data ExprResult = ResAtn ArrTreeNode
@@ -192,28 +196,19 @@ instance Show ExprResult where
 
 {- Parsing Functions -}
 
-parseStatement :: [Token] -> Maybe [ExprResult]
-parseStatement toks = case (parseExprList toks) of
-    Nothing -> Nothing
-    Just (res, []) -> Just res
-    _ -> Nothing
+-- TODO here
 
-parseExprList :: [Token] -> Maybe ([ExprResult], [Token])
-parseExprList = chFst (\(car, cdr) -> car : (map snd . concat) cdr) . matchT2 (
-        parseExpr,
-        matchMax [matchT2 (matchCh '⋄', parseExpr)]
-    )
-
-parseExpr :: [Token] -> Maybe (ExprResult, [Token])
-parseExpr = matchOne [
-        chFst (\(_, _, a) -> ResAtn . ArrInternalMonFn (FnLeafFn fAssignToQuad) $ a) . matchT3 (
+parseExpr :: [Token] -> Maybe ExprResult
+parseExpr = (=<<) (Just . fst) . matchOne [
+        chFst (\(_, _, a, _) -> ResAtn . ArrInternalMonFn (FnLeafFn fAssignToQuad) $ a) . matchT4 (
             matchCh '⎕',
             matchCh '←',
-            parseDerArr
+            parseDerArr,
+            matchOne [matchComment, matchEos]
         ),
-        chFst (ResAtn) . parseDerArr,
-        chFst (ResFtn) . parseTrain,
-        chFst (ResOp) . parseOp
+        chFst (\(atn, _) -> ResAtn atn) . matchT2 (parseDerArr, matchOne [matchComment, matchEos]),
+        chFst (\(ftn, _) -> ResFtn ftn) . matchT2(parseTrain, matchOne [matchComment, matchEos]),
+        chFst (\(op, _) -> ResOp op) . matchT2(parseOp, matchOne [matchComment, matchEos])
     ]
 
 -- parseDfnDecl :: [Token] -> Maybe (???, [Token])

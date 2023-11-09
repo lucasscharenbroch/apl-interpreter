@@ -1,8 +1,10 @@
 module Glyphs where
 import GrammarTree
 import qualified Functions as F
+import qualified Operators as O
 
 {- placeholders (TODO remove) -}
+
 mFPH :: String -> ArrTreeNode -> Array
 mFPH name _ = arrFromList . map (ScalarCh) $ "result of monadic fn: " ++ name
 
@@ -16,15 +18,10 @@ dOPH :: String -> FnTreeNode -> FnTreeNode -> Function
 dOPH name _ _ = DyadFn ("derived from dyadic op: " ++ name) (dFPH "_derived_")
 
 {- Functions -}
+
 fImplicitCat = DyadFn ")(" F.implicitCat
 fImplicitGroup = MonFn "()" F.implicitGroup
 fAssignToQuad = MonFn "⎕←" (mFPH "⎕←")
-
-{- TODO do this in unwrapScalar function
-where scalarify (ArrLeaf a@(Array [1] _)) = a `at` 0 -- don't box scalar
-      scalarify a = ScalarArr a
--}
-
 
 fReplicate = DyadFn "/" (dFPH "/")
 fExpand = DyadFn "\\" (dFPH "\\")
@@ -41,7 +38,7 @@ oScan = MonOp "\\" (mOPH "\\")
 oReduceFirst = MonOp "⌿" (mOPH "⌿")
 oScanFirst = MonOp "⍀" (mOPH "⍀")
 
-oSelfie = MonOp "⍨" (mOPH "⍨")
+oSelfie = MonOp "⍨" O.selfie
 oAtop = DyadOp "⍤" (dOPH "⍤")
 
-oAxisSpec axis = MonOp "[]" (mOPH "[]") -- TODO remove `axis' arg and add arg to called fn
+oAxisSpec axis = MonOp ("[" ++ (show axis) ++ "]") (mOPH "[]") -- TODO remove `axis' arg and add arg to called fn
