@@ -1,6 +1,7 @@
 #!/bin/bash
 
 test_files=(
+        "iota"
         "shape"
         "comments"
         "add_array_literals"

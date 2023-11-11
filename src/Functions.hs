@@ -35,7 +35,9 @@ alongAxis a ax
                    then [1]
                    else take (ax - iO) (shape a) ++ drop (ax - iO + 1) (shape a)
           sz = foldr (*) 1 (shape a)
-          subarrayAt i = shapedArrFromList shape' . map (atl a) $ indicesAt i
+          subarrayAt i = case map (atl a) $ indicesAt i of
+              ((ScalarArr a):[]) -> a
+              l -> shapedArrFromList shape' l
           indicesAt i =  map (\is -> take (ax - iO) is ++ [i] ++ drop (ax - iO) is) $ map (calcIndex) [0..(sz `div` n - 1)]
           indexMod = tail . reverse $ scanl (*) 1 (reverse shape')
           calcIndex i = map (\(e, m) -> i `div` m `mod` e) $ zip shape' indexMod
@@ -97,6 +99,7 @@ iota x = shapedArrFromList x' [toScalar . map (ScalarNum . Left . (+iO)) . calcI
 indexOf :: ArrTreeNode -> ArrTreeNode -> Array
 indexOf x' y'
     | xRank > yRank = undefined -- TODO throw rank error
+    | xRank == 1 && (head . shape $ x) <= 1 = undefined -- TODO throw rank error
     | (tail . shape $ x) /= (drop (1 + yRank - xRank) . shape $ y) = undefined -- TODO throw length error
     | otherwise = arrMap (findIndexInXs) ys
     where x = evalArrTree x'
