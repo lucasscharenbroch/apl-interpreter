@@ -5,6 +5,7 @@ import Data.List (intersperse, zip4, elemIndex)
 data Scalar = ScalarNum (Either Int Double)
             | ScalarCh Char
             | ScalarArr Array
+    deriving (Eq)
 
 instance Show Scalar where
     show (ScalarNum (Left i)) = show i
@@ -16,6 +17,7 @@ data Array = Array {
                shape :: [Int]
              , cells :: A.Array Int Scalar
              }
+    deriving (Eq)
 
 rowify :: ([[String]], Int) -> [[String]]
 rowify (row, height) = foldr (zipWith (:)) (replicate height []) $ row
@@ -58,6 +60,7 @@ isScalarCh _ = False
 instance Show Array where
     show (Array shape _)
         | foldr (*) 1 shape == 0 = ""
+        | shape == [] = singleBoxify "\n" -- not the same as zilde
     show (Array shape cells) = concat . map (\(h, w, r, n) -> replicate n '\n' ++ showFn h w r) $ tups
         where tups = zip4 (groupBy subgNumRows heights) (replicate (length newlineCnts) widths) (groupBy subgNumRows justifiedCells) newlineCnts
               newlineCnts = 0 : map (\i -> (newlineInc) . sum . map (fromEnum) . map (\p -> i `mod` p == 0) $ shapeProducts) indicesExcept0
@@ -91,6 +94,10 @@ instance Show Array where
 at :: Array -> Int -> Scalar
 at a i = (cells a) A.! i
 
+atl :: Array -> [Int] -> Scalar
+atl a is = (cells a) A.! i
+    where i = sum $ zipWith (*) (tail . scanr (*) 1 . shape $ a) is
+
 shapedArrFromList :: [Int] -> [Scalar] -> Array
 shapedArrFromList shape cells = Array {
                                   shape = shape
@@ -117,6 +124,9 @@ arrZipWith f x y
     | otherwise = shapedArrFromList (shape x) [(x `at` i) `f` (y `at` i) | i <- [0..xsz]]
     where xsz = foldr (*) 1 $ shape x
           ysz = foldr (*) 1 $ shape y
+
+arrMap :: (Scalar -> Scalar) -> Array -> Array
+arrMap f a = shapedArrFromList (shape a) . map (f) . arrToList $ a
 
 {- Functions and Operators -}
 

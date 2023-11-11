@@ -1,6 +1,7 @@
 module Functions where
 import Eval
 import GrammarTree
+import Data.List (elemIndex)
 
 {- Constants -}
 
@@ -22,6 +23,33 @@ toIntVec :: Array -> [Int]
 toIntVec = map (toInt) . arrToList
     where toInt (ScalarNum (Left i)) = i
           toInt _ = undefined -- TODO exception
+
+alongAxis :: Array -> Int -> [Array]
+alongAxis a ax
+    | ax - iO >= (length . shape $ a) = undefined -- TODO throw rank error: invalid axis
+    | (length . shape $ a) == 0 = []
+    | foldr (*) 1 (shape a) == 0 = []
+    | otherwise = map (subarrayAt) [0..(n - 1)]
+    where n = (shape a) !! (ax - iO)
+          shape' = if (length . shape $ a) == 1
+                   then [1]
+                   else take (ax - iO) (shape a) ++ drop (ax - iO + 1) (shape a)
+          sz = foldr (*) 1 (shape a)
+          subarrayAt i = shapedArrFromList shape' . map (atl a) $ indicesAt i
+          indicesAt i =  map (\is -> take (ax - iO) is ++ [i] ++ drop (ax - iO) is) $ map (calcIndex) [0..(sz `div` n - 1)]
+          indexMod = tail . reverse $ scanl (*) 1 (reverse shape')
+          calcIndex i = map (\(e, m) -> i `div` m `mod` e) $ zip shape' indexMod
+
+alongRank :: Array -> Int -> Array
+alongRank a r
+    | foldr (*) 1 (shape a) == 0 = arrFromList []
+    | r <= 0 = a
+    | r >= length (shape a) = arrFromList [ScalarArr a]
+    | otherwise = shapedArrFromList outerShape . map (ScalarArr . shapedArrFromList innerShape) . groupBy groupSz . arrToList $ a
+    where outerShape = take n $ shape a
+          innerShape = drop n $ shape a
+          n = (length $ shape a) - r
+          groupSz = foldr (*) 1 innerShape
 
 {- Specialized Functions (non-primitive) -}
 
@@ -58,10 +86,30 @@ conjugate :: ArrTreeNode -> Array
 conjugate = evalArrTree
 
 iota :: ArrTreeNode -> Array
-iota _ = arrFromList []
+iota x = shapedArrFromList x' [toScalar . map (ScalarNum . Left . (+iO)) . calcIndex $ i | i <- [0..(sz - 1)]]
+    where x' = toIntVec $ evalArrTree x
+          sz = foldr (*) 1 x'
+          indexMod = reverse . init $ scanl (*) 1 (reverse x')
+          calcIndex i = map (\(e, m) -> i `div` m `mod` e) $ zip x' indexMod
+          toScalar (s:[]) = s
+          toScalar (ss) = ScalarArr . arrFromList $ ss
 
 indexOf :: ArrTreeNode -> ArrTreeNode -> Array
-indexOf _ _ = arrFromList []
+indexOf x' y'
+    | xRank > yRank = undefined -- TODO throw rank error
+    | (tail . shape $ x) /= (drop (1 + yRank - xRank) . shape $ y) = undefined -- TODO throw length error
+    | otherwise = arrMap (findIndexInXs) ys
+    where x = evalArrTree x'
+          y = evalArrTree y'
+          xRank = length . shape $ x
+          yRank = length . shape $ y
+          xs = alongAxis x 1
+          ys = alongRank y (xRank - 1)
+          findIndexInXs e = case elemIndex (toArray e) xs of
+              Nothing -> ScalarNum . Left $ iO + (head . shape $ x)
+              Just i -> ScalarNum . Left $ iO + i
+          toArray (ScalarArr a) = a
+          toArray s = arrFromList [s]
 
 reshape :: ArrTreeNode -> ArrTreeNode -> Array
 reshape x y = shapedArrFromList newShape . take newSize . concat . replicate intMax $ baseList
