@@ -12,8 +12,8 @@ mainloop = do
     case input of
         Nothing -> return ()
         Just s -> do case parseExpr . tokenize $ s of
-                         Nothing -> outputStrLn "parse error"
-                         Just x -> do -- outputStrLn . show $ x
+                         Nothing -> -- outputStrLn "parse error"
+                         Just x -> do outputStrLn . show $ x
                                       case x of
                                           (ResAtn a) -> outputStrLn . show . evalArrTree $ a
                                           (ResFtn f) -> outputStrLn . show $ f
