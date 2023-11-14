@@ -11,7 +11,7 @@ import Glyphs
  -
  - index_list => (der_arr|;)*
  -
- - der_arr => train der_arr
+ - der_arr => der_fn der_arr
  -         => arr der_fn der_arr
  -         => arr
  -
@@ -231,7 +231,7 @@ parseIdxList = chFst (foldIdxList . concat) . matchMax [
 
 parseDerArr :: [Token] -> Maybe (ArrTreeNode, [Token])
 parseDerArr = matchOne [
-        chFst (\(t, da) -> ArrInternalMonFn t da) . matchT2 (parseTrain, parseDerArr),
+        chFst (\(f, da) -> ArrInternalMonFn f da) . matchT2 (parseDerFn, parseDerArr),
         chFst (\(lhs, f, rhs) -> ArrInternalDyadFn f lhs rhs) . matchT3 (
             parseArr,
             parseDerFn,
