@@ -1,12 +1,20 @@
 module Lex where
-import Text.Regex.Posix
+import Text.Regex.PCRE.Light (compile, match, Regex, utf8)
+import Data.ByteString.UTF8 (fromString, toString)
+
+makeRegex :: String -> Regex
+makeRegex s = compile (fromString s) [utf8]
+
+(=~) :: String -> Regex -> String
+(=~) s r = case match r (fromString s) [] of
+           (Just (bs:_)) -> toString bs
+           _ -> ""
 
 whitespace = " \t\n"
-glyphs = "←+-×÷*⍟⌹○!?|⌈⌊⊥⊤⊣⊢=≠≤<>≥≡≢∨∧⍲⍱↑↓⊂⊃⊆⌷⍋⍒⍳⍸∊⍷∪∩~/\\⌿⍀,⍪⍴⌽⊖⍉¨⍨⍣.∘⍤⍥@⎕⍠⌸⌺⌶⍎⍕⋄⍝⍵⍺∇¯⍬"
-floatRegex = "^¯?[0-9]*\\.[0-9]+"
-intRegex = "^¯?[0-9]+"
-strRegex = "^'([^']|'')*'"
-idRegex = "^[a-zA-Z_][a-zA-Z_0-9]*"
+floatRegex = makeRegex "^¯?[0-9]*\\.[0-9]+"
+intRegex = makeRegex "^¯?[0-9]+"
+strRegex = makeRegex "^'([^']|'')*'"
+idRegex = makeRegex "^[a-zA-Z_][a-zA-Z_0-9]*"
 
 stod :: String -> Double
 stod ('¯':xs) = read $ '-' : xs
@@ -34,7 +42,6 @@ tokenize :: [Char] -> [Token]
 tokenize [] = []
 tokenize xs
     | elem (head xs) whitespace = tokenize $ tail xs
-    | elem (head xs) glyphs = ChTok (head xs) : (tokenize $ tail xs)
     | (length floatMatch) > 0 = NumTok (Right . stod $ floatMatch) : tokenize (drop (length floatMatch) xs)
     | (length intMatch) > 0 = NumTok (Left . stoi $ intMatch) : tokenize (drop (length intMatch) xs)
     | (length strMatch) > 0 = StrTok (strip strMatch) : tokenize (drop (length strMatch) xs)

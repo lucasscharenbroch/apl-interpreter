@@ -8,8 +8,12 @@ data Scalar = ScalarNum (Either Int Double)
     deriving (Eq)
 
 instance Show Scalar where
-    show (ScalarNum (Left i)) = show i
-    show (ScalarNum (Right d)) = show d
+    show (ScalarNum (Left i))
+        | i >= 0 = show i
+        | otherwise = '¯' : (tail . show) i
+    show (ScalarNum (Right d))
+        | d >= 0 = show d
+        | otherwise = '¯' : (tail . show) d
     show (ScalarCh c) = [c]
     show (ScalarArr a) = show a
 
