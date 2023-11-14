@@ -1,6 +1,7 @@
 #!/bin/bash
 
 test_files=(
+        "numeric_fns"
         "iota"
         "shape"
         "comments"

@@ -114,6 +114,14 @@ indexOf x' y'
           toArray (ScalarArr a) = a
           toArray s = arrFromList [s]
 
+negate :: ArrTreeNode -> Array
+negate x' = arrMap (_negate) x
+    where x = evalArrTree x'
+          _negate (ScalarNum (Left i)) = ScalarNum . Left $ -i
+          _negate (ScalarNum (Right d)) = ScalarNum . Right $ -d
+          _negate (ScalarArr a) = ScalarArr $ arrMap (_negate) a
+          _negate (ScalarCh _) = undefined -- TODO domain error
+
 reshape :: ArrTreeNode -> ArrTreeNode -> Array
 reshape x y = shapedArrFromList newShape . take newSize . concat . replicate intMax $ baseList
     where newShape = toIntVec $ evalArrTree x
@@ -124,3 +132,15 @@ reshape x y = shapedArrFromList newShape . take newSize . concat . replicate int
 
 shapeOf :: ArrTreeNode -> Array
 shapeOf x = arrFromList . map (ScalarNum . Left) . shape . evalArrTree $ x
+
+subtract :: ArrTreeNode -> ArrTreeNode -> Array
+subtract x' y'= arrZipWith (minus) x y
+    where (x, y) = rankMorph (evalArrTree x', evalArrTree y')
+          minus (ScalarNum (Left n)) (ScalarNum (Left m)) = ScalarNum . Left $ (n - m)
+          minus (ScalarNum (Left n)) (ScalarNum (Right m)) = ScalarNum . Right $ (fromIntegral n) - m
+          minus (ScalarNum (Right n)) (ScalarNum (Left m)) = ScalarNum . Right $ n - (fromIntegral m)
+          minus (ScalarNum (Right n)) (ScalarNum (Right m)) = ScalarNum . Right $ n - m
+          minus n@(ScalarNum _) (ScalarArr arr) = ScalarArr $ Functions.subtract (ArrLeaf $ arrFromList [n]) (ArrLeaf arr)
+          minus (ScalarArr a1) (ScalarArr a2) = ScalarArr $ Functions.subtract (ArrLeaf a1) (ArrLeaf a2)
+          minus (ScalarArr arr) n@(ScalarNum _) = ScalarArr $ Functions.subtract (ArrLeaf arr) (ArrLeaf $ arrFromList [n])
+          minus _ _ = undefined -- TODO domain error
