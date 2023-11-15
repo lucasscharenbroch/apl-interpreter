@@ -53,6 +53,20 @@ alongRank a r
           n = (length $ shape a) - r
           groupSz = foldr (*) 1 innerShape
 
+arithFn :: (Int -> Int -> Int) -> (Double -> Double -> Double) -> ArrTreeNode -> ArrTreeNode -> Array
+arithFn fi' fd' x' y'= arrZipWith (f) x y
+    where (x, y) = rankMorph (evalArrTree x', evalArrTree y')
+          f :: Scalar -> Scalar -> Scalar
+          f (ScalarNum (Left n)) (ScalarNum (Left m)) = ScalarNum . Left $ n `fi'` m
+          f (ScalarNum (Left n)) (ScalarNum (Right m)) = ScalarNum . Right $ (fromIntegral n) `fd'` m
+          f (ScalarNum (Right n)) (ScalarNum (Left m)) = ScalarNum . Right $ n `fd'` (fromIntegral m)
+          f (ScalarNum (Right n)) (ScalarNum (Right m)) = ScalarNum . Right $ n `fd'` m
+          f n@(ScalarNum _) (ScalarArr arr) = ScalarArr $ rec (ArrLeaf $ arrFromList [n]) (ArrLeaf arr)
+          f (ScalarArr a1) (ScalarArr a2) = ScalarArr $ rec (ArrLeaf a1) (ArrLeaf a2)
+          f (ScalarArr arr) n@(ScalarNum _) = ScalarArr $ rec (ArrLeaf arr) (ArrLeaf $ arrFromList [n])
+          f _ _ = undefined -- TODO domain error
+          rec = arithFn fi' fd'
+
 {- Specialized Functions (non-primitive) -}
 
 implicitCat :: ArrTreeNode -> ArrTreeNode -> Array
@@ -73,19 +87,24 @@ implicitGroup = evalArrTree
 {- General Functions -}
 
 add :: ArrTreeNode -> ArrTreeNode -> Array
-add x' y'= arrZipWith (plus) x y
-    where (x, y) = rankMorph (evalArrTree x', evalArrTree y')
-          plus (ScalarNum (Left n)) (ScalarNum (Left m)) = ScalarNum . Left $ n + m
-          plus (ScalarNum (Left n)) (ScalarNum (Right m)) = ScalarNum . Right $ (fromIntegral n) + m
-          plus (ScalarNum (Right n)) (ScalarNum (Left m)) = ScalarNum . Right $ n + (fromIntegral m)
-          plus (ScalarNum (Right n)) (ScalarNum (Right m)) = ScalarNum . Right $ n + m
-          plus n@(ScalarNum _) (ScalarArr arr) = ScalarArr $ add (ArrLeaf $ arrFromList [n]) (ArrLeaf arr)
-          plus (ScalarArr a1) (ScalarArr a2) = ScalarArr $ add (ArrLeaf a1) (ArrLeaf a2)
-          plus (ScalarArr arr) n@(ScalarNum _) = ScalarArr $ add (ArrLeaf arr) (ArrLeaf $ arrFromList [n])
-          plus _ _ = undefined -- TODO domain error
+add = arithFn (+) (+)
 
 conjugate :: ArrTreeNode -> Array
 conjugate = evalArrTree
+
+direction :: ArrTreeNode -> Array
+direction x' = arrMap (_direction) x
+    where x = evalArrTree x'
+          _direction (ScalarNum (Left i))
+              | i == 0 = ScalarNum . Left $ 0
+              | i > 0 = ScalarNum . Left $ 1
+              | otherwise = ScalarNum . Left  $ -1
+          _direction (ScalarNum (Right d))
+              | d == 0 = ScalarNum . Left $ 0
+              | d >= 0 = ScalarNum . Left $ 1
+              | otherwise = ScalarNum . Left  $ -1
+          _direction (ScalarArr a) = ScalarArr $ arrMap (_direction) a
+          _direction _ = undefined -- TODO dimain error
 
 iota :: ArrTreeNode -> Array
 iota x = shapedArrFromList x' [toScalar . map (ScalarNum . Left . (+iO)) . calcIndex $ i | i <- [0..(sz - 1)]]
@@ -114,6 +133,9 @@ indexOf x' y'
           toArray (ScalarArr a) = a
           toArray s = arrFromList [s]
 
+multiply :: ArrTreeNode -> ArrTreeNode -> Array
+multiply = arithFn (*) (*)
+
 negate :: ArrTreeNode -> Array
 negate x' = arrMap (_negate) x
     where x = evalArrTree x'
@@ -134,13 +156,4 @@ shapeOf :: ArrTreeNode -> Array
 shapeOf x = arrFromList . map (ScalarNum . Left) . shape . evalArrTree $ x
 
 subtract :: ArrTreeNode -> ArrTreeNode -> Array
-subtract x' y'= arrZipWith (minus) x y
-    where (x, y) = rankMorph (evalArrTree x', evalArrTree y')
-          minus (ScalarNum (Left n)) (ScalarNum (Left m)) = ScalarNum . Left $ (n - m)
-          minus (ScalarNum (Left n)) (ScalarNum (Right m)) = ScalarNum . Right $ (fromIntegral n) - m
-          minus (ScalarNum (Right n)) (ScalarNum (Left m)) = ScalarNum . Right $ n - (fromIntegral m)
-          minus (ScalarNum (Right n)) (ScalarNum (Right m)) = ScalarNum . Right $ n - m
-          minus n@(ScalarNum _) (ScalarArr arr) = ScalarArr $ Functions.subtract (ArrLeaf $ arrFromList [n]) (ArrLeaf arr)
-          minus (ScalarArr a1) (ScalarArr a2) = ScalarArr $ Functions.subtract (ArrLeaf a1) (ArrLeaf a2)
-          minus (ScalarArr arr) n@(ScalarNum _) = ScalarArr $ Functions.subtract (ArrLeaf arr) (ArrLeaf $ arrFromList [n])
-          minus _ _ = undefined -- TODO domain error
+subtract = arithFn (-) (-)

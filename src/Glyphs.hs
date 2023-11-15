@@ -30,6 +30,7 @@ fExpandFirst = DyadFn "⍀" (dFPH "⍀")
 
 fPlus = MonDyadFn "+" F.conjugate F.add
 fMinus = MonDyadFn "-" F.negate F.subtract
+fTimes = MonDyadFn "×" F.direction F.multiply
 fIota = MonDyadFn "⍳" F.iota F.indexOf
 fShape = MonDyadFn "⍴" F.shapeOf F.reshape
 
