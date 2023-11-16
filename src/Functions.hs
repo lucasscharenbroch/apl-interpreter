@@ -71,7 +71,7 @@ arithFn fi' fd' x' y'= arrZipWith (f) x y
 
 implicitCat :: ArrTreeNode -> ArrTreeNode -> Array
 implicitCat x' y' = arrCat x y
-    where x = case x' of --
+    where x = case x' of
               (ArrInternalMonFn (FnLeafFn fImplicitGroup) _) -> arrFromList [maybeEnclose $ evalArrTree x']
               otherwise -> evalArrTree x'
           y = case y' of
@@ -105,6 +105,23 @@ direction x' = arrMap (_direction) x
               | otherwise = ScalarNum . Left  $ -1
           _direction (ScalarArr a) = ScalarArr $ arrMap (_direction) a
           _direction _ = undefined -- TODO dimain error
+
+divide :: ArrTreeNode -> ArrTreeNode -> Array
+divide x' y' = arrZipWith (_div) x y
+    where (x, y) = rankMorph (evalArrTree x', evalArrTree y')
+          _div (ScalarNum n') (ScalarNum m')
+              | m == 0 = undefined -- TODO domain error: divide by zero
+              | otherwise = ScalarNum . Right $ n / m
+           where n = case n' of
+                     (Left i) -> fromIntegral i
+                     (Right d) -> d
+                 m = case m' of
+                     (Left i) -> fromIntegral i
+                     (Right d) -> d
+          _div n@(ScalarNum _) (ScalarArr arr) = ScalarArr $ divide (ArrLeaf $ arrFromList [n]) (ArrLeaf arr)
+          _div (ScalarArr a1) (ScalarArr a2) = ScalarArr $ divide (ArrLeaf a1) (ArrLeaf a2)
+          _div (ScalarArr arr) n@(ScalarNum _) = ScalarArr $ divide (ArrLeaf arr) (ArrLeaf $ arrFromList [n])
+          _div _ _ = undefined -- TODO domain error
 
 iota :: ArrTreeNode -> Array
 iota x = shapedArrFromList x' [toScalar . map (ScalarNum . Left . (+iO)) . calcIndex $ i | i <- [0..(sz - 1)]]
@@ -142,7 +159,19 @@ negate x' = arrMap (_negate) x
           _negate (ScalarNum (Left i)) = ScalarNum . Left $ -i
           _negate (ScalarNum (Right d)) = ScalarNum . Right $ -d
           _negate (ScalarArr a) = ScalarArr $ arrMap (_negate) a
-          _negate (ScalarCh _) = undefined -- TODO domain error
+          _negate _ = undefined -- TODO domain error
+
+reciprocal :: ArrTreeNode -> Array
+reciprocal x' = arrMap (_reciprocal) x
+    where x = evalArrTree x'
+          _reciprocal (ScalarNum (Left i))
+              | i == 0 = undefined -- TODO domain error: divide by zero
+              | otherwise = ScalarNum . Right $ 1.0 / (fromIntegral i)
+          _reciprocal (ScalarNum (Right d))
+              | d == 0 = undefined -- TODO domain error: divide by zero
+              | otherwise = ScalarNum . Right $ 1.0 / d
+          _reciprocal (ScalarArr a) = ScalarArr $ arrMap (_reciprocal) a
+          _reciprocal _ = undefined -- TODO domain error
 
 reshape :: ArrTreeNode -> ArrTreeNode -> Array
 reshape x y = shapedArrFromList newShape . take newSize . concat . replicate intMax $ baseList

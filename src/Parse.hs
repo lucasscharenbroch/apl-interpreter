@@ -290,6 +290,7 @@ parseFn = matchOne [
         chFst (\_ -> FnLeafFn fPlus) . matchCh '+',
         chFst (\_ -> FnLeafFn fMinus) . matchCh '-',
         chFst (\_ -> FnLeafFn fTimes) . matchCh '×',
+        chFst (\_ -> FnLeafFn fDivide) . matchCh '÷',
         chFst (\_ -> FnLeafFn fIota) . matchCh '⍳',
         chFst (\_ -> FnLeafFn fShape) . matchCh '⍴',
         -- TODO big list of functions
