@@ -20,5 +20,6 @@ for file in ${test_files[*]}; do
     dyalog_out=$( (dyalog <<<"${box_prefix}$(cat $file)" 2>/dev/null | tail +2 ) )
 
     # diff -Z <(echo "$ai_out") <(echo "$dyalog_out")
-    vimdiff <(echo "$ai_out") <(echo "$dyalog_out")
+    diff -w <(echo "$ai_out") <(echo "$dyalog_out")
+    # vimdiff <(echo "$ai_out") <(echo "$dyalog_out")
 done

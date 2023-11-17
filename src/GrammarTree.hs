@@ -23,18 +23,21 @@ _round numPlaces d = (/mult) . fromIntegral . round . (*mult) $ d
 
 showSigFigures :: Int -> Double -> String
 showSigFigures i d' -- TODO here...
-    | e >= i' = sign ++ (show . (/(10^i')) . _round 0 $ d / (10^(e-i'))) ++ "E" ++ (show e)
+    | e >= i = sign ++ (show . (/(10^i')) . _round 0 $ d / (10^(e-i'))) ++ "E" ++ (show e)
     | d - (fromIntegral intPortion) == 0 = sign ++ show intPortion
-    | d <= (1e-6) = sign ++ "0." ++ (stripTrailingZeroes . show $ decPortionInt) ++ "E¯" ++ (show numDecZeroes)
-    | otherwise = sign ++ (show intPortion) ++ "." ++ replicate numDecZeroes '0' ++ (stripTrailingZeroes . show $ decPortionInt)
+    | d <= (1e-6) = sign ++ (head . show $ decPortionInt) : "." ++ (stripTrailingZeroes . tail . show $ decPortionInt) ++ "E¯" ++ (show (numDecZeroes + 1))
+    | otherwise = if e == i' -- no decimal portion
+                  then sign ++ (show roundedIntPortion)
+                  else sign ++ (show intPortion) ++ "." ++ replicate numDecZeroes '0' ++ (stripTrailingZeroes . show $ decPortionInt)
         where e = floor $ (logBase 10 d)
               i' = i - 1
               intPortion = floor d
+              roundedIntPortion = round d
               numShownDecPlaces = if d <= 0
                                   then i
                                   else i' - e
               decPortion = _round numShownDecPlaces $ d - fromIntegral intPortion
-              decPortionInt = floor $ (10^numShownDecPlaces) * decPortion
+              decPortionInt = round $ (10^numShownDecPlaces) * decPortion
               stripTrailingZeroes = reverse . dropWhile (=='0') . reverse
               numDecZeroes = max 0 . ((-1)*) . truncate . logBase 10 $ decPortion
               sign = if d' < 0
