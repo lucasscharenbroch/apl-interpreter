@@ -1,19 +1,52 @@
 module GrammarTree where
 import qualified Data.Array as A
 import Data.List (intersperse, zip4, elemIndex)
+import Data.Char (toUpper)
 
 data Scalar = ScalarNum (Either Int Double)
             | ScalarCh Char
             | ScalarArr Array
     deriving (Eq)
 
+swapMinus '-' = '¯'
+swapMinus c = c
+
+maxDigits = 10
+
+_truncate :: Int -> Double -> Double
+_truncate numPlaces d = (/mult) . fromIntegral . floor . (*mult) $ d
+    where mult = 10^numPlaces
+
+_round :: Int -> Double -> Double
+_round numPlaces d = (/mult) . fromIntegral . round . (*mult) $ d
+    where mult = 10^numPlaces
+
+showSigFigures :: Int -> Double -> String
+showSigFigures i d' -- TODO here...
+    | e >= i' = sign ++ (show . (/(10^i')) . _round 0 $ d / (10^(e-i'))) ++ "E" ++ (show e)
+    | d - (fromIntegral intPortion) == 0 = sign ++ show intPortion
+    | d <= (1e-6) = sign ++ "0." ++ (stripTrailingZeroes . show $ decPortionInt) ++ "E¯" ++ (show numDecZeroes)
+    | otherwise = sign ++ (show intPortion) ++ "." ++ replicate numDecZeroes '0' ++ (stripTrailingZeroes . show $ decPortionInt)
+        where e = floor $ (logBase 10 d)
+              i' = i - 1
+              intPortion = floor d
+              numShownDecPlaces = if d <= 0
+                                  then i
+                                  else i' - e
+              decPortion = _round numShownDecPlaces $ d - fromIntegral intPortion
+              decPortionInt = floor $ (10^numShownDecPlaces) * decPortion
+              stripTrailingZeroes = reverse . dropWhile (=='0') . reverse
+              numDecZeroes = max 0 . ((-1)*) . truncate . logBase 10 $ decPortion
+              sign = if d' < 0
+                     then "¯"
+                     else ""
+              d = abs d'
+
 instance Show Scalar where
     show (ScalarNum (Left i))
-        | i >= 0 = show i
-        | otherwise = '¯' : (tail . show) i
-    show (ScalarNum (Right d))
-        | d >= 0 = show d
-        | otherwise = '¯' : (tail . show) d
+        | i >= 10^maxDigits = map (swapMinus) . map (toUpper) . showSigFigures maxDigits $ fromIntegral i
+        | otherwise = map (swapMinus) $ show i
+    show (ScalarNum (Right d)) =  map (swapMinus) . map (toUpper) . showSigFigures maxDigits $ d
     show (ScalarCh c) = [c]
     show (ScalarArr a) = show a
 

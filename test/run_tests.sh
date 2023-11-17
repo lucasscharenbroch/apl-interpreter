@@ -1,6 +1,7 @@
 #!/bin/bash
 
 test_files=(
+        "float_literals"
         "numeric_fns"
         "iota"
         "shape"
@@ -18,6 +19,6 @@ for file in ${test_files[*]}; do
     ai_out=$(../bin/ai <$file)
     dyalog_out=$( (dyalog <<<"${box_prefix}$(cat $file)" 2>/dev/null | tail +2 ) )
 
-    diff -Z <(echo "$ai_out") <(echo "$dyalog_out")
-    # vimdiff <(echo "$ai_out") <(echo "$dyalog_out")
+    # diff -Z <(echo "$ai_out") <(echo "$dyalog_out")
+    vimdiff <(echo "$ai_out") <(echo "$dyalog_out")
 done
