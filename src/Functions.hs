@@ -69,6 +69,12 @@ arithFn fi' fd' x' y'= arrZipWith (f) x y
 
 {- Specialized Functions (non-primitive) -}
 
+assignToId :: String -> ArrTreeNode -> Array
+assignToId id x' = evalArrTree x' -- TODO add actual assignment
+
+assignToQuad :: ArrTreeNode -> Array
+assignToQuad x' = evalArrTree x'
+
 implicitCat :: ArrTreeNode -> ArrTreeNode -> Array
 implicitCat x' y' = arrCat x y
     where x = case x' of

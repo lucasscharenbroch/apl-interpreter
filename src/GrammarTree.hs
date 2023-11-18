@@ -2,6 +2,7 @@ module GrammarTree where
 import qualified Data.Array as A
 import Data.List (intersperse, zip4, elemIndex)
 import Data.Char (toUpper)
+import Lex
 
 data Scalar = ScalarNum (Either Int Double)
             | ScalarCh Char
@@ -173,22 +174,22 @@ arrMap f a = shapedArrFromList (shape a) . map (f) . arrToList $ a
 data Function = MonFn String (ArrTreeNode -> Array)
               | DyadFn String (ArrTreeNode -> ArrTreeNode -> Array)
               | MonDyadFn String (ArrTreeNode -> Array) (ArrTreeNode -> ArrTreeNode -> Array)
-              | DfnFn String
+              | DfnFn [Token]
 
 instance Show Function where
     show (MonFn name _) = name
     show (DyadFn name _)  = name
     show (MonDyadFn name _ _) = name
-    show (DfnFn id) = id
+    show (DfnFn toks) = "{" ++ (concat . map (show) $ toks) ++ "}"
 
 data Operator = MonOp String (FnTreeNode -> Function)
               | DyadOp String (FnTreeNode -> FnTreeNode -> Function)
-              | DopOp String
+              | DopOp [Token]
 
 instance Show Operator where
     show (MonOp name _) = name
     show (DyadOp name _) = name
-    show (DopOp id) = id
+    show (DopOp toks) = "{" ++ (concat . map (show) $ toks) ++ "}"
 
 {- Tree Nodes -}
 

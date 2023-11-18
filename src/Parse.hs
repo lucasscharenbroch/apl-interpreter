@@ -14,6 +14,7 @@ import IdMap
  -
  - der_arr => der_fn der_arr
  -         => arr der_fn der_arr
+ -         => ID ← der_arr
  -         => arr
  -
  - train => {df df} df                       (nested forks) (where df = der_fn)
@@ -157,6 +158,10 @@ matchStrLiteral :: MatchFn String
 matchStrLiteral (_, (StrTok s:ts)) = Just (s, ts)
 matchStrLiteral _ = Nothing
 
+matchId :: MatchFn String
+matchId (_, (IdTok idt:ts)) = Just (idt, ts)
+matchId _ = Nothing
+
 matchNumLiteral :: MatchFn (Either Int Double)
 matchNumLiteral (_, (NumTok n:ts)) = Just (n, ts)
 matchNumLiteral _ = Nothing
@@ -169,20 +174,20 @@ matchComment :: MatchFn ()
 matchComment (_, (ChTok '⍝':_)) = Just((), [])
 matchComment _ = Nothing
 
-matchIdWith :: (IdEntry -> Bool) -> MatchFn String
-matchIdWith isEntryOk (idm, ((IdTok id):ts)) = case mapLookup id idm of
+matchIdWith :: (IdEntry -> Maybe a) -> MatchFn a
+matchIdWith f (idm, ((IdTok id):ts)) = case mapLookup id idm of
     Nothing -> Nothing
-    Just (entry) -> case isEntryOk entry of
-        True -> Just (id, ts)
-        False -> Nothing
+    Just (entry) -> case f entry of
+        Nothing -> Nothing
+        (Just x) -> Just (x, ts)
 matchIdWith _ _ = Nothing
 
-matchQuadIdWith :: (IdEntry -> Bool) -> MatchFn String
-matchQuadIdWith isEntryOk (idm, (ChTok '⎕':(IdTok id):ts)) = case mapLookup ('⎕' : id) idm of
+matchQuadIdWith :: (IdEntry -> Maybe a) -> MatchFn a
+matchQuadIdWith f (idm, (ChTok '⎕':(IdTok id):ts)) = case mapLookup ('⎕' : id) idm of
     Nothing -> Nothing
-    Just (entry) -> case isEntryOk entry of
-        True -> Just ('⎕' : id, ts)
-        False -> Nothing
+    Just (entry) -> case f entry of
+        Nothing -> Nothing
+        (Just x) -> Just (x, ts)
 matchQuadIdWith _ _ = Nothing
 
 {- Data Types -}
@@ -237,6 +242,11 @@ parseDerArr = matchOne [
         chFst (\(lhs, f, rhs) -> ArrInternalDyadFn f lhs rhs) . matchT3 (
             parseArr,
             parseDerFn,
+            parseDerArr
+        ),
+        chFst (\(id, _, da) -> ArrInternalMonFn (FnLeafFn $ fAssignToId id) da) . matchT3 (
+            matchId,
+            matchCh '←',
             parseDerArr
         ),
         parseArr
@@ -296,7 +306,8 @@ parseFn = matchOne [
         chFst (\_ -> FnLeafFn fIota) . matchCh '⍳',
         chFst (\_ -> FnLeafFn fShape) . matchCh '⍴',
         -- TODO big list of functions
-        -- TODO ⎕ID
+        matchIdWith (idEntryToFnTree),
+        matchQuadIdWith (idEntryToFnTree),
         -- TODO ⍺⍺ ⌊ ⍵⍵ | ∇
         -- TODO (ID ← dfn_decl)
         chFst (\(_, t, _) -> t) . matchT3 (
@@ -306,6 +317,8 @@ parseFn = matchOne [
         ),
         chFst (snd) . parseOpOrFn
     ]
+    where idEntryToFnTree (IdFn f) = Just $ FnLeafFn f
+          idEntryToFnTree _ = Nothing
 
 parseOpOrFn :: MatchFn (Operator, FnTreeNode)
 parseOpOrFn = matchOne [
@@ -342,9 +355,9 @@ parseScalar = matchOne [
             -- STR
             chFst (toScalarStr . map ScalarCh) . matchStrLiteral,
             -- ID
-            -- TODO (where ID is arr)
+            matchIdWith (idEntryToArrTree),
             -- ⎕ID
-            -- TODO (where ⎕ID is arr)
+            matchQuadIdWith (idEntryToArrTree),
             -- ⍺ | ⍵
             -- TODO (where ⍺ or ⍵ is in namespace)
             -- ⍺⍺ | ⍵⍵
@@ -360,3 +373,5 @@ parseScalar = matchOne [
     ]
     where toScalarStr (c:[]) = ArrLeaf . arrFromList $ [c]
           toScalarStr s = ArrInternalMonFn (FnLeafFn fImplicitGroup) (ArrLeaf . arrFromList $ s)
+          idEntryToArrTree (IdArr a) = Just $ ArrLeaf a
+          idEntryToArrTree _ = Nothing

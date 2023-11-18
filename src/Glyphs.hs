@@ -21,7 +21,8 @@ dOPH name _ _ = DyadFn ("derived from dyadic op: " ++ name) (dFPH "_derived_")
 
 fImplicitCat = DyadFn ")(" F.implicitCat
 fImplicitGroup = MonFn "()" F.implicitGroup
-fAssignToQuad = MonFn "⎕←" (mFPH "⎕←")
+fAssignToQuad = MonFn "⎕←" F.assignToQuad
+fAssignToId id = MonFn (id ++ "←") (F.assignToId id)
 
 fReplicate = DyadFn "/" (dFPH "/")
 fExpand = DyadFn "\\" (dFPH "\\")
