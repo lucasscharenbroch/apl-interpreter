@@ -3,6 +3,7 @@ import GlyphCompletion
 import Lex (Token, tokenize)
 import Parse
 import Eval
+import IdMap
 import GrammarTree -- TODO remove
 
 mainloop :: InputT IO ()
@@ -11,7 +12,7 @@ mainloop = do
     input <- getInputLine $ if isInterractive then "    " else ""
     case input of
         Nothing -> return ()
-        Just s -> do case parseExpr . tokenize $ s of
+        Just s -> do case parseExpr (emptyIdMap, tokenize s) of
                          Nothing -> outputStrLn "parse error"
                          Just x -> do -- outputStrLn . show $ x
                                       case x of
