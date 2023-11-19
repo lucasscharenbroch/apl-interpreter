@@ -4,25 +4,29 @@ import GrammarTree
 
 {- Helpers -}
 
-getDyadFn :: Function -> FuncD
+getDyadFn :: FnTreeNode -> FuncD
 getDyadFn f = case f of
-    (DyadFn _ x) -> x
-    (MonDyadFn _ _ x) -> x
-    _ -> undefined -- TODO throw exception
+    FnLeafArr -> undefined -- TODO throw exception (expected function, not array)
+    _ -> case evalFnTree f of
+       (DyadFn _ x) -> x
+       (MonDyadFn _ _ x) -> x
+       _ -> undefined -- TODO throw exception (expected dyadic function)
 
-getMonFn :: Function -> FuncM
+getMonFn :: FnTreeNode -> FuncM
 getMonFn f = case f of
-    (MonFn _ x) -> x
-    (MonDyadFn _ x _) -> x
-    _ -> undefined -- TODO throw exception
+    FnLeafArr -> undefined -- TODO thrwo exception (expected function, not array)
+    _ -> case evalFnTree f of
+        (MonFn _ x) -> x
+        (MonDyadFn _ x _) -> x
+        _ -> undefined -- TODO throw exception
 
 {- General Operators -}
 
-selfie :: OpM
-selfie _ ft = case evalFnTree (idm, ft) of
-    (Left f) -> MonDyadFn "der⍨" (\x -> dyFn x x) (\x y -> dyFn y x)
-        where dyFn = getDyadFn f
-    (Right a) -> MonDyadFn "der⍨" (\_ -> a) (\_ _ -> a)
+selfie :: FnTreeNode -> Function
+selfie ft = case ft of
+    (FnLeafArr at) -> MonDyadFn "der⍨" (\i _ -> evalArrTree i at) (\i _ _ -> evalArrTree i at)
+    _ -> MonDyadFn "der⍨" (\i a -> dyFn i a a) (\i l r -> dyFn i r l)
+        where dyFn = getDyadFn ft
 
 {-
 reduce :: FnTreeNode -> Function
