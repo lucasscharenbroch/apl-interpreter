@@ -2,41 +2,42 @@ module Glyphs where
 import GrammarTree
 import qualified Functions as F
 import qualified Operators as O
-
-{- placeholders (TODO remove) -}
-
-mFPH :: String -> ArrTreeNode -> Array
-mFPH name _ = arrFromList . map (ScalarCh) $ "result of monadic fn: " ++ name
-
-dFPH :: String -> ArrTreeNode -> ArrTreeNode -> Array
-dFPH name _ _ = arrFromList . map (ScalarCh) $ "result of dyadic fn: " ++ name
-
-mOPH :: String -> FnTreeNode -> Function
-mOPH name _ = DyadFn ("derived from monadic op: " ++ name) (dFPH "_derived_")
-
-dOPH :: String -> FnTreeNode -> FnTreeNode -> Function
-dOPH name _ _ = DyadFn ("derived from dyadic op: " ++ name) (dFPH "_derived_")
+import Eval
 
 {- Pure Wrappers -}
 
-pureMonFn :: String -> (Array -> Array) -> MonFn
+pureMonFn :: String -> (Array -> Array) -> Function
 pureMonFn name pfn = MonFn name ipfn
     where ipfn idm arg = (idm', pfn $ arg')
-          (idm', arg') = evalArrTree idm arg
+            where (idm', arg') = evalArrTree idm arg
 
-pureDyadFn :: String -> (Array -> Array -> Array) -> DyadFn
+pureDyadFn :: String -> (Array -> Array -> Array) -> Function
 pureDyadFn name pfn = DyadFn name ipfn
     where ipfn idm arg1 arg2 = (idm'', pfn arg1' arg2')
-          (idm', arg2') = evalArrTree idm arg2
-          (idm'', arg1') = evalArrTree idm' arg1
-
-pureMonDyadFn :: String -> (Array -> Array) -> (Array -> Array -> Array) -> MonDyadFn
-pureMonDyadFn name pmfn pdfn = MonDyadFn name ipmfn ipdfn
-    where ipmfn idm arg = (idm', pfn $ arg')
-            where (idm', arg') = evalArrTree idm arg
-    where ipdfn idm arg1 arg2 = (idm'', pfn arg1' arg2')
             where (idm', arg2') = evalArrTree idm arg2
                   (idm'', arg1') = evalArrTree idm' arg1
+
+pureMonDyadFn :: String -> (Array -> Array) -> (Array -> Array -> Array) -> Function
+pureMonDyadFn name pmfn pdfn = MonDyadFn name ipmfn ipdfn
+    where ipmfn idm arg = (idm', pmfn arg')
+            where (idm', arg') = evalArrTree idm arg
+          ipdfn idm arg1 arg2 = (idm'', pdfn arg1' arg2')
+            where (idm', arg2') = evalArrTree idm arg2
+                  (idm'', arg1') = evalArrTree idm' arg1
+
+{- placeholders (TODO remove) -}
+
+mFPH :: String -> Array -> Array
+mFPH name _ = arrFromList . map (ScalarCh) $ "result of monadic fn: " ++ name
+
+dFPH :: String -> Array -> Array -> Array
+dFPH name _ _ = arrFromList . map (ScalarCh) $ "result of dyadic fn: " ++ name
+
+mOPH :: String -> FnTreeNode -> Function
+mOPH name _ = pureDyadFn ("derived from monadic op: " ++ name) (dFPH "_derived_")
+
+dOPH :: String -> FnTreeNode -> FnTreeNode -> Function
+dOPH name _ _ = pureDyadFn ("derived from dyadic op: " ++ name) (dFPH "_derived_")
 
 {- Functions -}
 
@@ -44,7 +45,7 @@ pureMonDyadFn name pmfn pdfn = MonDyadFn name ipmfn ipdfn
 fAssignToId id = MonFn (id ++ "←") (F.assignToId id)
 
 -- specialized
-fImplicitCat = pureDyadFn ")(" F.implicitCat
+fImplicitCat = DyadFn ")(" F.implicitCat
 fImplicitGroup = pureMonFn "()" F.implicitGroup
 fAssignToQuad = pureMonFn "⎕←" F.assignToQuad
 
@@ -64,12 +65,12 @@ fShape = pureMonDyadFn "⍴" F.shapeOf F.reshape
 
 {- Operators -}
 
-oReduce = pureMonOp "/" (mOPH "/")
-oScan = pureMonOp "\\" (mOPH "\\")
-oReduceFirst = pureMonOp "⌿" (mOPH "⌿")
-oScanFirst = pureMonOp "⍀" (mOPH "⍀")
+oReduce = MonOp "/" (mOPH "/")
+oScan = MonOp "\\" (mOPH "\\")
+oReduceFirst = MonOp "⌿" (mOPH "⌿")
+oScanFirst = MonOp "⍀" (mOPH "⍀")
 
-oSelfie = pureMonOp "⍨" O.selfie
-oAtop = pureDyadOp "⍤" (dOPH "⍤")
+oSelfie = MonOp "⍨" O.selfie
+oAtop = DyadOp "⍤" (dOPH "⍤")
 
 oAxisSpec axis = MonOp ("[" ++ (show axis) ++ "]") (mOPH "[]") -- TODO remove `axis' arg and add arg to called fn

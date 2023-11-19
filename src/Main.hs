@@ -3,7 +3,6 @@ import GlyphCompletion
 import Lex (Token, tokenize)
 import Parse
 import Eval
-import IdMap
 import GrammarTree -- TODO remove
 
 mainloop :: InputT IO ()
@@ -16,7 +15,7 @@ mainloop = do
                          Nothing -> outputStrLn "parse error"
                          Just x -> do -- outputStrLn . show $ x
                                       case x of
-                                          (ResAtn a) -> outputStrLn . show . evalArrTree $ a
+                                          (ResAtn a) -> outputStrLn . show . snd . evalArrTree emptyIdMap $ a
                                           (ResFtn f) -> outputStrLn . show $ f
                                           (ResOp o) -> outputStrLn . show $ o
                                           (ResNull) -> return ()

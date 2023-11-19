@@ -3,11 +3,16 @@ import qualified Data.Array as A
 import Data.List (intersperse, zip4, elemIndex)
 import Data.Char (toUpper)
 import Lex
+import qualified Data.Map as Map
+
+{- Scalar -}
 
 data Scalar = ScalarNum (Either Int Double)
             | ScalarCh Char
             | ScalarArr Array
     deriving (Eq)
+
+{- Misc Helpers -}
 
 swapMinus '-' = '¯'
 swapMinus c = c
@@ -53,6 +58,8 @@ instance Show Scalar where
     show (ScalarNum (Right d)) =  map (swapMinus) . map (toUpper) . showSigFigures maxDigits $ d
     show (ScalarCh c) = [c]
     show (ScalarArr a) = show a
+
+{- Arrays -}
 
 data Array = Array {
                shape :: [Int]
@@ -245,7 +252,7 @@ showFtnHelper (FnInternalMonOp op fn) = showMonTreeHelper (showFtnHelper fn) (sh
 showFtnHelper (FnInternalDyadOp op f1 f2) = showDyadTreeHelper (showFtnHelper f1) (showFtnHelper f2) (show op)
 showFtnHelper (FnInternalAtop f1 f2) = (concat . intersperse "\n" . tail . lines $ res', padSz')
     where (res', padSz') = showFtnHelper (FnInternalDyadOp dummyOp f1 f2)
-          dummyOp = DyadOp "_" (\_ _ -> MonFn "_" (\_ -> arrFromList []))
+          dummyOp = DyadOp "_" (\_ _ -> MonFn "_" (\i _ -> (i, arrFromList [])))
 showFtnHelper (FnInternalFork f1 f2 f3) = (res, padSz)
     where (s1, p1) = showFtnHelper f1
           (s2, p2) = showFtnHelper f2
@@ -286,3 +293,20 @@ showAtnHelper (ArrInternalSubscript a is) = showDyadTreeHelper (showAtnHelper a)
 
 instance Show ArrTreeNode where
     show = fst . showAtnHelper
+
+{- Id Map -}
+
+data IdEntry = IdArr Array
+             | IdFn Function
+             | IdOp Operator
+
+type IdMap = Map.Map String IdEntry
+
+emptyIdMap :: IdMap
+emptyIdMap = Map.empty
+
+mapLookup :: String -> IdMap -> Maybe IdEntry
+mapLookup = Map.lookup
+
+mapInsert :: String -> IdEntry -> IdMap -> IdMap
+mapInsert = Map.insert

@@ -53,58 +53,59 @@ alongRank a r
           n = (length $ shape a) - r
           groupSz = foldr (*) 1 innerShape
 
-arithFn :: (Int -> Int -> Int) -> (Double -> Double -> Double) -> ArrTreeNode -> ArrTreeNode -> Array
-arithFn fi' fd' x' y'= arrZipWith (f) x y
-    where (x, y) = rankMorph (evalArrTree x', evalArrTree y')
+arithFn :: (Int -> Int -> Int) -> (Double -> Double -> Double) -> Array -> Array -> Array
+arithFn fi' fd' x' y' = arrZipWith (f) x y
+    where (x, y) = rankMorph (x', y')
           f :: Scalar -> Scalar -> Scalar
           f (ScalarNum (Left n)) (ScalarNum (Left m)) = ScalarNum . Left $ n `fi'` m
           f (ScalarNum (Left n)) (ScalarNum (Right m)) = ScalarNum . Right $ (fromIntegral n) `fd'` m
           f (ScalarNum (Right n)) (ScalarNum (Left m)) = ScalarNum . Right $ n `fd'` (fromIntegral m)
           f (ScalarNum (Right n)) (ScalarNum (Right m)) = ScalarNum . Right $ n `fd'` m
-          f n@(ScalarNum _) (ScalarArr arr) = ScalarArr $ rec (ArrLeaf $ arrFromList [n]) (ArrLeaf arr)
-          f (ScalarArr a1) (ScalarArr a2) = ScalarArr $ rec (ArrLeaf a1) (ArrLeaf a2)
-          f (ScalarArr arr) n@(ScalarNum _) = ScalarArr $ rec (ArrLeaf arr) (ArrLeaf $ arrFromList [n])
+          f n@(ScalarNum _) (ScalarArr arr) = ScalarArr $ rec (arrFromList [n]) arr
+          f (ScalarArr a1) (ScalarArr a2) = ScalarArr $ rec a1 a2
+          f (ScalarArr arr) n@(ScalarNum _) = ScalarArr $ rec arr (arrFromList [n])
           f _ _ = undefined -- TODO domain error
           rec = arithFn fi' fd'
 
 {- Impure Functions -}
 
 assignToId :: String -> FuncM
-assignToId id idm x' = (mapInsert id x idm, x)
-    x = evalArrTree x
+assignToId id idm x = (mapInsert id (IdArr x') idm', x')
+    where (idm', x') = evalArrTree idm x
 
 {- Specialized Functions (non-primitive) -}
 
-assignToQuad :: ArrTreeNode -> Array
-assignToQuad = evalArrTree
+assignToQuad :: Array -> Array
+assignToQuad = id
 
-implicitCat :: ArrTreeNode -> ArrTreeNode -> Array
-implicitCat x' y' = arrCat x y
-    where x = case x' of
-              (ArrInternalMonFn (FnLeafFn fImplicitGroup) _) -> arrFromList [maybeEnclose $ evalArrTree x']
-              otherwise -> evalArrTree x'
-          y = case y' of
-              (ArrInternalMonFn (FnLeafFn fImplicitGroup) _) -> arrFromList [maybeEnclose $ evalArrTree y']
-              otherwise -> evalArrTree y'
+implicitCat :: FuncD
+implicitCat idm x y = (idm'', arrCat x' y')
+    where (idm'', x') = case x of
+              (ArrInternalMonFn (FnLeafFn fImplicitGroup) _) -> (_idm, arrFromList [maybeEnclose _x])
+                  where (_idm, _x) = evalArrTree idm' x
+              otherwise -> evalArrTree idm' x
+          (idm', y') = case y of
+              (ArrInternalMonFn (FnLeafFn fImplicitGroup) _) -> (_idm, arrFromList [maybeEnclose _y])
+                  where (_idm, _y) = evalArrTree idm y
+              otherwise -> evalArrTree idm y
           maybeEnclose arr = case arrToList arr of
                              (s:[]) -> s
                              _ -> ScalarArr arr
 
-implicitGroup :: ArrTreeNode -> Array
-implicitGroup = evalArrTree
+implicitGroup :: Array -> Array
+implicitGroup = id
 
 {- General Functions -}
 
-add :: ArrTreeNode -> ArrTreeNode -> Array
+add :: Array -> Array -> Array
 add = arithFn (+) (+)
 
-conjugate :: ArrTreeNode -> Array
-conjugate = evalArrTree
+conjugate :: Array -> Array
+conjugate = id
 
-direction :: ArrTreeNode -> Array
-direction x' = arrMap (_direction) x
-    where x = evalArrTree x'
-          _direction (ScalarNum (Left i))
+direction :: Array -> Array
+direction = arrMap (_direction)
+    where _direction (ScalarNum (Left i))
               | i == 0 = ScalarNum . Left $ 0
               | i > 0 = ScalarNum . Left $ 1
               | otherwise = ScalarNum . Left  $ -1
@@ -115,9 +116,9 @@ direction x' = arrMap (_direction) x
           _direction (ScalarArr a) = ScalarArr $ arrMap (_direction) a
           _direction _ = undefined -- TODO domain error
 
-divide :: ArrTreeNode -> ArrTreeNode -> Array
+divide :: Array -> Array -> Array
 divide x' y' = arrZipWith (_div) x y
-    where (x, y) = rankMorph (evalArrTree x', evalArrTree y')
+    where (x, y) = rankMorph (x', y')
           _div (ScalarNum n') (ScalarNum m')
               | m == 0 = undefined -- TODO domain error: divide by zero
               | otherwise = ScalarNum . Right $ n / m
@@ -127,29 +128,27 @@ divide x' y' = arrZipWith (_div) x y
                  m = case m' of
                      (Left i) -> fromIntegral i
                      (Right d) -> d
-          _div n@(ScalarNum _) (ScalarArr arr) = ScalarArr $ divide (ArrLeaf $ arrFromList [n]) (ArrLeaf arr)
-          _div (ScalarArr a1) (ScalarArr a2) = ScalarArr $ divide (ArrLeaf a1) (ArrLeaf a2)
-          _div (ScalarArr arr) n@(ScalarNum _) = ScalarArr $ divide (ArrLeaf arr) (ArrLeaf $ arrFromList [n])
+          _div n@(ScalarNum _) (ScalarArr arr) = ScalarArr $ divide (arrFromList [n]) arr
+          _div (ScalarArr a1) (ScalarArr a2) = ScalarArr $ divide a1 a2
+          _div (ScalarArr arr) n@(ScalarNum _) = ScalarArr $ divide arr (arrFromList [n])
           _div _ _ = undefined -- TODO domain error
 
-iota :: ArrTreeNode -> Array
+iota :: Array -> Array
 iota x = shapedArrFromList x' [toScalar . map (ScalarNum . Left . (+iO)) . calcIndex $ i | i <- [0..(sz - 1)]]
-    where x' = toIntVec $ evalArrTree x
+    where x' = toIntVec x
           sz = foldr (*) 1 x'
           indexMod = reverse . init $ scanl (*) 1 (reverse x')
           calcIndex i = map (\(e, m) -> i `div` m `mod` e) $ zip x' indexMod
           toScalar (s:[]) = s
           toScalar (ss) = ScalarArr . arrFromList $ ss
 
-indexOf :: ArrTreeNode -> ArrTreeNode -> Array
-indexOf x' y'
+indexOf :: Array -> Array -> Array
+indexOf x y
     | xRank > yRank = undefined -- TODO throw rank error
     | xRank == 1 && (head . shape $ x) <= 1 = undefined -- TODO throw rank error
     | (tail . shape $ x) /= (drop (1 + yRank - xRank) . shape $ y) = undefined -- TODO throw length error
     | otherwise = arrMap (findIndexInXs) ys
-    where x = evalArrTree x'
-          y = evalArrTree y'
-          xRank = length . shape $ x
+    where xRank = length . shape $ x
           yRank = length . shape $ y
           xs = alongAxis x 1
           ys = alongRank y (xRank - 1)
@@ -159,21 +158,19 @@ indexOf x' y'
           toArray (ScalarArr a) = a
           toArray s = arrFromList [s]
 
-multiply :: ArrTreeNode -> ArrTreeNode -> Array
+multiply :: Array -> Array -> Array
 multiply = arithFn (*) (*)
 
-negate :: ArrTreeNode -> Array
-negate x' = arrMap (_negate) x
-    where x = evalArrTree x'
-          _negate (ScalarNum (Left i)) = ScalarNum . Left $ -i
+negate :: Array -> Array
+negate = arrMap (_negate)
+    where _negate (ScalarNum (Left i)) = ScalarNum . Left $ -i
           _negate (ScalarNum (Right d)) = ScalarNum . Right $ -d
           _negate (ScalarArr a) = ScalarArr $ arrMap (_negate) a
           _negate _ = undefined -- TODO domain error
 
-reciprocal :: ArrTreeNode -> Array
-reciprocal x' = arrMap (_reciprocal) x
-    where x = evalArrTree x'
-          _reciprocal (ScalarNum (Left i))
+reciprocal :: Array -> Array
+reciprocal = arrMap (_reciprocal)
+    where _reciprocal (ScalarNum (Left i))
               | i == 0 = undefined -- TODO domain error: divide by zero
               | otherwise = ScalarNum . Right $ 1.0 / (fromIntegral i)
           _reciprocal (ScalarNum (Right d))
@@ -182,16 +179,16 @@ reciprocal x' = arrMap (_reciprocal) x
           _reciprocal (ScalarArr a) = ScalarArr $ arrMap (_reciprocal) a
           _reciprocal _ = undefined -- TODO domain error
 
-reshape :: ArrTreeNode -> ArrTreeNode -> Array
+reshape :: Array -> Array -> Array
 reshape x y = shapedArrFromList newShape . take newSize . concat . replicate intMax $ baseList
-    where newShape = toIntVec $ evalArrTree x
+    where newShape = toIntVec x
           newSize = foldr (*) 1 newShape
-          baseList = case arrToList . evalArrTree $ y of
+          baseList = case arrToList y of
                      [] -> [ScalarNum (Left 0)]
                      ss -> ss
 
-shapeOf :: ArrTreeNode -> Array
-shapeOf x = arrFromList . map (ScalarNum . Left) . shape . evalArrTree $ x
+shapeOf :: Array -> Array
+shapeOf = arrFromList . map (ScalarNum . Left) . shape
 
-subtract :: ArrTreeNode -> ArrTreeNode -> Array
+subtract :: Array -> Array -> Array
 subtract = arithFn (-) (-)

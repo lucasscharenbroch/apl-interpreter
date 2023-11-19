@@ -2,7 +2,6 @@ module Parse where
 import Lex (Token(..))
 import GrammarTree
 import Glyphs
-import IdMap
 
 {-
  -
