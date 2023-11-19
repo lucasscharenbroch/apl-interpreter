@@ -1,6 +1,7 @@
 #!/bin/bash
 
 test_files=(
+        "basic_assignment"
         "float_literals"
         "numeric_fns"
         "iota"

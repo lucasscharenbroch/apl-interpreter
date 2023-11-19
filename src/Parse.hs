@@ -192,12 +192,14 @@ matchQuadIdWith _ _ = Nothing
 {- Data Types -}
 
 data ExprResult = ResAtn ArrTreeNode
+                | ResSilentAtn ArrTreeNode
                 | ResFtn FnTreeNode
                 | ResOp Operator
                 | ResNull
 
 instance Show ExprResult where
     show (ResAtn a) = show a
+    show (ResSilentAtn a) = show a
     show (ResFtn f) = show f
     show (ResOp o) = show o
 
@@ -213,11 +215,13 @@ parseExpr = (=<<) (Just . fst) . matchOne [
             parseDerArr,
             matchOne [matchComment, matchEos]
         ),
-        chFst (\(atn, _) -> ResAtn atn) . matchT2 (parseDerArr, matchOne [matchComment, matchEos]),
+        chFst (\(atn, _) -> atnToRes atn) . matchT2 (parseDerArr, matchOne [matchComment, matchEos]),
         chFst (\(ftn, _) -> ResFtn ftn) . matchT2(parseTrain, matchOne [matchComment, matchEos]),
         chFst (\(op, _) -> ResOp op) . matchT2(parseOp, matchOne [matchComment, matchEos]),
         chFst (\_ -> ResNull) . matchOne [matchComment, matchEos]
     ]
+    where atnToRes a@(ArrInternalAssignment _ _) = ResSilentAtn a
+          atnToRes a = ResAtn a
 
 -- parseDfnDecl :: [Token] -> Maybe (???, [Token])
 -- parseDfnExpr :: [Token] -> Maybe (???, [Token])
@@ -243,7 +247,7 @@ parseDerArr = matchOne [
             parseDerFn,
             parseDerArr
         ),
-        chFst (\(id, _, da) -> ArrInternalMonFn (FnLeafFn $ fAssignToId id) da) . matchT3 (
+        chFst (\(id, _, da) -> ArrInternalAssignment id da) . matchT3 (
             matchId,
             matchCh '←',
             parseDerArr

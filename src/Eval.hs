@@ -89,6 +89,8 @@ evalArrTree idm (ArrInternalDyadFn ft at1 at2) = case evalFnTree ft of
     (MonDyadFn _ _ f) -> f idm at1 at2
     _ -> undefined -- TODO exception
 evalArrTree idm (ArrInternalSubscript a is) = undefined -- TODO implement
+evalArrTree idm (ArrInternalAssignment it a) = (mapInsert it (IdArr a') idm', a') -- TODO actually assign to iterator, not just id
+    where (idm', a') = evalArrTree idm a
 
 evalFnTree :: FnTreeNode -> Function
 evalFnTree (FnLeafFn f) = f

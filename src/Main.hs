@@ -5,21 +5,26 @@ import Parse
 import Eval
 import GrammarTree -- TODO remove
 
-mainloop :: InputT IO ()
-mainloop = do
+mainloop :: IdMap -> InputT IO ()
+mainloop idMap = do
     isInterractive <- haveTerminalUI
     input <- getInputLine $ if isInterractive then "    " else ""
     case input of
         Nothing -> return ()
-        Just s -> do case parseExpr (emptyIdMap, tokenize s) of
+        Just s -> do case parseExpr (idMap, tokenize s) of
                          Nothing -> outputStrLn "parse error"
                          Just x -> do -- outputStrLn . show $ x
-                                      case x of
-                                          (ResAtn a) -> outputStrLn . show . snd . evalArrTree emptyIdMap $ a
-                                          (ResFtn f) -> outputStrLn . show $ f
-                                          (ResOp o) -> outputStrLn . show $ o
-                                          (ResNull) -> return ()
-                     mainloop
+                                      let (idMap', out) = case x of
+                                              (ResAtn a) -> (i, outputStrLn $ show a')
+                                                  where (i, a') = evalArrTree idMap a
+                                              (ResFtn f) -> (idMap, outputStrLn . show $ f)
+                                              (ResOp o) -> (idMap, outputStrLn . show $ o)
+                                              (ResSilentAtn a) -> (i, return ())
+                                                  where (i, _) = evalArrTree idMap a
+                                              (ResNull) -> (idMap, return ())
+                                      out
+                                      -- outputStrLn . show $ idMap'
+                                      mainloop idMap'
 
 {-
         Just s -> do outputStrLn $ "tokens: " ++ (show . length $ s)
@@ -38,5 +43,5 @@ mainloop = do
 -}
 
 main :: IO ()
-main = runInputT settings mainloop
+main = runInputT settings (mainloop emptyIdMap)
     where settings = setComplete completeGlyph defaultSettings

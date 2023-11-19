@@ -69,9 +69,11 @@ arithFn fi' fd' x' y' = arrZipWith (f) x y
 
 {- Impure Functions -}
 
+{-
 assignToId :: String -> FuncM
 assignToId id idm x = (mapInsert id (IdArr x') idm', x')
     where (idm', x') = evalArrTree idm x
+-}
 
 {- Specialized Functions (non-primitive) -}
 

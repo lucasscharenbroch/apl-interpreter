@@ -273,6 +273,7 @@ instance Show FnTreeNode where
 -- "array tree": a tree that makes up a derived array
 data ArrTreeNode = ArrLeaf Array
                  | ArrInternalSubscript ArrTreeNode [ArrTreeNode]
+                 | ArrInternalAssignment Iterator ArrTreeNode
                  | ArrInternalMonFn FnTreeNode ArrTreeNode
                  | ArrInternalDyadFn FnTreeNode ArrTreeNode ArrTreeNode
 
@@ -290,6 +291,7 @@ showAtnHelper (ArrInternalDyadFn f a1 a2) = showDyadTreeHelper (showAtnHelper a1
     where boxedf = singleBoxify $ show f
 showAtnHelper (ArrInternalSubscript a is) = showDyadTreeHelper (showAtnHelper a) (showIs is, 0) "[]"
     where showIs = foldl (\s a -> fst . horizCat s $ (singleBoxify . show $ a)) ""
+showAtnHelper (ArrInternalAssignment it a) = showMonTreeHelper (showAtnHelper a) (it ++ "←")
 
 instance Show ArrTreeNode where
     show = fst . showAtnHelper
@@ -299,6 +301,7 @@ instance Show ArrTreeNode where
 data IdEntry = IdArr Array
              | IdFn Function
              | IdOp Operator
+    deriving (Show)
 
 type IdMap = Map.Map String IdEntry
 
@@ -310,3 +313,7 @@ mapLookup = Map.lookup
 
 mapInsert :: String -> IdEntry -> IdMap -> IdMap
 mapInsert = Map.insert
+
+{- Iterators -}
+
+type Iterator = String -- TODO

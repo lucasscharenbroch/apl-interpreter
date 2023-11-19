@@ -42,7 +42,7 @@ dOPH name _ _ = pureDyadFn ("derived from dyadic op: " ++ name) (dFPH "_derived_
 {- Functions -}
 
 -- impure
-fAssignToId id = MonFn (id ++ "←") (F.assignToId id)
+-- fAssignToId id = MonFn (id ++ "←") (F.assignToId id)
 
 -- specialized
 fImplicitCat = DyadFn ")(" F.implicitCat
