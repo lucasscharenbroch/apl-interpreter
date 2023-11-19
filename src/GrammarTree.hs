@@ -185,11 +185,8 @@ instance Show Function where
     show (MonDyadFn name _ _) = name
     show (DfnFn toks) = "{" ++ (concat . map (show) $ toks) ++ "}"
 
-type OpM = IdMap -> FnTreeNode -> Function
-type OpD = IdMap -> FnTreeNode -> FnTreeNode -> Function
-
-data Operator = MonOp String OpM
-              | DyadOp String OpD
+data Operator = MonOp String (FnTreeNode -> Function)
+              | DyadOp String (FnTreeNode -> FnTreeNode -> Function)
               | DopOp [Token]
 
 instance Show Operator where

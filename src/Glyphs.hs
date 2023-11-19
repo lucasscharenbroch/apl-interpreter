@@ -19,26 +19,24 @@ dOPH name _ _ = DyadFn ("derived from dyadic op: " ++ name) (dFPH "_derived_")
 
 {- Pure Wrappers -}
 
-pureMonFn :: String -> (ArrTreeNode -> Array) -> MonFn
+pureMonFn :: String -> (Array -> Array) -> MonFn
 pureMonFn name pfn = MonFn name ipfn
-    where ipfn idm arg = (idm, pfn arg)
+    where ipfn idm arg = (idm', pfn $ arg')
+          (idm', arg') = evalArrTree idm arg
 
-pureDyadFn :: String -> (ArrTreeNode -> ArrTreeNode -> Array) -> DyadFn
+pureDyadFn :: String -> (Array -> Array -> Array) -> DyadFn
 pureDyadFn name pfn = DyadFn name ipfn
-    where ipfn idm arg1 arg2 = (idm, pfn arg1 arg2)
+    where ipfn idm arg1 arg2 = (idm'', pfn arg1' arg2')
+          (idm', arg2') = evalArrTree idm arg2
+          (idm'', arg1') = evalArrTree idm' arg1
 
-pureMonDyadFn :: String -> (ArrTreeNode -> Array) -> (ArrTreeNode -> ArrTreeNode -> Array) -> MonDyadFn
+pureMonDyadFn :: String -> (Array -> Array) -> (Array -> Array -> Array) -> MonDyadFn
 pureMonDyadFn name pmfn pdfn = MonDyadFn name ipmfn ipdfn
-    where ipmfn idm arg = (idm, pmfn arg)
-    where ipdfn idm arg1 arg2 = (idm, pdfn arg1 arg2)
-
-pureMonOp :: String -> (FnTreeNode -> Function) -> MonOp
-pureMonOp name pop = MonOp name ipop
-    where ipop idm arg = (idm, pop arg)
-
-pureDyadOp :: String -> (FnTreeNode -> FnTreeNode -> Function) -> DyadOp
-pureDyadOp name pop = DyadOp name ipop
-    where ipop idm arg1 arg2 = (idm, pop arg1 arg2)
+    where ipmfn idm arg = (idm', pfn $ arg')
+            where (idm', arg') = evalArrTree idm arg
+    where ipdfn idm arg1 arg2 = (idm'', pfn arg1' arg2')
+            where (idm', arg2') = evalArrTree idm arg2
+                  (idm'', arg1') = evalArrTree idm' arg1
 
 {- Functions -}
 
