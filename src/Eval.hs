@@ -13,7 +13,7 @@ atop f' g' = case (f, g) of
     where f = case evalFnTree f' of
               (Left fn) -> fn
               (Right _) -> undefined
-          g = case evalFnTree f' of
+          g = case evalFnTree g' of
               (Left fn) -> fn
               (Right _) -> undefined
 
@@ -49,26 +49,26 @@ fork f g h = case (evalFnTree f, evalFnTree g, evalFnTree h) of
         (MonFn _ fF, MonDyadFn _ _ gF, MonDyadFn _ hF _) -> MonFn "der_fork" (\y -> gF (ArrLeaf $ fF y) (ArrLeaf $ hF y))
     _ -> undefined
 
-evalArrTree :: (IdMap, ArrTreeNode) -> Array
-evalArrTree (idm, ArrLeaf a) = a
-evalArrTree (idm, ArrInternalMonFn ft at) = case evalFnTree (idm, ft) of
-    (Left (MonFn _ f)) -> f idm at
-    (Left (MonDyadFn _ f _)) -> f idm at
+evalArrTree :: IdMap -> ArrTreeNode -> (IdMap, Array)
+evalArrTree idm (ArrLeaf a) = (idm a)
+evalArrTree idm (ArrInternalMonFn ft at) = case evalFnTree ft of
+    (MonFn _ f) -> f idm at
+    (MonDyadFn _ f _) -> f idm at
     _ -> undefined -- TODO exception
-evalArrTree (idm, ArrInternalDyadFn ft at1 at2) = case evalFnTree (idm, ft) of
-    (Left (DyadFn _ f)) -> f idm at1 at2
-    (Left (MonDyadFn _ _ f)) -> f idm at1 at2
+evalArrTree idm (ArrInternalDyadFn ft at1 at2) = case evalFnTree ft of
+    (DyadFn _ f) -> f idm at1 at2
+    (MonDyadFn _ _ f) -> f idm at1 at2
     _ -> undefined -- TODO exception
-evalArrTree (idm, ArrInternalSubscript a is) = undefined -- TODO implement
+evalArrTree idm (ArrInternalSubscript a is) = undefined -- TODO implement
 
-evalFnTree :: (IdMap, FnTreeNode) -> Either Function Array
-evalFnTree (_, FnLeafFn f) = Left f
-evalFnTree (idm, FnLeafArr at) = Right $ evalArrTree (idm, at)
-evalFnTree (idm, FnInternalMonOp op ft) = case op of
-    (MonOp _ o) -> Left $ o idm ft
+evalFnTree :: FnTreeNode -> Function
+evalFnTree (FnLeafFn f) = ft f
+evalFnTree (FnLeafArr _) = undefined -- TODO internal error (?)
+evalFnTree (FnInternalMonOp op ft) = case op of
+    (MonOp _ o) -> o idm ft
     (DyadOp _ _) -> undefined
-evalFnTree (idm, FnInternalDyadOp op ft1 ft2) = case op of
+evalFnTree (FnInternalDyadOp op ft1 ft2) = case op of
     (MonOp _ _) -> undefined
-    (DyadOp _ o) -> Left $ o idm ft1 ft2
-evalFnTree (_, FnInternalAtop ft1 ft2) = Left $ atop ft1 ft2
-evalFnTree (_, FnInternalFork ft1 ft2 ft3) = Left $ fork ft1 ft2 ft3
+    (DyadOp _ o) -> o idm ft1 ft2
+evalFnTree (FnInternalAtop ft1 ft2) = atop ft1 ft2
+evalFnTree (FnInternalFork ft1 ft2 ft3) = fork ft1 ft2 ft3
