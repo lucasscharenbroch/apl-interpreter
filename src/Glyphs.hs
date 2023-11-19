@@ -17,33 +17,61 @@ mOPH name _ = DyadFn ("derived from monadic op: " ++ name) (dFPH "_derived_")
 dOPH :: String -> FnTreeNode -> FnTreeNode -> Function
 dOPH name _ _ = DyadFn ("derived from dyadic op: " ++ name) (dFPH "_derived_")
 
+{- Pure Wrappers -}
+
+pureMonFn :: String -> (ArrTreeNode -> Array) -> MonFn
+pureMonFn name pfn = MonFn name ipfn
+    where ipfn idm arg = (idm, pfn arg)
+
+pureDyadFn :: String -> (ArrTreeNode -> ArrTreeNode -> Array) -> DyadFn
+pureDyadFn name pfn = DyadFn name ipfn
+    where ipfn idm arg1 arg2 = (idm, pfn arg1 arg2)
+
+pureMonDyadFn :: String -> (ArrTreeNode -> Array) -> (ArrTreeNode -> ArrTreeNode -> Array) -> MonDyadFn
+pureMonDyadFn name pmfn pdfn = MonDyadFn name ipmfn ipdfn
+    where ipmfn idm arg = (idm, pmfn arg)
+    where ipdfn idm arg1 arg2 = (idm, pdfn arg1 arg2)
+
+pureMonOp :: String -> (FnTreeNode -> Function) -> MonOp
+pureMonOp name pop = MonOp name ipop
+    where ipop idm arg = (idm, pop arg)
+
+pureDyadOp :: String -> (FnTreeNode -> FnTreeNode -> Function) -> DyadOp
+pureDyadOp name pop = DyadOp name ipop
+    where ipop idm arg1 arg2 = (idm, pop arg1 arg2)
+
 {- Functions -}
 
-fImplicitCat = DyadFn ")(" F.implicitCat
-fImplicitGroup = MonFn "()" F.implicitGroup
-fAssignToQuad = MonFn "⎕←" F.assignToQuad
+-- impure
 fAssignToId id = MonFn (id ++ "←") (F.assignToId id)
 
-fReplicate = DyadFn "/" (dFPH "/")
-fExpand = DyadFn "\\" (dFPH "\\")
-fReplicateFirst = DyadFn "⌿" (dFPH "⌿")
-fExpandFirst = DyadFn "⍀" (dFPH "⍀")
+-- specialized
+fImplicitCat = pureDyadFn ")(" F.implicitCat
+fImplicitGroup = pureMonFn "()" F.implicitGroup
+fAssignToQuad = pureMonFn "⎕←" F.assignToQuad
 
-fPlus = MonDyadFn "+" F.conjugate F.add
-fMinus = MonDyadFn "-" F.negate F.subtract
-fTimes = MonDyadFn "×" F.direction F.multiply
-fDivide = MonDyadFn "÷" F.reciprocal F.divide
-fIota = MonDyadFn "⍳" F.iota F.indexOf
-fShape = MonDyadFn "⍴" F.shapeOf F.reshape
+-- double-as-operators
+fReplicate = pureDyadFn "/" (dFPH "/")
+fExpand = pureDyadFn "\\" (dFPH "\\")
+fReplicateFirst = pureDyadFn "⌿" (dFPH "⌿")
+fExpandFirst = pureDyadFn "⍀" (dFPH "⍀")
+
+-- primitive
+fPlus = pureMonDyadFn "+" F.conjugate F.add
+fMinus = pureMonDyadFn "-" F.negate F.subtract
+fTimes = pureMonDyadFn "×" F.direction F.multiply
+fDivide = pureMonDyadFn "÷" F.reciprocal F.divide
+fIota = pureMonDyadFn "⍳" F.iota F.indexOf
+fShape = pureMonDyadFn "⍴" F.shapeOf F.reshape
 
 {- Operators -}
 
-oReduce = MonOp "/" (mOPH "/")
-oScan = MonOp "\\" (mOPH "\\")
-oReduceFirst = MonOp "⌿" (mOPH "⌿")
-oScanFirst = MonOp "⍀" (mOPH "⍀")
+oReduce = pureMonOp "/" (mOPH "/")
+oScan = pureMonOp "\\" (mOPH "\\")
+oReduceFirst = pureMonOp "⌿" (mOPH "⌿")
+oScanFirst = pureMonOp "⍀" (mOPH "⍀")
 
-oSelfie = MonOp "⍨" O.selfie
-oAtop = DyadOp "⍤" (dOPH "⍤")
+oSelfie = pureMonOp "⍨" O.selfie
+oAtop = pureDyadOp "⍤" (dOPH "⍤")
 
 oAxisSpec axis = MonOp ("[" ++ (show axis) ++ "]") (mOPH "[]") -- TODO remove `axis' arg and add arg to called fn

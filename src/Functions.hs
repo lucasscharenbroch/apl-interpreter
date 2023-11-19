@@ -67,13 +67,16 @@ arithFn fi' fd' x' y'= arrZipWith (f) x y
           f _ _ = undefined -- TODO domain error
           rec = arithFn fi' fd'
 
+{- Impure Functions -}
+
+assignToId :: String -> FuncM
+assignToId id idm x' = (mapInsert id x idm, x)
+    x = evalArrTree x
+
 {- Specialized Functions (non-primitive) -}
 
-assignToId :: String -> ArrTreeNode -> Array
-assignToId id x' = evalArrTree x' -- TODO add actual assignment
-
 assignToQuad :: ArrTreeNode -> Array
-assignToQuad x' = evalArrTree x'
+assignToQuad = evalArrTree
 
 implicitCat :: ArrTreeNode -> ArrTreeNode -> Array
 implicitCat x' y' = arrCat x y
@@ -110,7 +113,7 @@ direction x' = arrMap (_direction) x
               | d >= 0 = ScalarNum . Left $ 1
               | otherwise = ScalarNum . Left  $ -1
           _direction (ScalarArr a) = ScalarArr $ arrMap (_direction) a
-          _direction _ = undefined -- TODO dimain error
+          _direction _ = undefined -- TODO domain error
 
 divide :: ArrTreeNode -> ArrTreeNode -> Array
 divide x' y' = arrZipWith (_div) x y

@@ -4,13 +4,13 @@ import GrammarTree
 
 {- Helpers -}
 
-getDyadFn :: Function -> (ArrTreeNode -> ArrTreeNode -> Array)
+getDyadFn :: Function -> FuncD
 getDyadFn f = case f of
     (DyadFn _ x) -> x
     (MonDyadFn _ _ x) -> x
     _ -> undefined -- TODO throw exception
 
-getMonFn :: Function -> (ArrTreeNode -> Array)
+getMonFn :: Function -> FuncM
 getMonFn f = case f of
     (MonFn _ x) -> x
     (MonDyadFn _ x _) -> x
@@ -18,8 +18,8 @@ getMonFn f = case f of
 
 {- General Operators -}
 
-selfie :: FnTreeNode -> Function
-selfie ft = case evalFnTree ft of
+selfie :: OpM
+selfie _ ft = case evalFnTree (idm, ft) of
     (Left f) -> MonDyadFn "der⍨" (\x -> dyFn x x) (\x y -> dyFn y x)
         where dyFn = getDyadFn f
     (Right a) -> MonDyadFn "der⍨" (\_ -> a) (\_ _ -> a)

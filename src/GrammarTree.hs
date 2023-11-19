@@ -171,9 +171,12 @@ arrMap f a = shapedArrFromList (shape a) . map (f) . arrToList $ a
 
 {- Functions and Operators -}
 
-data Function = MonFn String (ArrTreeNode -> Array)
-              | DyadFn String (ArrTreeNode -> ArrTreeNode -> Array)
-              | MonDyadFn String (ArrTreeNode -> Array) (ArrTreeNode -> ArrTreeNode -> Array)
+type FuncM = IdMap -> ArrTreeNode -> (IdMap, Array)
+type FuncD = IdMap -> ArrTreeNode -> ArrTreeNode -> (IdMap, Array)
+
+data Function = MonFn String FuncM
+              | DyadFn String FuncD
+              | MonDyadFn String FuncM FuncD
               | DfnFn [Token]
 
 instance Show Function where
@@ -182,8 +185,11 @@ instance Show Function where
     show (MonDyadFn name _ _) = name
     show (DfnFn toks) = "{" ++ (concat . map (show) $ toks) ++ "}"
 
-data Operator = MonOp String (FnTreeNode -> Function)
-              | DyadOp String (FnTreeNode -> FnTreeNode -> Function)
+type OpM = IdMap -> FnTreeNode -> Function
+type OpD = IdMap -> FnTreeNode -> FnTreeNode -> Function
+
+data Operator = MonOp String OpM
+              | DyadOp String OpD
               | DopOp [Token]
 
 instance Show Operator where

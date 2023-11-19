@@ -49,26 +49,26 @@ fork f g h = case (evalFnTree f, evalFnTree g, evalFnTree h) of
         (MonFn _ fF, MonDyadFn _ _ gF, MonDyadFn _ hF _) -> MonFn "der_fork" (\y -> gF (ArrLeaf $ fF y) (ArrLeaf $ hF y))
     _ -> undefined
 
-evalArrTree :: ArrTreeNode -> Array
-evalArrTree (ArrLeaf a) = a
-evalArrTree (ArrInternalMonFn ft at) = case evalFnTree ft of
-    (Left (MonFn _ f)) -> f at
-    (Left (MonDyadFn _ f _)) -> f at
+evalArrTree :: (IdMap, ArrTreeNode) -> Array
+evalArrTree (idm, ArrLeaf a) = a
+evalArrTree (idm, ArrInternalMonFn ft at) = case evalFnTree (idm, ft) of
+    (Left (MonFn _ f)) -> f idm at
+    (Left (MonDyadFn _ f _)) -> f idm at
     _ -> undefined -- TODO exception
-evalArrTree (ArrInternalDyadFn ft at1 at2) = case evalFnTree ft of
-    (Left (DyadFn _ f)) -> f at1 at2
-    (Left (MonDyadFn _ _ f)) -> f at1 at2
+evalArrTree (idm, ArrInternalDyadFn ft at1 at2) = case evalFnTree (idm, ft) of
+    (Left (DyadFn _ f)) -> f idm at1 at2
+    (Left (MonDyadFn _ _ f)) -> f idm at1 at2
     _ -> undefined -- TODO exception
-evalArrTree (ArrInternalSubscript a is) = undefined -- TODO implement
+evalArrTree (idm, ArrInternalSubscript a is) = undefined -- TODO implement
 
-evalFnTree :: FnTreeNode -> Either Function Array
-evalFnTree (FnLeafFn f) = Left f
-evalFnTree (FnLeafArr at) = Right $ evalArrTree at
-evalFnTree (FnInternalMonOp op ft) = case op of
-    (MonOp _ o) -> Left $ o ft
+evalFnTree :: (IdMap, FnTreeNode) -> Either Function Array
+evalFnTree (_, FnLeafFn f) = Left f
+evalFnTree (idm, FnLeafArr at) = Right $ evalArrTree (idm, at)
+evalFnTree (idm, FnInternalMonOp op ft) = case op of
+    (MonOp _ o) -> Left $ o idm ft
     (DyadOp _ _) -> undefined
-evalFnTree (FnInternalDyadOp op ft1 ft2) = case op of
+evalFnTree (idm, FnInternalDyadOp op ft1 ft2) = case op of
     (MonOp _ _) -> undefined
-    (DyadOp _ o) -> Left $ o ft1 ft2
-evalFnTree (FnInternalAtop ft1 ft2) = Left $ atop ft1 ft2
-evalFnTree (FnInternalFork ft1 ft2 ft3) = Left $ fork ft1 ft2 ft3
+    (DyadOp _ o) -> Left $ o idm ft1 ft2
+evalFnTree (_, FnInternalAtop ft1 ft2) = Left $ atop ft1 ft2
+evalFnTree (_, FnInternalFork ft1 ft2 ft3) = Left $ fork ft1 ft2 ft3

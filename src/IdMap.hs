@@ -14,3 +14,6 @@ emptyIdMap = Map.empty
 
 mapLookup :: String -> IdMap -> Maybe IdEntry
 mapLookup = Map.lookup
+
+mapInsert :: String -> IdEntry -> IdMap -> IdMap
+mapInsert = Map.insert
