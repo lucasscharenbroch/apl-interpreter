@@ -5,20 +5,16 @@ import GrammarTree
 {- Helpers -}
 
 getDyadFn :: FnTreeNode -> FuncD
-getDyadFn f = case f of
-    FnLeafArr -> undefined -- TODO throw exception (expected function, not array)
-    _ -> case evalFnTree f of
-       (DyadFn _ x) -> x
-       (MonDyadFn _ _ x) -> x
-       _ -> undefined -- TODO throw exception (expected dyadic function)
+getDyadFn f = case unwrapFunction f of
+   (DyadFn _ x) -> x
+   (MonDyadFn _ _ x) -> x
+   _ -> undefined -- TODO throw exception (expected dyadic function)
 
 getMonFn :: FnTreeNode -> FuncM
-getMonFn f = case f of
-    FnLeafArr -> undefined -- TODO thrwo exception (expected function, not array)
-    _ -> case evalFnTree f of
-        (MonFn _ x) -> x
-        (MonDyadFn _ x _) -> x
-        _ -> undefined -- TODO throw exception
+getMonFn f = case unwrapFunction f of
+    (MonFn _ x) -> x
+    (MonDyadFn _ x _) -> x
+    _ -> undefined -- TODO throw exception (expected monadic function)
 
 {- General Operators -}
 

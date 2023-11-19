@@ -1,53 +1,82 @@
 module Eval where
 import GrammarTree
 
+{- Helpers -}
+
+unwrapFunction :: FnTreeNode -> Function
+unwrapFunction ftn = case ftn of
+    (FnLeafArr _) -> undefined -- TODO exception (expected function, not array)
+    _ -> evalFnTree ftn
+
+monApply :: FuncM -> (IdMap, Array) -> (IdMap, Array)
+monApply f (i, a) = f i (ArrLeaf a)
+
+dyadApply :: FuncD -> (IdMap -> (IdMap, Array)) -> (IdMap, Array) -> (IdMap, Array)
+dyadApply f lf (i, r) = f i' (ArrLeaf l) (ArrLeaf r)
+    where (i', l) = lf i
+
+atopMM :: FuncM -> FuncM -> FuncM -- (f g)Y = f g Y
+atopMM f g i y = monApply f $ g i y
+
+atopMD :: FuncM -> FuncD -> FuncD -- X(f g)Y = f X g Y
+atopMD f g i x y = monApply f $ g i x y
+
+forkADD :: ArrTreeNode -> FuncD -> FuncD -> FuncD -- X(Z g h)Y = Z g X h Y
+forkADD z g h i x y = dyadApply g (\i' -> (z, i')) $ h i x y
+
+forkADM :: ArrTreeNode -> FuncD -> FuncM -> FuncD -- (X g h)Y = X g h Y
+forkADM x g h i y = dyadApply g (\i' -> (x, i')) $ h i y
+
+forkDDD :: FuncD -> FuncD -> FuncD -> FuncD -- X(f g h)Y = (X f Y) g (X h Y)
+forkDDD f g h i x y = dyadApply g (\i' -> f i' x y) $ h i x y
+
+forkMDM :: FuncM -> FuncD -> FuncM -> FuncM -- (f g h)Y = (f Y) g (h Y)
+forkMDM f g h i y = dyadApply g (\i' -> f i' y) $ h i y
+
+{- Eval Atop/Fork -}
+
 atop :: FnTreeNode -> FnTreeNode -> Function
 atop f' g' = case (f, g) of
-    ((MonFn _ fF), (MonFn _ gF)) -> MonFn "der_atop" (fF . ArrLeaf . gF)
-    ((MonFn _ fF), (DyadFn _ gF)) -> DyadFn "der_atop" (\x y -> fF . ArrLeaf $ gF x y)
-    ((MonFn _ fF), (MonDyadFn _ gMF gDF)) -> MonDyadFn "der_atop" (fF . ArrLeaf . gMF) (\x y -> fF . ArrLeaf $ gDF x y)
-    ((MonDyadFn _ fF _), (MonFn _ gF)) -> MonFn "der_atop" (fF . ArrLeaf . gF)
-    ((MonDyadFn _ fF _), (DyadFn _ gF)) -> DyadFn "der_atop" (\x y -> fF . ArrLeaf $ gF x y)
-    ((MonDyadFn _ fF _), (MonDyadFn _ gMF gDF)) -> MonDyadFn "der_atop" (fF . ArrLeaf . gMF) (\x y -> fF . ArrLeaf $ gDF x y)
-    _ -> undefined -- TODO exception (?)
-    where f = case evalFnTree f' of
-              (Left fn) -> fn
-              (Right _) -> undefined
-          g = case evalFnTree g' of
-              (Left fn) -> fn
-              (Right _) -> undefined
+    (MonFn _ fF, MonFn _ gF) -> MonFn dName (atopMM fF gF)
+    (MonFn _ fF, DyadFn _ gF) -> DyadFn dName (atopMD fF gF)
+    (MonFn _ fF, MonDyadFn _ gMF gDF) -> MonDyadFn dName (atopMM fF gMF) (atopMD fF gDF)
+    (MonDyadFn _ fF _, MonFn _ gF) -> MonFn dName (atopMM fF gF)
+    (MonDyadFn _ fF _, DyadFn _ gF) -> DyadFn dName (atopMD fF gF)
+    (MonDyadFn _ fF _, MonDyadFn _ gMF gDF) -> MonDyadFn dName (atopMM fF gMF) (atopMD fF gDF)
+    _ -> undefined -- TODO exception (internal)
+    where f = unwrapFunction f'
+          g = unwrapFunction g'
+          dName = "der_atop"
 
 fork :: FnTreeNode -> FnTreeNode -> FnTreeNode -> Function
-fork f g h = case (evalFnTree f, evalFnTree g, evalFnTree h) of
-    (Right fA, Left g', Left h') -> case (g', h') of
-        (DyadFn _ gF, DyadFn _ hF) -> DyadFn "der_train" (\x y -> gF (ArrLeaf fA) (ArrLeaf $ hF x y))
-        (DyadFn _ gF, MonFn _ hF) -> DyadFn "der_train" (\x y -> gF (ArrLeaf fA) (ArrLeaf $ hF y))
-        (MonDyadFn _ _ gF, DyadFn _ hF) -> DyadFn "der_train" (\x y -> gF (ArrLeaf fA) (ArrLeaf $ hF x y))
-        (MonDyadFn _ _ gF, MonFn _ hF) -> DyadFn "der_train" (\x y -> gF (ArrLeaf fA) (ArrLeaf $ hF y))
-        (MonDyadFn _ _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn "der_train" monF dyF
-            where monF = (\y -> gF (ArrLeaf fA) (ArrLeaf $ hMF y))
-                  dyF = (\x y -> gF (ArrLeaf fA) (ArrLeaf $ hDF x y))
+fork f g h = case (f, g, h) of
+    (_, FnLeafArr, _) -> undefined -- TODO exception (internal)
+    (_, _, FnLeafArr) -> undefined -- TODO exception (internal)
+    (FnLeafArr fA) -> case (evalArrTree g, evalArrTree h) of
+        (DyadFn _ gF, DyadFn _ hF) -> DyadFn dName (forkADD fA gF hF)
+        (DyadFn _ gF, MonFn _ hF) -> MonFn dName (forkADM fA gF hF)
+        (MonDyadFn _ _ gF, DyadFn _ hF) -> DyadFn dName (forkADD fA gF hF)
+        (MonDyadFn _ _ gF, MonFn _ hF) -> DyadFn dName (forkADM fA gF hF)
+        (MonDyadFn _ _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn dName (forkADM fA gF hMF) (forkADD fA gF hDF)
         _ -> undefined
-    (Left f', Left g', Left h') -> case (f', g', h') of
-        (DyadFn _ fF, DyadFn _ gF, DyadFn _ hF) -> DyadFn "der_fork" (\x y -> gF (ArrLeaf $ fF x y) (ArrLeaf $ hF x y))
-        (DyadFn _ fF, MonDyadFn _ _ gF, DyadFn _ hF) -> DyadFn "der_fork" (\x y -> gF (ArrLeaf $ fF x y) (ArrLeaf $ hF x y))
-        (MonFn _ fF, DyadFn _ gF, MonFn _ hF) -> MonFn "der_fork" (\y -> gF (ArrLeaf $ fF y) (ArrLeaf $ hF y))
-        (MonFn _ fF, MonDyadFn _ _ gF, MonFn _ hF) -> MonFn "der_fork" (\y -> gF (ArrLeaf $ fF y) (ArrLeaf $ hF y))
-        (MonDyadFn _ fMF fDF, DyadFn _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn "der_form" monF dyF
-            where monF = (\y -> gF (ArrLeaf $ fMF y) (ArrLeaf $ hMF y))
-                  dyF = (\x y -> gF (ArrLeaf $ fDF x y) (ArrLeaf $ hDF x y))
-        (MonDyadFn _ fMF fDF, MonDyadFn _ _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn "der_form" monF dyF
-            where monF = (\y -> gF (ArrLeaf $ fMF y) (ArrLeaf $ hMF y))
-                  dyF = (\x y -> gF (ArrLeaf $ fDF x y) (ArrLeaf $ hDF x y))
-        (MonDyadFn _ _ fF, DyadFn _ gF, DyadFn _ hF) -> DyadFn "der_fork" (\x y -> gF (ArrLeaf $ fF x y) (ArrLeaf $ hF x y))
-        (MonDyadFn _ _ fF, MonDyadFn _ _ gF, DyadFn _ hF) -> DyadFn "der_fork" (\x y -> gF (ArrLeaf $ fF x y) (ArrLeaf $ hF x y))
-        (MonDyadFn _ fF _, DyadFn _ gF, MonFn _ hF) -> MonFn "der_fork" (\y -> gF (ArrLeaf $ fF y) (ArrLeaf $ hF y))
-        (MonDyadFn _ fF _, MonDyadFn _ _ gF, MonFn _ hF) -> MonFn "der_fork" (\y -> gF (ArrLeaf $ fF y) (ArrLeaf $ hF y))
-        (DyadFn _ fF, DyadFn _ gF, MonDyadFn _ _ hF) -> DyadFn "der_fork" (\x y -> gF (ArrLeaf $ fF x y) (ArrLeaf $ hF x y))
-        (DyadFn _ fF, MonDyadFn _ _ gF, MonDyadFn _ _ hF) -> DyadFn "der_fork" (\x y -> gF (ArrLeaf $ fF x y) (ArrLeaf $ hF x y))
-        (MonFn _ fF, DyadFn _ gF, MonDyadFn _ hF _) -> MonFn "der_fork" (\y -> gF (ArrLeaf $ fF y) (ArrLeaf $ hF y))
-        (MonFn _ fF, MonDyadFn _ _ gF, MonDyadFn _ hF _) -> MonFn "der_fork" (\y -> gF (ArrLeaf $ fF y) (ArrLeaf $ hF y))
-    _ -> undefined
+    _ -> case (evalFnTree f, evalFnTree g, evalFnTree h) of
+        (DyadFn _ fF, DyadFn _ gF, DyadFn _ hF) -> DyadFn dName (forkDDD fF gF hF)
+        (DyadFn _ fF, MonDyadFn _ _ gF, DyadFn _ hF) -> DyadFn dName (forkDDD fF gF hF)
+        (MonFn _ fF, DyadFn _ gF, MonFn _ hF) -> MonFn dName (forkMDM fF gF hF)
+        (MonFn _ fF, MonDyadFn _ _ gF, MonFn _ hF) -> MonFn dName (forkMDM fF gF hF)
+        (MonDyadFn _ fMF fDF, DyadFn _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn dName (forkMDM fMF gF hMF) (forkDDD fDf gF hDF)
+        (MonDyadFn _ fMF fDF, MonDyadFn _ _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn dName (forkMDM fMF gF hMF) (forkDDD fDF gF hDF)
+        (MonDyadFn _ _ fF, DyadFn _ gF, DyadFn _ hF) -> DyadFn dName (forkDDD fF gF hF)
+        (MonDyadFn _ _ fF, MonDyadFn _ _ gF, DyadFn _ hF) -> DyadFn dName (forkDDD fF gF hF)
+        (MonDyadFn _ fF _, DyadFn _ gF, MonFn _ hF) -> MonFn dName (forkMDM fF gF hF)
+        (MonDyadFn _ fF _, MonDyadFn _ _ gF, MonFn _ hF) -> MonFn dName (forkMDM fF gF hF)
+        (DyadFn _ fF, DyadFn _ gF, MonDyadFn _ _ hF) -> DyadFn dName (forkDDD fF gF hF)
+        (DyadFn _ fF, MonDyadFn _ _ gF, MonDyadFn _ _ hF) -> DyadFn dName (forkDDD fF gF hF)
+        (MonFn _ fF, DyadFn _ gF, MonDyadFn _ hF _) -> MonFn dName (forkMDM fF gF hF)
+        (MonFn _ fF, MonDyadFn _ _ gF, MonDyadFn _ hF _) -> MonFn dName (forkMDM fF gF hF)
+    where dName = "der_fork"
+
+{- Eval Tree Fns -}
 
 evalArrTree :: IdMap -> ArrTreeNode -> (IdMap, Array)
 evalArrTree idm (ArrLeaf a) = (idm a)
