@@ -25,6 +25,33 @@ pureMonDyadFn name pmfn pdfn = MonDyadFn name ipmfn ipdfn
             where (idm', arg2') = evalArrTree idm arg2
                   (idm'', arg1') = evalArrTree idm' arg1
 
+pureMonOp :: String -> (Function -> Function) -> Operator
+pureMonOp name pop = MonOp name ipop
+    where ipop idm arg = (idm', pop $ arg')
+            where (idm', arg') = evalFnTree idm arg
+
+pureDyadOp :: String -> (Function -> Function -> Function) -> Operator
+pureDyadOp name pop = DyadOp name ipop
+    where ipop idm arg1 arg2 = (idm'', pop arg1' arg2')
+            where (idm', arg2') = evalFnTree idm arg2
+                  (idm'', arg1') = evalFnTree idm' arg1
+
+pureMonOpOptA :: String -> ((Either Function Array) -> Function) -> Operator
+pureMonOpOptA name pop = MonOp name ipop
+    where ipop idm arg = (idm', pop arg')
+              where (idm', arg') = case arg of
+                                   (FnLeafArr a) -> (\(x, y) -> (x, Right y)) $ evalArrTree idm a
+                                   f -> (\(x, y) -> (x, Left y)) $ evalFnTree idm f
+
+pureDyadOpOptA :: String -> ((Either Function Array) -> (Either Function Array) -> Function) -> Operator
+pureDyadOpOptA name pop = DyadOp name ipop
+    where ipop idm arg1 arg2 = (idm'', pop arg1' arg2')
+            where (idm', arg2') = _unwrap idm arg2
+                  (idm'', arg1') = _unwrap idm' arg1
+                  _unwrap i a = case a of
+                                (FnLeafArr arr) -> (\(x, y) -> (x, Right y)) $ evalArrTree i arr
+                                f -> (\(x, y) -> (x, Left y)) $ evalFnTree i f
+
 {- placeholders (TODO remove) -}
 
 mFPH :: String -> Array -> Array
@@ -33,10 +60,10 @@ mFPH name _ = arrFromList . map (ScalarCh) $ "result of monadic fn: " ++ name
 dFPH :: String -> Array -> Array -> Array
 dFPH name _ _ = arrFromList . map (ScalarCh) $ "result of dyadic fn: " ++ name
 
-mOPH :: String -> FnTreeNode -> Function
+mOPH :: String -> Function -> Function
 mOPH name _ = pureDyadFn ("derived from monadic op: " ++ name) (dFPH "_derived_")
 
-dOPH :: String -> FnTreeNode -> FnTreeNode -> Function
+dOPH :: String -> Function -> Function -> Function
 dOPH name _ _ = pureDyadFn ("derived from dyadic op: " ++ name) (dFPH "_derived_")
 
 {- Functions -}
@@ -65,12 +92,12 @@ fShape = pureMonDyadFn "⍴" F.shapeOf F.reshape
 
 {- Operators -}
 
-oReduce = MonOp "/" (mOPH "/")
-oScan = MonOp "\\" (mOPH "\\")
-oReduceFirst = MonOp "⌿" (mOPH "⌿")
-oScanFirst = MonOp "⍀" (mOPH "⍀")
+oReduce = pureMonOp "/" (mOPH "/")
+oScan = pureMonOp "\\" (mOPH "\\")
+oReduceFirst = pureMonOp "⌿" (mOPH "⌿")
+oScanFirst = pureMonOp "⍀" (mOPH "⍀")
 
-oSelfie = MonOp "⍨" O.selfie
-oAtop = DyadOp "⍤" (dOPH "⍤")
+oSelfie = pureMonOpOptA "⍨" O.selfie
+oAtop = pureDyadOp "⍤" (dOPH "⍤")
 
-oAxisSpec axis = MonOp ("[" ++ (show axis) ++ "]") (mOPH "[]") -- TODO remove `axis' arg and add arg to called fn
+oAxisSpec axis = pureMonOp ("[" ++ (show axis) ++ "]") (mOPH "[]") -- TODO remove `axis' arg and add arg to called fn

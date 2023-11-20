@@ -184,22 +184,18 @@ type FuncD = IdMap -> ArrTreeNode -> ArrTreeNode -> (IdMap, Array)
 data Function = MonFn String FuncM
               | DyadFn String FuncD
               | MonDyadFn String FuncM FuncD
-              | DfnFn [Token]
 
 instance Show Function where
     show (MonFn name _) = name
     show (DyadFn name _)  = name
     show (MonDyadFn name _ _) = name
-    show (DfnFn toks) = "{" ++ (concat . map (show) $ toks) ++ "}"
 
-data Operator = MonOp String (FnTreeNode -> Function)
-              | DyadOp String (FnTreeNode -> FnTreeNode -> Function)
-              | DopOp [Token]
+data Operator = MonOp String (IdMap -> FnTreeNode -> (IdMap, Function))
+              | DyadOp String (IdMap -> FnTreeNode -> FnTreeNode -> (IdMap, Function))
 
 instance Show Operator where
     show (MonOp name _) = name
     show (DyadOp name _) = name
-    show (DopOp toks) = "{" ++ (concat . map (show) $ toks) ++ "}"
 
 {- Tree Nodes -}
 
@@ -252,7 +248,7 @@ showFtnHelper (FnInternalMonOp op fn) = showMonTreeHelper (showFtnHelper fn) (sh
 showFtnHelper (FnInternalDyadOp op f1 f2) = showDyadTreeHelper (showFtnHelper f1) (showFtnHelper f2) (show op)
 showFtnHelper (FnInternalAtop f1 f2) = (concat . intersperse "\n" . tail . lines $ res', padSz')
     where (res', padSz') = showFtnHelper (FnInternalDyadOp dummyOp f1 f2)
-          dummyOp = DyadOp "_" (\_ _ -> MonFn "_" (\i _ -> (i, arrFromList [])))
+          dummyOp = DyadOp "_" (\i _ _ -> (i, MonFn "_" (\i' _ -> (i', arrFromList []))))
 showFtnHelper (FnInternalFork f1 f2 f3) = (res, padSz)
     where (s1, p1) = showFtnHelper f1
           (s2, p2) = showFtnHelper f2

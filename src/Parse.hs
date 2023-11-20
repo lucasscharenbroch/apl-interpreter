@@ -11,9 +11,9 @@ import Glyphs
  -
  - index_list => (der_arr|;)*
  -
- - der_arr => der_fn der_arr
+ - der_arr => ID ← der_arr
+ -         => der_fn der_arr
  -         => arr der_fn der_arr
- -         => ID ← der_arr
  -         => arr
  -
  - train => {df df} df                       (nested forks) (where df = der_fn)
@@ -32,8 +32,9 @@ import Glyphs
  -    => ⍣ . ∘ ⍤ ⍥ @ ⍠ ⌺                     (dyadic)
  -    => [der_arr]                           (monadic)
  -    => dfn_decl                            (if dfn_decl is op)
- -    => (ID ← dfn_decl)                     (if dfn_decl is op)
+ -    => ID ← op
  -    => op_or_fn
+ -    => (op)
  -
  - fn => = ≤ < > ≥ ∨ ∧ ⍲ ⍱ ⍷ ∩ ←             (dyadic)
  -    => + - × ÷ * ⍟ ⌹ ○ ! ? | ⌈ ⌊ ⊥ ⊤       (monadic or dyadic)
@@ -42,9 +43,9 @@ import Glyphs
  -    => ⎕ID                                 (if ⎕ID is a d_fn)
  -    => ⍺⍺ | ⍵⍵ | ∇                         (if dfn_decl state matches these)
  -    => dfn_decl                            (if dfn_decl is fn)
- -    => (ID ← dfn_decl)                     (if dfn_decl is fn)
- -    => (train)
+ -    => ID ← fn
  -    => op_or_fn
+ -    => (train)
  -
  - op_or_fn => / ⌿ \ ⍀                       (monadic operators / dyadic functions)
  -
@@ -223,7 +224,22 @@ parseExpr = (=<<) (Just . fst) . matchOne [
     where atnToRes a@(ArrInternalAssignment _ _) = ResSilentAtn a
           atnToRes a = ResAtn a
 
--- parseDfnDecl :: [Token] -> Maybe (???, [Token])
+parseDfnDecl :: MatchFn [Token]
+parseDfnDecl = chFst (\(_, x, _) -> x) . matchT3 (
+        matchCh '{',
+        chFst (concat . concat) . matchMax [
+            matchOne [
+                chFst (:[]) . matchAnyNonBracketToken,
+                parseDfnDecl
+            ]
+        ],
+        matchCh '}'
+    )
+    where matchAnyNonBracketToken (_, ChTok '{':_) = Nothing
+          matchAnyNonBracketToken (_, ChTok '}':_) = Nothing
+          matchAnyNonBracketToken (_, []) = Nothing
+          matchAnyNonBracketToken (_, t:ts) = Just (t, ts)
+
 -- parseDfnExpr :: [Token] -> Maybe (???, [Token])
 
 parseIdxList :: MatchFn [ArrTreeNode]
@@ -241,15 +257,15 @@ parseIdxList = chFst (foldIdxList . concat) . matchMax [
 
 parseDerArr :: MatchFn ArrTreeNode
 parseDerArr = matchOne [
+        chFst (\(id, _, da) -> ArrInternalAssignment id da) . matchT3 (
+            matchId,
+            matchCh '←',
+            parseDerArr
+        ),
         chFst (\(f, da) -> ArrInternalMonFn f da) . matchT2 (parseDerFn, parseDerArr),
         chFst (\(lhs, f, rhs) -> ArrInternalDyadFn f lhs rhs) . matchT3 (
             parseArr,
             parseDerFn,
-            parseDerArr
-        ),
-        chFst (\(id, _, da) -> ArrInternalAssignment id da) . matchT3 (
-            matchId,
-            matchCh '←',
             parseDerArr
         ),
         parseArr
@@ -297,7 +313,19 @@ parseOp = matchOne [
         ),
         -- TODO dfn_decl
         -- TODO (ID ← dfn_decl)
-        chFst (fst) . parseOpOrFn
+        {- TODO
+        chFst (\(id, _, op) -> ... ) . matchT3 (
+            matchId,
+            matchCh '←',
+            parseOp
+        ),
+        -}
+        chFst (fst) . parseOpOrFn,
+        chFst (\(_, o, _) -> o) . matchT3 (
+            matchCh '(',
+            parseOp,
+            matchCh ')'
+        )
     ]
 
 parseFn :: MatchFn FnTreeNode
@@ -313,12 +341,12 @@ parseFn = matchOne [
         matchQuadIdWith (idEntryToFnTree),
         -- TODO ⍺⍺ ⌊ ⍵⍵ | ∇
         -- TODO (ID ← dfn_decl)
+        chFst (snd) . parseOpOrFn,
         chFst (\(_, t, _) -> t) . matchT3 (
             matchCh '(',
             parseTrain,
             matchCh ')'
-        ),
-        chFst (snd) . parseOpOrFn
+        )
     ]
     where idEntryToFnTree (IdFn f) = Just $ FnLeafFn f
           idEntryToFnTree _ = Nothing
