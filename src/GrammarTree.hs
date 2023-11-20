@@ -197,16 +197,30 @@ instance Show Operator where
     show (MonOp name _) = name
     show (DyadOp name _) = name
 
+data OpTreeNode = OpLeaf Operator -- not really a tree, more like a linked-list of assignments
+                | OpInternalAssignment String OpTreeNode
+                | OpInternalDummyNode OpTreeNode -- does nothing except prevent OpInternalAssignment
+                                                 -- from being matched
+
+instance Show OpTreeNode where
+    show otn = show . unwrapOpTree $ otn
+
+unwrapOpTree :: OpTreeNode -> Operator
+unwrapOpTree (OpLeaf o) = o
+unwrapOpTree (OpInternalAssignment _ otn) = unwrapOpTree otn
+unwrapOpTree (OpInternalDummyNode otn) = unwrapOpTree otn
+
 {- Tree Nodes -}
 
 -- "function tree": a tree that makes up a derived function:
 -- the internal nodes are operators, and the leaves are functions or (derived) arrays
 data FnTreeNode = FnLeafFn Function
                 | FnLeafArr ArrTreeNode
-                | FnInternalMonOp Operator FnTreeNode
-                | FnInternalDyadOp Operator FnTreeNode FnTreeNode
+                | FnInternalMonOp OpTreeNode FnTreeNode
+                | FnInternalDyadOp OpTreeNode FnTreeNode FnTreeNode
                 | FnInternalAtop FnTreeNode FnTreeNode
                 | FnInternalFork FnTreeNode FnTreeNode FnTreeNode
+                | FnInternalAssignment String FnTreeNode
 
 horizCat :: String -> String -> (String, Int)
 horizCat s1 s2 = (res, relOffset)
@@ -248,7 +262,7 @@ showFtnHelper (FnInternalMonOp op fn) = showMonTreeHelper (showFtnHelper fn) (sh
 showFtnHelper (FnInternalDyadOp op f1 f2) = showDyadTreeHelper (showFtnHelper f1) (showFtnHelper f2) (show op)
 showFtnHelper (FnInternalAtop f1 f2) = (concat . intersperse "\n" . tail . lines $ res', padSz')
     where (res', padSz') = showFtnHelper (FnInternalDyadOp dummyOp f1 f2)
-          dummyOp = DyadOp "_" (\i _ _ -> (i, MonFn "_" (\i' _ -> (i', arrFromList []))))
+          dummyOp = OpLeaf $ DyadOp "_" (\i _ _ -> (i, MonFn "_" (\i' _ -> (i', arrFromList []))))
 showFtnHelper (FnInternalFork f1 f2 f3) = (res, padSz)
     where (s1, p1) = showFtnHelper f1
           (s2, p2) = showFtnHelper f2

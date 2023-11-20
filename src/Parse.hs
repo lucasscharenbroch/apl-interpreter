@@ -33,6 +33,7 @@ import Glyphs
  -    => [der_arr]                           (monadic)
  -    => dfn_decl                            (if dfn_decl is op)
  -    => ID ← op
+ -    => ID                                  (if ID is op)
  -    => op_or_fn
  -    => (op)
  -
@@ -44,6 +45,7 @@ import Glyphs
  -    => ⍺⍺ | ⍵⍵ | ∇                         (if dfn_decl state matches these)
  -    => dfn_decl                            (if dfn_decl is fn)
  -    => ID ← fn
+ -    => ID                                  (if ID is fn)
  -    => op_or_fn
  -    => (train)
  -
@@ -192,17 +194,15 @@ matchQuadIdWith _ _ = Nothing
 
 {- Data Types -}
 
-data ExprResult = ResAtn ArrTreeNode
-                | ResSilentAtn ArrTreeNode
-                | ResFtn FnTreeNode
-                | ResOp Operator
+data ExprResult = ResAtn ArrTreeNode Bool
+                | ResFtn FnTreeNode Bool
+                | ResOp OpTreeNode Bool
                 | ResNull
 
 instance Show ExprResult where
-    show (ResAtn a) = show a
-    show (ResSilentAtn a) = show a
-    show (ResFtn f) = show f
-    show (ResOp o) = show o
+    show (ResAtn a _) = show a
+    show (ResFtn f _) = show f
+    show (ResOp o _) = show o
 
 {- Parsing Functions -}
 
@@ -210,19 +210,23 @@ instance Show ExprResult where
 
 parseExpr :: (IdMap, [Token]) -> Maybe ExprResult
 parseExpr = (=<<) (Just . fst) . matchOne [
-        chFst (\(_, _, a, _) -> ResAtn . ArrInternalMonFn (FnLeafFn fAssignToQuad) $ a) . matchT4 (
+        chFst (\(_, _, a, _) -> mkResAtn . ArrInternalMonFn (FnLeafFn fAssignToQuad) $ a) . matchT4 (
             matchCh '⎕',
             matchCh '←',
             parseDerArr,
             matchOne [matchComment, matchEos]
         ),
-        chFst (\(atn, _) -> atnToRes atn) . matchT2 (parseDerArr, matchOne [matchComment, matchEos]),
-        chFst (\(ftn, _) -> ResFtn ftn) . matchT2(parseTrain, matchOne [matchComment, matchEos]),
-        chFst (\(op, _) -> ResOp op) . matchT2(parseOp, matchOne [matchComment, matchEos]),
+        chFst (\(atn, _) -> mkResAtn atn) . matchT2 (parseDerArr, matchOne [matchComment, matchEos]),
+        chFst (\(ftn, _) -> mkResFtn ftn) . matchT2(parseTrain, matchOne [matchComment, matchEos]),
+        chFst (\(op, _) -> mkResOp op) . matchT2(parseOp, matchOne [matchComment, matchEos]),
         chFst (\_ -> ResNull) . matchOne [matchComment, matchEos]
     ]
-    where atnToRes a@(ArrInternalAssignment _ _) = ResSilentAtn a
-          atnToRes a = ResAtn a
+    where mkResAtn a@(ArrInternalAssignment _ _) = ResAtn a False
+          mkResAtn a = ResAtn a True
+          -- mkResFtn f@(FnInternalAssignment _ _) = ResFtn f False
+          mkResFtn f = ResFtn f True
+          mkResOp o@(OpInternalAssignment _ _) = ResOp o False
+          mkResOp o = ResOp o True
 
 parseDfnDecl :: MatchFn [Token]
 parseDfnDecl = chFst (\(_, x, _) -> x) . matchT3 (
@@ -293,40 +297,42 @@ parseDerFn (idm, ts) = matchOne [
         parseFn
     ] (idm, ts)
     where _parseArg = matchOne [parseFn, chFst (FnLeafArr) . parseArr]
-          finishOpMatch :: ((FnTreeNode, Operator), [Token]) -> Maybe (FnTreeNode, [Token])
-          finishOpMatch ((lhs, op@(DyadOp _ _)), toks) = chFst (FnInternalDyadOp op lhs) $ _parseArg (idm, toks)
-          finishOpMatch ((lhs, op), toks) = Just (FnInternalMonOp op lhs, toks)
+          finishOpMatch :: ((FnTreeNode, OpTreeNode), [Token]) -> Maybe (FnTreeNode, [Token])
+          finishOpMatch ((lhs, otn), toks) = case unwrapOpTree otn of
+              (DyadOp _ _) -> chFst (FnInternalDyadOp otn lhs) $ _parseArg (idm, toks)
+              (MonOp _ _) -> Just (FnInternalMonOp otn lhs, toks)
           parseDerFnRec :: (FnTreeNode, [Token]) -> Maybe (FnTreeNode, [Token])
           parseDerFnRec (lhs, toks) = case (=<<) (finishOpMatch) . chFst (\op -> (lhs, op)) $ parseOp (idm, toks) of
               Nothing -> Just (lhs, toks)
               Just res -> parseDerFnRec res
 
-parseOp :: MatchFn Operator
+parseOp :: MatchFn OpTreeNode
 parseOp = matchOne [
         -- TODO big list of operators
-        chFst (\_ -> oSelfie) . matchCh '⍨',
-        chFst (\_ -> oAtop) . matchCh '⍤',
-        chFst (\(_, da, _) -> oAxisSpec da) . matchT3 (
+        chFst (\_ -> OpLeaf oSelfie) . matchCh '⍨',
+        chFst (\_ -> OpLeaf oAtop) . matchCh '⍤',
+        chFst (\(_, da, _) -> OpLeaf $ oAxisSpec da) . matchT3 (
             matchCh '[',
             parseDerArr,
             matchCh ']'
         ),
         -- TODO dfn_decl
-        -- TODO (ID ← dfn_decl)
-        {- TODO
-        chFst (\(id, _, op) -> ... ) . matchT3 (
+        chFst (\(id, _, op) -> OpInternalAssignment id op) . matchT3 (
             matchId,
             matchCh '←',
             parseOp
         ),
-        -}
-        chFst (fst) . parseOpOrFn,
-        chFst (\(_, o, _) -> o) . matchT3 (
+        matchIdWith (idEntryToOtn),
+        chFst (OpLeaf . fst) . parseOpOrFn,
+        chFst (\(_, o, _) -> OpInternalDummyNode o) . matchT3 (
             matchCh '(',
             parseOp,
             matchCh ')'
         )
     ]
+    where idEntryToOtn e = case e of
+              (IdOp o) -> Just (OpLeaf o)
+              _ -> Nothing
 
 parseFn :: MatchFn FnTreeNode
 parseFn = matchOne [
@@ -340,7 +346,8 @@ parseFn = matchOne [
         matchIdWith (idEntryToFnTree),
         matchQuadIdWith (idEntryToFnTree),
         -- TODO ⍺⍺ ⌊ ⍵⍵ | ∇
-        -- TODO (ID ← dfn_decl)
+        -- TODO ID ← fn
+        -- TODO dfn_decl
         chFst (snd) . parseOpOrFn,
         chFst (\(_, t, _) -> t) . matchT3 (
             matchCh '(',

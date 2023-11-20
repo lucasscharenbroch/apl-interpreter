@@ -5,6 +5,22 @@ import Parse
 import Eval
 import GrammarTree -- TODO remove
 
+handleRes :: IdMap -> ExprResult -> (IdMap, InputT IO ())
+handleRes idMap x = case x of
+    (ResAtn a True) -> (i, outputStrLn $ show a')
+      where (i, a') = evalArrTree idMap a
+    (ResAtn a False) -> (i, return ())
+      where (i, _) = evalArrTree idMap a
+    (ResFtn f True) -> (i, outputStrLn . show $ f)
+      where (i, _) = evalFnTree idMap f
+    (ResFtn f False) -> (i, return ())
+      where (i, _) = evalFnTree idMap f
+    (ResOp o True) -> (i, outputStrLn $ show o')
+      where (i, o') = evalOpTree idMap o
+    (ResOp o False) -> (i, return ())
+      where (i, o') = evalOpTree idMap o
+    (ResNull) -> (idMap, return ())
+
 mainloop :: IdMap -> InputT IO ()
 mainloop idMap = do
     isInterractive <- haveTerminalUI
@@ -14,14 +30,7 @@ mainloop idMap = do
         Just s -> do case parseExpr (idMap, tokenize s) of
                          Nothing -> outputStrLn "parse error"
                          Just x -> do -- outputStrLn . show $ x
-                                      let (idMap', out) = case x of
-                                              (ResAtn a) -> (i, outputStrLn $ show a')
-                                                  where (i, a') = evalArrTree idMap a
-                                              (ResFtn f) -> (idMap, outputStrLn . show $ f)
-                                              (ResOp o) -> (idMap, outputStrLn . show $ o)
-                                              (ResSilentAtn a) -> (i, return ())
-                                                  where (i, _) = evalArrTree idMap a
-                                              (ResNull) -> (idMap, return ())
+                                      let (idMap', out) = handleRes idMap x
                                       out
                                       -- outputStrLn . show $ idMap'
                                       mainloop idMap'

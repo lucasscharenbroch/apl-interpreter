@@ -18,14 +18,6 @@ getMonFn f = case f of
 
 {- Special Operators -}
 
-{-
-wrapOpAssignment :: String -> Operator -> Operator
-wrapOpAssignment id op = case op of
-    MonOp name m -> MonOp name (\i a -> )
-    DyadOp name d ->
-    -- DfnOp toks -> -- TODO
-    -- -}
-
 {- General Operators -}
 
 {- Operators that sometimes take Arrays -}
