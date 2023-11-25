@@ -103,12 +103,14 @@ evalArrTree idm (ArrInternalAssignment it a) = (mapInsert it (IdArr a') idm', a'
 evalFnTree :: IdMap -> FnTreeNode -> (IdMap, Function)
 evalFnTree idm (FnLeafFn f) = (idm, f)
 evalFnTree idm (FnLeafArr _) = undefined -- TODO internal error (?)
-evalFnTree idm (FnInternalMonOp otn ft) = case unwrapOpTree otn of
+evalFnTree idm' (FnInternalMonOp otn ft) = case uot of
     (MonOp _ o) -> o idm ft
     (DyadOp _ _) -> undefined
-evalFnTree idm (FnInternalDyadOp otn ft1 ft2) = case unwrapOpTree otn of
+    where (idm, uot) = evalOpTree idm' otn
+evalFnTree idm' (FnInternalDyadOp otn ft1 ft2) = case uot of
     (MonOp _ _) -> undefined
     (DyadOp _ o) -> o idm ft1 ft2
+    where (idm, uot) = evalOpTree idm' otn
 evalFnTree idm (FnInternalAtop ft1 ft2) = atop idm ft1 ft2
 evalFnTree idm (FnInternalFork ft1 ft2 ft3) = fork idm ft1 ft2 ft3
 
