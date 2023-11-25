@@ -44,7 +44,7 @@ import Glyphs
  -    => ⎕ID                                 (if ⎕ID is a d_fn)
  -    => ⍺⍺ | ⍵⍵ | ∇                         (if dfn_decl state matches these)
  -    => dfn_decl                            (if dfn_decl is fn)
- -    => ID ← fn
+ -    => ID ← train
  -    => ID                                  (if ID is fn)
  -    => op_or_fn
  -    => (train)
@@ -223,7 +223,7 @@ parseExpr = (=<<) (Just . fst) . matchOne [
     ]
     where mkResAtn a@(ArrInternalAssignment _ _) = ResAtn a False
           mkResAtn a = ResAtn a True
-          -- mkResFtn f@(FnInternalAssignment _ _) = ResFtn f False
+          mkResFtn f@(FnInternalAssignment _ _) = ResFtn f False
           mkResFtn f = ResFtn f True
           mkResOp o@(OpInternalAssignment _ _) = ResOp o False
           mkResOp o = ResOp o True
@@ -343,13 +343,23 @@ parseFn = matchOne [
         chFst (\_ -> FnLeafFn fIota) . matchCh '⍳',
         chFst (\_ -> FnLeafFn fShape) . matchCh '⍴',
         -- TODO big list of functions
-        matchIdWith (idEntryToFnTree),
         matchQuadIdWith (idEntryToFnTree),
-        -- TODO ⍺⍺ ⌊ ⍵⍵ | ∇
-        -- TODO ID ← fn
-        -- TODO dfn_decl
+        -- ⍺⍺ ⌊ ⍵⍵ | ∇
+        -- TODO
+        -- dfn_decl
+        -- TODO
+        -- ID ← train
+        chFst (\(id, _, ftn) -> FnInternalAssignment id ftn) . matchT3 (
+            matchId,
+            matchCh '←',
+            parseTrain
+        ),
+        -- ID
+        matchIdWith (idEntryToFnTree),
+        -- op_or_fn
         chFst (snd) . parseOpOrFn,
-        chFst (\(_, t, _) -> t) . matchT3 (
+        -- (train)
+        chFst (\(_, t, _) -> FnInternalDummyNode t) . matchT3 (
             matchCh '(',
             parseTrain,
             matchCh ')'

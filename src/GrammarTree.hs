@@ -221,6 +221,7 @@ data FnTreeNode = FnLeafFn Function
                 | FnInternalAtop FnTreeNode FnTreeNode
                 | FnInternalFork FnTreeNode FnTreeNode FnTreeNode
                 | FnInternalAssignment String FnTreeNode
+                | FnInternalDummyNode FnTreeNode
 
 horizCat :: String -> String -> (String, Int)
 horizCat s1 s2 = (res, relOffset)
@@ -276,6 +277,8 @@ showFtnHelper (FnInternalFork f1 f2 f3) = (res, padSz)
           branchPadSz = p1 + (max 0 (-offset2)) + (max 0 (-offset3))
           padSz = branchPadSz + leftBranchWidth + 1
           res = replicate branchPadSz ' ' ++ branches ++ "\n" ++ merge3
+showFtnHelper (FnInternalAssignment _ child) = showFtnHelper child
+showFtnHelper (FnInternalDummyNode child) = showFtnHelper child
 
 instance Show FnTreeNode where
     show = fst . showFtnHelper
