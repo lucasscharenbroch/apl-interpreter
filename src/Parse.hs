@@ -16,9 +16,8 @@ import Glyphs
  -         => arr der_fn der_arr
  -         => arr
  -
- - train => {df df} df                       (nested forks) (where df = der_fn)
+ - train => {(arr|df) df} df                 (nested forks) (where df = der_fn)
  -       => df {df df} df                    (atop, nested forks)
- -       => arr df {df df} df
  -       => df
  -
  - der_fn => (f|a) op [f|a] {op [f|a]}       (where (f|a) is fn or arr; match the
@@ -277,10 +276,16 @@ parseDerArr = matchOne [
 
 parseTrain :: MatchFn FnTreeNode
 parseTrain = matchOne [
-        chFst (tranify . (\(a, dfss) ->  FnLeafArr a : concat dfss)) . matchT2 ( -- arr df {df df} df
-            parseArr,
-            matchAllThenMax [parseDerFn, parseDerFn]
-        ),
+        chFst (tranify . concat) . matchAll [ -- {(arr|df) df} df
+            chFst (concat) . matchAllThenMax [
+                matchOne [
+                    chFst (FnLeafArr) . parseArr,
+                    parseDerFn
+                ],
+                parseDerFn
+            ],
+            chFst (:[]) . parseDerFn
+        ],
         chFst (tranify . concat) . matchAllThenMax [parseDerFn]
     ] where
     tranify nodes
