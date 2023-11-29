@@ -15,6 +15,8 @@ floatRegex = makeRegex "^¯?[0-9]*\\.[0-9]+"
 intRegex = makeRegex "^¯?[0-9]+"
 strRegex = makeRegex "^'([^']|'')*'"
 idRegex = makeRegex "^[a-zA-Z_][a-zA-Z_0-9]*"
+aaRegex = makeRegex "^⍺⍺"
+wwRegex = makeRegex "^⍵⍵"
 
 stod :: String -> Double
 stod ('¯':xs) = read $ '-' : xs
@@ -35,6 +37,8 @@ strip s = singleize s'    -- (remove leading/trailing quotes and replace double-
 data Token = NumTok (Either Int Double)
            | StrTok [Char]
            | IdTok [Char]
+           | AATok
+           | WWTok
            | ChTok Char
     deriving (Show) -- TODO remove (debug)
 
@@ -46,8 +50,12 @@ tokenize xs
     | (length intMatch) > 0 = NumTok (Left . stoi $ intMatch) : tokenize (drop (length intMatch) xs)
     | (length strMatch) > 0 = StrTok (strip strMatch) : tokenize (drop (length strMatch) xs)
     | (length idMatch) > 0 = IdTok idMatch : tokenize (drop (length idMatch) xs)
+    | (length aaMatch) > 0 = AATok : tokenize (drop (length aaMatch) xs)
+    | (length wwMatch) > 0 = WWTok : tokenize (drop (length wwMatch) xs)
     | otherwise = ChTok (head xs) : (tokenize (tail xs))
     where intMatch = xs =~ intRegex
           floatMatch = xs =~ floatRegex
           strMatch = xs =~ strRegex
           idMatch  = xs =~ idRegex
+          aaMatch  = xs =~ aaRegex
+          wwMatch  = xs =~ wwRegex
