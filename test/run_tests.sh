@@ -1,6 +1,7 @@
 #!/bin/bash
 
 test_files=(
+        "function_tree"
         "basic_assignment"
         "float_literals"
         "numeric_fns"
@@ -8,7 +9,6 @@ test_files=(
         "shape"
         "comments"
         "add_array_literals"
-        "function_tree"
         "array_literal"
     )
 

@@ -16,9 +16,7 @@ import Glyphs
  -         => arr der_fn der_arr
  -         => arr
  -
- - train => {(arr|df) df} df                 (nested forks) (where df = der_fn)
- -       => df {df df} df                    (atop, nested forks)
- -       => df
+ - train => [df] {(arr|df) df} df            (where df = der_fn)
  -
  - der_fn => (f|a) op [f|a] {op [f|a]}       (where (f|a) is fn or arr; match the
  -                                            optional iff op is dyadic)
@@ -275,9 +273,15 @@ parseDerArr = matchOne [
     ]
 
 parseTrain :: MatchFn FnTreeNode
-parseTrain = matchOne [
-        chFst (tranify . concat) . matchAll [ -- {(arr|df) df} df
-            chFst (concat) . matchAllThenMax [
+parseTrain = chFst (tranify) . matchOne [
+        chFst (\(f, t) -> f : t) . matchT2 (
+            parseDerFn,
+            _matchTail
+        ),
+        _matchTail
+    ] where
+    _matchTail = chFst (concat) . matchAll [ -- {(arr|df) df} df
+            chFst (concat) . matchMax [
                 matchOne [
                     chFst (FnLeafArr) . parseArr,
                     parseDerFn
@@ -285,9 +289,7 @@ parseTrain = matchOne [
                 parseDerFn
             ],
             chFst (:[]) . parseDerFn
-        ],
-        chFst (tranify . concat) . matchAllThenMax [parseDerFn]
-    ] where
+        ]
     tranify nodes
         | length nodes == 1 = head nodes
         | length nodes == 2 = FnInternalAtop (nodes !! 0) (nodes !! 1)
