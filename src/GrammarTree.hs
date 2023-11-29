@@ -256,19 +256,9 @@ showDyadTreeHelper (s1, p1) (s2, p2) node = (res, padSz)
           res = node' ++ "\n" ++ replicate branchPadSz ' ' ++ branches ++ "\n" ++ subtrees
           node' = concat . intersperse "\n" . map (pad ++) $ lines node
 
-showFtnHelper :: FnTreeNode -> (String, Int) -- node -> (shown, amount-of-padding)
-showFtnHelper (FnLeafFn fn) = (show fn, 0)
-showFtnHelper (FnLeafArr arr) = (show arr, 0)
-showFtnHelper (FnInternalMonOp op fn) = showMonTreeHelper (showFtnHelper fn) (show op)
-showFtnHelper (FnInternalDyadOp op f1 f2) = showDyadTreeHelper (showFtnHelper f1) (showFtnHelper f2) (show op)
-showFtnHelper (FnInternalAtop f1 f2) = (concat . intersperse "\n" . tail . lines $ res', padSz')
-    where (res', padSz') = showFtnHelper (FnInternalDyadOp dummyOp f1 f2)
-          dummyOp = OpLeaf $ DyadOp "_" (\i _ _ -> (i, MonFn "_" (\i' _ -> (i', arrFromList []))))
-showFtnHelper (FnInternalFork f1 f2 f3) = (res, padSz)
-    where (s1, p1) = showFtnHelper f1
-          (s2, p2) = showFtnHelper f2
-          (s3, p3) = showFtnHelper f3
-          (merge2, offset2) = horizCat s1 s2
+showTrainHelper :: (String, Int) -> (String, Int) -> (String, Int) -> (String, Int)
+showTrainHelper (s1, p1) (s2, p2) (s3, p3) = (res, padSz)
+    where (merge2, offset2) = horizCat s1 s2
           (merge3, offset3) = horizCat merge2 s3
           leftBranchWidth = p2 + (max 0 offset2) + (max 0 (-offset3)) - branchPadSz - 1
           rightBranchWidth = p3 + (max 0 offset3) - branchPadSz - 1 - leftBranchWidth - 1
@@ -277,6 +267,19 @@ showFtnHelper (FnInternalFork f1 f2 f3) = (res, padSz)
           branchPadSz = p1 + (max 0 (-offset2)) + (max 0 (-offset3))
           padSz = branchPadSz + leftBranchWidth + 1
           res = replicate branchPadSz ' ' ++ branches ++ "\n" ++ merge3
+
+showFtnHelper :: FnTreeNode -> (String, Int) -- node -> (shown, amount-of-padding)
+showFtnHelper (FnLeafFn fn) = (show fn, 0)
+showFtnHelper (FnLeafArr arr) = (show arr, 0)
+showFtnHelper (FnInternalMonOp op fn) = showMonTreeHelper (showFtnHelper fn) (show op)
+showFtnHelper (FnInternalDyadOp op f1 f2) = showDyadTreeHelper (showFtnHelper f1) (showFtnHelper f2) (show op)
+showFtnHelper (FnInternalAtop f1 f2) = (concat . intersperse "\n" . tail . lines $ res', padSz')
+    where (res', padSz') = showFtnHelper (FnInternalDyadOp dummyOp f1 f2)
+          dummyOp = OpLeaf $ DyadOp "_" (\i _ _ -> (i, MonFn "_" (\i' _ -> (i', arrFromList []))))
+showFtnHelper (FnInternalFork f1 f2 f3) = showTrainHelper h1 h2 h3
+    where h1 = showFtnHelper f1
+          h2 = showFtnHelper f2
+          h3 = showFtnHelper f3
 showFtnHelper (FnInternalAssignment _ child) = showFtnHelper child
 showFtnHelper (FnInternalDummyNode child) = showFtnHelper child
 
