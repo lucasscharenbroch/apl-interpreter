@@ -11,8 +11,8 @@ handleRes idMap x = case x of
       where (i, a') = evalArrTree idMap a
     (ResAtn a False) -> (i, return ())
       where (i, _) = evalArrTree idMap a
-    (ResFtn f True) -> (i, outputStrLn . show $ f)
-      where (i, _) = evalFnTree idMap f
+    (ResFtn f True) -> (i, outputStrLn . show $ f')
+      where (i, f') = evalFnTree idMap f
     (ResFtn f False) -> (i, return ())
       where (i, _) = evalFnTree idMap f
     (ResOp o True) -> (i, outputStrLn $ show o')

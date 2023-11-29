@@ -25,32 +25,44 @@ pureMonDyadFn name pmfn pdfn = MonDyadFn name ipmfn ipdfn
             where (idm', arg2') = evalArrTree idm arg2
                   (idm'', arg1') = evalArrTree idm' arg1
 
-pureMonOp :: String -> (Function -> Function) -> Operator
+pureMonOp :: String -> (Function -> (String -> Function)) -> Operator
 pureMonOp name pop = MonOp name ipop
-    where ipop idm arg = (idm', pop $ arg')
+    where ipop idm arg = (idm', pop arg' $ fst $ showMonTreeHelper showA1 name)
             where (idm', arg') = evalFnTree idm arg
+                  showA1 = showAndCountPad arg'
 
-pureDyadOp :: String -> (Function -> Function -> Function) -> Operator
+pureDyadOp :: String -> (Function -> Function -> (String -> Function)) -> Operator
 pureDyadOp name pop = DyadOp name ipop
-    where ipop idm arg1 arg2 = (idm'', pop arg1' arg2')
+    where ipop idm arg1 arg2 = (idm'', pop arg1' arg2' $ fst $ showDyadTreeHelper showA1 showA2 name)
             where (idm', arg2') = evalFnTree idm arg2
                   (idm'', arg1') = evalFnTree idm' arg1
+                  showA1 = showAndCountPad arg1'
+                  showA2 = showAndCountPad arg2'
 
-pureMonOpOptA :: String -> ((Either Function Array) -> Function) -> Operator
+pureMonOpOptA :: String -> ((Either Function Array) -> (String -> Function)) -> Operator
 pureMonOpOptA name pop = MonOp name ipop
-    where ipop idm arg = (idm', pop arg')
+    where ipop idm arg = (idm', pop arg' $ fst $ showMonTreeHelper showA1 name)
               where (idm', arg') = case arg of
                                    (FnLeafArr a) -> (\(x, y) -> (x, Right y)) $ evalArrTree idm a
                                    f -> (\(x, y) -> (x, Left y)) $ evalFnTree idm f
+                    showA1 = case arg' of
+                                    Left f -> showAndCountPad f
+                                    Right a -> showAndCountPad a
 
-pureDyadOpOptA :: String -> ((Either Function Array) -> (Either Function Array) -> Function) -> Operator
+pureDyadOpOptA :: String -> ((Either Function Array) -> (Either Function Array) -> (String -> Function)) -> Operator
 pureDyadOpOptA name pop = DyadOp name ipop
-    where ipop idm arg1 arg2 = (idm'', pop arg1' arg2')
+    where ipop idm arg1 arg2 = (idm'', pop arg1' arg2' $ fst $ showDyadTreeHelper showA1 showA2 name)
             where (idm', arg2') = _unwrap idm arg2
                   (idm'', arg1') = _unwrap idm' arg1
                   _unwrap i a = case a of
                                 (FnLeafArr arr) -> (\(x, y) -> (x, Right y)) $ evalArrTree i arr
                                 f -> (\(x, y) -> (x, Left y)) $ evalFnTree i f
+                  showA1 = case arg1' of
+                                Left f -> showAndCountPad f
+                                Right a -> showAndCountPad a
+                  showA2 = case arg2' of
+                                Left f -> showAndCountPad f
+                                Right a -> showAndCountPad a
 
 {- placeholders (TODO remove) -}
 
@@ -60,11 +72,11 @@ mFPH name _ = arrFromList . map (ScalarCh) $ "result of monadic fn: " ++ name
 dFPH :: String -> Array -> Array -> Array
 dFPH name _ _ = arrFromList . map (ScalarCh) $ "result of dyadic fn: " ++ name
 
-mOPH :: String -> Function -> Function
-mOPH name _ = pureDyadFn ("derived from monadic op: " ++ name) (dFPH "_derived_")
+mOPH :: String -> Function -> (String -> Function)
+mOPH name _ _ = pureDyadFn ("derived from monadic op: " ++ name) (dFPH "_derived_")
 
-dOPH :: String -> Function -> Function -> Function
-dOPH name _ _ = pureDyadFn ("derived from dyadic op: " ++ name) (dFPH "_derived_")
+dOPH :: String -> Function -> Function -> (String -> Function)
+dOPH name _ _ _ = pureDyadFn ("derived from dyadic op: " ++ name) (dFPH "_derived_")
 
 {- Functions -}
 

@@ -3,18 +3,18 @@ import GrammarTree
 
 {- Helpers -}
 
+showAndCountPad :: Show a => a -> (String, Int)
+showAndCountPad x = (s, cntPad s)
+    where s = show x
+          cntPad (' ':cs) = 1 + cntPad cs -- counts leading spaces/ left branches
+          cntPad ('┌':cs) = 1 + cntPad cs
+          cntPad ('─':cs) = 1 + cntPad cs
+          cntPad _ = 0
+
 expectFunction :: IdMap -> FnTreeNode -> (IdMap, Function)
 expectFunction i ftn = case ftn of
     (FnLeafArr _) -> undefined -- TODO exception (expected function, not array)
     _ -> evalFnTree i ftn
-
-overrideFnName :: String -> Function -> Function
-overrideFnName name (MonFn _ m) = MonFn name m
-overrideFnName name (DyadFn _ d) = DyadFn name d
-overrideFnName name (MonDyadFn _ m d) = MonDyadFn name m d
-
-chSnd :: (a -> b) -> (c, a) -> (c, b)
-chSnd f ca = (fst ca, f . snd $ ca)
 
 monApply :: FuncM -> (IdMap, Array) -> (IdMap, Array)
 monApply f (i, a) = f i (ArrLeaf a)
@@ -54,7 +54,7 @@ atop i f g = (i'',
     (MonDyadFn _ fF _, MonDyadFn _ gMF gDF) -> MonDyadFn dName (atopMM fF gMF) (atopMD fF gDF)
     _ -> undefined -- TODO exception (internal)
     )
-    where dName = "der_atop"
+    where dName = fst $ showAtopHelper (showAndCountPad f') (showAndCountPad g')
           (i', f') = evalFnTree i f
           (i'', g') = evalFnTree i' g
 
@@ -62,7 +62,10 @@ fork :: IdMap -> FnTreeNode -> FnTreeNode -> FnTreeNode -> (IdMap, Function)
 fork i f g h = case (f, g, h) of
     (_, FnLeafArr _, _) -> undefined -- TODO exception (internal)
     (_, _, FnLeafArr _) -> undefined -- TODO exception (internal)
-    (FnLeafArr fA', _, _) -> let (i''', fA) = evalArrTree i'' fA' in (i''',
+    (FnLeafArr fA', _, _) -> let (i''', fA) = evalArrTree i'' fA'
+                                 dName = fst $ showForkHelper (showAndCountPad fA) (showAndCountPad g') (showAndCountPad h')
+                             in
+        (i''',
         case (g', h') of
             (DyadFn _ gF, DyadFn _ hF) -> DyadFn dName (forkADD fA gF hF)
             (DyadFn _ gF, MonFn _ hF) -> MonFn dName (forkADM fA gF hF)
@@ -71,25 +74,27 @@ fork i f g h = case (f, g, h) of
             (MonDyadFn _ _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn dName (forkADM fA gF hMF) (forkADD fA gF hDF)
             _ -> undefined
         )
-    _ -> let (i''', f') = evalFnTree i'' f in (i''',
+    _ -> let (i''', f') = evalFnTree i'' f
+             dName = fst $ showForkHelper (showAndCountPad f') (showAndCountPad g') (showAndCountPad h')
+         in
+        (i''',
         case (f', g', h') of
-        (DyadFn _ fF, DyadFn _ gF, DyadFn _ hF) -> DyadFn dName (forkDDD fF gF hF)
-        (DyadFn _ fF, MonDyadFn _ _ gF, DyadFn _ hF) -> DyadFn dName (forkDDD fF gF hF)
-        (MonFn _ fF, DyadFn _ gF, MonFn _ hF) -> MonFn dName (forkMDM fF gF hF)
-        (MonFn _ fF, MonDyadFn _ _ gF, MonFn _ hF) -> MonFn dName (forkMDM fF gF hF)
-        (MonDyadFn _ fMF fDF, DyadFn _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn dName (forkMDM fMF gF hMF) (forkDDD fDF gF hDF)
-        (MonDyadFn _ fMF fDF, MonDyadFn _ _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn dName (forkMDM fMF gF hMF) (forkDDD fDF gF hDF)
-        (MonDyadFn _ _ fF, DyadFn _ gF, DyadFn _ hF) -> DyadFn dName (forkDDD fF gF hF)
-        (MonDyadFn _ _ fF, MonDyadFn _ _ gF, DyadFn _ hF) -> DyadFn dName (forkDDD fF gF hF)
-        (MonDyadFn _ fF _, DyadFn _ gF, MonFn _ hF) -> MonFn dName (forkMDM fF gF hF)
-        (MonDyadFn _ fF _, MonDyadFn _ _ gF, MonFn _ hF) -> MonFn dName (forkMDM fF gF hF)
-        (DyadFn _ fF, DyadFn _ gF, MonDyadFn _ _ hF) -> DyadFn dName (forkDDD fF gF hF)
-        (DyadFn _ fF, MonDyadFn _ _ gF, MonDyadFn _ _ hF) -> DyadFn dName (forkDDD fF gF hF)
-        (MonFn _ fF, DyadFn _ gF, MonDyadFn _ hF _) -> MonFn dName (forkMDM fF gF hF)
-        (MonFn _ fF, MonDyadFn _ _ gF, MonDyadFn _ hF _) -> MonFn dName (forkMDM fF gF hF)
+            (DyadFn _ fF, DyadFn _ gF, DyadFn _ hF) -> DyadFn dName (forkDDD fF gF hF)
+            (DyadFn _ fF, MonDyadFn _ _ gF, DyadFn _ hF) -> DyadFn dName (forkDDD fF gF hF)
+            (MonFn _ fF, DyadFn _ gF, MonFn _ hF) -> MonFn dName (forkMDM fF gF hF)
+            (MonFn _ fF, MonDyadFn _ _ gF, MonFn _ hF) -> MonFn dName (forkMDM fF gF hF)
+            (MonDyadFn _ fMF fDF, DyadFn _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn dName (forkMDM fMF gF hMF) (forkDDD fDF gF hDF)
+            (MonDyadFn _ fMF fDF, MonDyadFn _ _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn dName (forkMDM fMF gF hMF) (forkDDD fDF gF hDF)
+            (MonDyadFn _ _ fF, DyadFn _ gF, DyadFn _ hF) -> DyadFn dName (forkDDD fF gF hF)
+            (MonDyadFn _ _ fF, MonDyadFn _ _ gF, DyadFn _ hF) -> DyadFn dName (forkDDD fF gF hF)
+            (MonDyadFn _ fF _, DyadFn _ gF, MonFn _ hF) -> MonFn dName (forkMDM fF gF hF)
+            (MonDyadFn _ fF _, MonDyadFn _ _ gF, MonFn _ hF) -> MonFn dName (forkMDM fF gF hF)
+            (DyadFn _ fF, DyadFn _ gF, MonDyadFn _ _ hF) -> DyadFn dName (forkDDD fF gF hF)
+            (DyadFn _ fF, MonDyadFn _ _ gF, MonDyadFn _ _ hF) -> DyadFn dName (forkDDD fF gF hF)
+            (MonFn _ fF, DyadFn _ gF, MonDyadFn _ hF _) -> MonFn dName (forkMDM fF gF hF)
+            (MonFn _ fF, MonDyadFn _ _ gF, MonDyadFn _ hF _) -> MonFn dName (forkMDM fF gF hF)
         )
-    where dName = "der_fork"
-          (i', h') = evalFnTree i h
+    where (i', h') = evalFnTree i h
           (i'', g') = evalFnTree i' g
 
 {- Eval Tree Fns -}
@@ -112,15 +117,15 @@ evalFnTree :: IdMap -> FnTreeNode -> (IdMap, Function)
 evalFnTree idm (FnLeafFn f) = (idm, f)
 evalFnTree idm (FnLeafArr _) = undefined -- TODO internal error (?)
 evalFnTree idm' orig@(FnInternalMonOp otn ft) = case uot of
-    (MonOp _ o) -> chSnd (overrideFnName (show orig)) $ o idm ft
+    (MonOp _ o) -> o idm ft
     (DyadOp _ _) -> undefined
     where (idm, uot) = evalOpTree idm' otn
 evalFnTree idm' orig@(FnInternalDyadOp otn ft1 ft2) = case uot of
     (MonOp _ _) -> undefined
-    (DyadOp _ o) -> chSnd (overrideFnName (show orig)) $ o idm ft1 ft2
+    (DyadOp _ o) -> o idm ft1 ft2
     where (idm, uot) = evalOpTree idm' otn
-evalFnTree idm orig@(FnInternalAtop ft1 ft2) = chSnd (overrideFnName (show orig)) $ atop idm ft1 ft2
-evalFnTree idm orig@(FnInternalFork ft1 ft2 ft3) = chSnd (overrideFnName (show orig)) $ fork idm ft1 ft2 ft3
+evalFnTree idm orig@(FnInternalAtop ft1 ft2) = atop idm ft1 ft2
+evalFnTree idm orig@(FnInternalFork ft1 ft2 ft3) = fork idm ft1 ft2 ft3
 evalFnTree idm (FnInternalAssignment id next) = (mapInsert id (IdFn f) idm', f)
     where (idm', f) = evalFnTree idm next
 evalFnTree idm (FnInternalDummyNode next) = evalFnTree idm next

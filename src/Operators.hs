@@ -2,6 +2,17 @@ module Operators where
 import Eval
 import GrammarTree
 
+{- Reordered-Argument Function-Tree-Node Constructors -}
+
+_MonFn :: FuncM -> String -> Function
+_MonFn f n = MonFn n f
+
+_DyadFn :: FuncD -> String -> Function
+_DyadFn f n = DyadFn n f
+
+_MonDyadFn :: FuncM -> FuncD -> String -> Function
+_MonDyadFn m d n = MonDyadFn n m d
+
 {- Helpers -}
 
 getDyadFn :: Function -> FuncD
@@ -22,11 +33,11 @@ getMonFn f = case f of
 
 {- Operators that sometimes take Arrays -}
 
-selfie :: Either Function Array -> Function
+selfie :: Either Function Array -> (String -> Function)
 selfie arg = case arg of
-    (Left f) -> MonDyadFn "der⍨" (\i a -> dyFn i a a) (\i l r -> dyFn i r l)
+    (Left f) -> _MonDyadFn (\i a -> dyFn i a a) (\i l r -> dyFn i r l)
         where dyFn = getDyadFn f
-    (Right a) -> MonDyadFn "der⍨" (\i _ -> (i, a)) (\i _ _ -> (i, a))
+    (Right a) -> _MonDyadFn (\i _ -> (i, a)) (\i _ _ -> (i, a))
 
 {-
 reduce :: FnTreeNode -> Function
