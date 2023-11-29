@@ -5,13 +5,14 @@ import Glyphs
 
 {-
  -
- - expr => [([⎕ ←] der_arr) | train | op] [⍝ <ignore-until-EOS> | EOS ]
+ - expr => [der_arr | train | op] [⍝ <ignore-until-EOS> | EOS ]
  -
  - dfn_decl => { <skip tokens> }             (result is operator iff ⍺⍺ or ⍵⍵ ∊ tokens)
  -
  - index_list => (der_arr|;)*
  -
  - der_arr => ID ← der_arr
+ -         => ⎕ ← der_arr
  -         => der_fn der_arr
  -         => arr der_fn der_arr
  -         => arr
@@ -30,6 +31,7 @@ import Glyphs
  -    => [der_arr]                           (monadic)
  -    => dfn_decl                            (if dfn_decl is op)
  -    => ID ← op
+ -    => ⎕ ← op
  -    => ID                                  (if ID is op)
  -    => op_or_fn
  -    => (op)
@@ -42,6 +44,7 @@ import Glyphs
  -    => ⍺⍺ | ⍵⍵ | ∇                         (if dfn_decl state matches these)
  -    => dfn_decl                            (if dfn_decl is fn)
  -    => ID ← train
+ -    => ⎕ ← train
  -    => ID                                  (if ID is fn)
  -    => op_or_fn
  -    => (train)
@@ -207,12 +210,6 @@ instance Show ExprResult where
 
 parseExpr :: (IdMap, [Token]) -> Maybe ExprResult
 parseExpr = (=<<) (Just . fst) . matchOne [
-        chFst (\(_, _, a, _) -> mkResAtn . ArrInternalMonFn (FnLeafFn fAssignToQuad) $ a) . matchT4 (
-            matchCh '⎕',
-            matchCh '←',
-            parseDerArr,
-            matchOne [matchComment, matchEos]
-        ),
         chFst (\(atn, _) -> mkResAtn atn) . matchT2 (parseDerArr, matchOne [matchComment, matchEos]),
         chFst (\(ftn, _) -> mkResFtn ftn) . matchT2(parseTrain, matchOne [matchComment, matchEos]),
         chFst (\(op, _) -> mkResOp op) . matchT2(parseOp, matchOne [matchComment, matchEos]),
