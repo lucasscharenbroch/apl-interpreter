@@ -4,10 +4,13 @@ import GrammarTree
 import Glyphs
 
 {-
+ - statement => {expr}
  -
- - expr => [der_arr | train | op] [⍝ <ignore-until-EOS> | EOS ]
+ - expr => [der_arr | train | op] [⍝ <ignore-until-eoe>] (eoe)
  -
- - dfn_decl => { <skip tokens> }             (result is operator iff ⍺⍺ or ⍵⍵ ∊ tokens)
+ - dfn_expr
+ -
+ - dop_decl => { <skip tokens> }             (result is operator iff ⍺⍺ or ⍵⍵ ∊ tokens)
  -
  - index_list => (der_arr|;)*
  -
@@ -168,12 +171,17 @@ matchNumLiteral :: MatchFn (Either Int Double)
 matchNumLiteral (_, (NumTok n:ts)) = Just (n, ts)
 matchNumLiteral _ = Nothing
 
-matchEos :: MatchFn ()
-matchEos (_, []) = Just ((), [])
-matchEos _ = Nothing
+matchEoe :: MatchFn ()
+matchEoe (_, []) = Just ((), [])
+matchEoe (_, (ChTok '⋄':ts)) = Just ((), ts)
+matchEoe (_, (ChTok '\n':ts)) = Just ((), ts)
+matchEoe _ = Nothing
 
 matchComment :: MatchFn ()
-matchComment (_, (ChTok '⍝':_)) = Just((), [])
+matchComment (idm, (ChTok '⍝':ts)) = chFst (\_ -> ()) . matchT2 (
+        matchMax [matchAnyTokenExcept [ChTok '\n']],
+        matchEoe
+    ) $ (idm, ts)
 matchComment _ = Nothing
 
 matchIdWith :: (IdEntry -> Maybe a) -> MatchFn a
@@ -192,9 +200,15 @@ matchQuadIdWith f (idm, (ChTok '⎕':(IdTok id):ts)) = case mapLookup ('⎕' : i
         (Just x) -> Just (x, ts)
 matchQuadIdWith _ _ = Nothing
 
+matchAnyTokenExcept :: [Token] -> MatchFn Token
+matchAnyTokenExcept blacklist (_, (t:ts)) = if t `elem` blacklist
+                                            then Nothing
+                                            else Just (t, ts)
+matchAnyTokenExcept _ (_, _) = Nothing
+
 {- Data Types -}
 
-data ExprResult = ResAtn ArrTreeNode Bool
+data ExprResult = ResAtn ArrTreeNode Bool -- Bool = should print?
                 | ResFtn FnTreeNode Bool
                 | ResOp OpTreeNode Bool
                 | ResNull
@@ -204,16 +218,27 @@ instance Show ExprResult where
     show (ResFtn f _) = show f
     show (ResOp o _) = show o
 
+data DfnExprResult = DResAtn ArrTreeNode Bool -- Bool = should return?
+                   | DresCond ArrTreeNode ArrTreeNode
+                   | DResFtn FnTreeNode -- no bool: can't return function
+                   | DResOp OpTreeNode  -- nor operator
+
 {- Parsing Functions -}
 
--- TODO here
+parseStatement :: (IdMap, [Token]) -> Maybe [ExprResult]
+parseStatement (_, []) = Just [ResNull]
+parseStatement args@(idm, ts) = case parseExpr args of
+    Nothing -> Nothing
+    (Just (res, ts')) -> case parseStatement (idm, ts') of
+        Nothing -> Nothing
+        Just (ress) -> Just $ res : ress
 
-parseExpr :: (IdMap, [Token]) -> Maybe ExprResult
-parseExpr = (=<<) (Just . fst) . matchOne [
-        chFst (\(atn, _) -> mkResAtn atn) . matchT2 (parseDerArr, matchOne [matchComment, matchEos]),
-        chFst (\(ftn, _) -> mkResFtn ftn) . matchT2(parseTrain, matchOne [matchComment, matchEos]),
-        chFst (\(op, _) -> mkResOp op) . matchT2(parseOp, matchOne [matchComment, matchEos]),
-        chFst (\_ -> ResNull) . matchOne [matchComment, matchEos]
+parseExpr :: MatchFn ExprResult
+parseExpr = matchOne [
+        chFst (\(atn, _) -> mkResAtn atn) . matchT2 (parseDerArr, matchOne [matchComment, matchEoe]),
+        chFst (\(ftn, _) -> mkResFtn ftn) . matchT2(parseTrain, matchOne [matchComment, matchEoe]),
+        chFst (\(op, _) -> mkResOp op) . matchT2(parseOp, matchOne [matchComment, matchEoe]),
+        chFst (\_ -> ResNull) . matchOne [matchComment, matchEoe]
     ]
     where mkResAtn a@(ArrInternalAssignment _ _) = ResAtn a False
           mkResAtn a = ResAtn a True
@@ -222,23 +247,22 @@ parseExpr = (=<<) (Just . fst) . matchOne [
           mkResOp o@(OpInternalAssignment _ _) = ResOp o False
           mkResOp o = ResOp o True
 
-parseDfnDecl :: MatchFn [Token]
-parseDfnDecl = chFst (\(_, x, _) -> x) . matchT3 (
+-- parseDfnExpr :: [Token] -> Maybe (???, [Token])
+
+parseDfnDecl :: MatchFn ([Token], Bool, Bool) -- toks, is_op, is_dyadic_op
+parseDfnDecl = chFst (\(_, x, _) -> wrapToks x) . matchT3 (
         matchCh '{',
         chFst (concat . concat) . matchMax [
             matchOne [
-                chFst (:[]) . matchAnyNonBracketToken,
-                parseDfnDecl
+                chFst (:[]) . matchAnyTokenExcept [ChTok '{', ChTok '}'],
+                chFst (\(a, b, c) -> a) . parseDfnDecl
             ]
         ],
         matchCh '}'
     )
-    where matchAnyNonBracketToken (_, ChTok '{':_) = Nothing
-          matchAnyNonBracketToken (_, ChTok '}':_) = Nothing
-          matchAnyNonBracketToken (_, []) = Nothing
-          matchAnyNonBracketToken (_, t:ts) = Just (t, ts)
-
--- parseDfnExpr :: [Token] -> Maybe (???, [Token])
+    where wrapToks ts = (ts, aa || ww, ww)
+            where aa = AATok `elem` ts
+                  ww = WWTok `elem` ts
 
 parseIdxList :: MatchFn [ArrTreeNode]
 parseIdxList = chFst (foldIdxList . concat) . matchMax [

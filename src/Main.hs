@@ -1,4 +1,5 @@
 import System.Console.Haskeline
+import Control.Monad (foldM)
 import GlyphCompletion
 import Lex (Token, tokenize)
 import Parse
@@ -27,13 +28,17 @@ mainloop idMap = do
     input <- getInputLine $ if isInterractive then "    " else ""
     case input of
         Nothing -> return ()
-        Just s -> do case parseExpr (idMap, tokenize s) of
+        Just s -> do -- outputStrLn . show . tokenize $ s
+                     case parseStatement (idMap, tokenize s) of
                          Nothing -> outputStrLn "parse error"
-                         Just x -> do -- outputStrLn . show $ x
-                                      let (idMap', out) = handleRes idMap x
-                                      out
-                                      -- outputStrLn . show $ idMap'
-                                      mainloop idMap'
+                         Just xs -> do idMap'' <- foldM (
+                                                  \idMap' x -> do -- outputStrLn . show $ x
+                                                               let (idMap'', out) = handleRes idMap' x
+                                                               out
+                                                               outputStrLn . show $ idMap''
+                                                               return idMap''
+                                                   ) idMap $ xs
+                                       mainloop idMap''
 
 {-
         Just s -> do outputStrLn $ "tokens: " ++ (show . length $ s)

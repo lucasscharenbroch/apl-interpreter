@@ -199,10 +199,12 @@ instance Show Operator where
 
 data OpTreeNode = OpLeaf Operator -- not really a tree, more like a linked-list of assignments
                 | OpInternalAssignment String OpTreeNode
+                | OpInternalDop [Token] Bool -- Bool = is dyadic?
                 | OpInternalDummyNode OpTreeNode -- does nothing except prevent OpInternalAssignment
                                                  -- from being matched
 
 instance Show OpTreeNode where
+    show (OpInternalDop ts _) = "{" ++ (concat . map (show) $ ts) ++ "}"
     show otn = show . unwrapOpTree $ otn
 
 unwrapOpTree :: OpTreeNode -> Operator
@@ -221,6 +223,7 @@ data FnTreeNode = FnLeafFn Function
                 | FnInternalAtop FnTreeNode FnTreeNode
                 | FnInternalFork FnTreeNode FnTreeNode FnTreeNode
                 | FnInternalAssignment String FnTreeNode
+                | FnInternalDfn [Token]
                 | FnInternalDummyNode FnTreeNode
 
 horizCat :: String -> String -> (String, Int)
@@ -285,6 +288,7 @@ showFtnHelper (FnInternalFork f1 f2 f3) = showForkHelper h1 h2 h3
           h2 = showFtnHelper f2
           h3 = showFtnHelper f3
 showFtnHelper (FnInternalAssignment _ child) = showFtnHelper child
+showFtnHelper (FnInternalDfn ts) = ("{" ++ (concat . map (show) $ ts) ++ "}", 0)
 showFtnHelper (FnInternalDummyNode child) = showFtnHelper child
 
 instance Show FnTreeNode where

@@ -40,7 +40,7 @@ data Token = NumTok (Either Int Double)
            | AATok
            | WWTok
            | ChTok Char
-    deriving (Show) -- TODO remove (debug)
+    deriving (Show, Eq)
 
 tokenize :: [Char] -> [Token]
 tokenize [] = []
