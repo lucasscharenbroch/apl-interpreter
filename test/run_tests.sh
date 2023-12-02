@@ -1,6 +1,7 @@
 #!/bin/bash
 
 test_files=(
+        "multi_expr_line"
         "function_tree"
         "basic_assignment"
         "float_literals"

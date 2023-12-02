@@ -4,23 +4,34 @@ import GlyphCompletion
 import Lex (Token, tokenize)
 import Parse
 import Eval
-import GrammarTree -- TODO remove
+import GrammarTree
 
-handleRes :: IdMap -> ExprResult -> (IdMap, InputT IO ())
+handleRes :: IdMap -> ExprResult -> InputT IO IdMap
 handleRes idMap x = case x of
-    (ResAtn a True) -> (i, outputStrLn $ show a')
-      where (i, a') = evalArrTree idMap a
-    (ResAtn a False) -> (i, return ())
-      where (i, _) = evalArrTree idMap a
-    (ResFtn f True) -> (i, outputStrLn . show $ f')
-      where (i, f') = evalFnTree idMap f
-    (ResFtn f False) -> (i, return ())
-      where (i, _) = evalFnTree idMap f
-    (ResOp o True) -> (i, outputStrLn $ show o')
-      where (i, o') = evalOpTree idMap o
-    (ResOp o False) -> (i, return ())
-      where (i, o') = evalOpTree idMap o
-    (ResNull) -> (idMap, return ())
+    (ResAtn a True) -> do let (i, a') = evalArrTree idMap a
+                          outputStrLn . show $ a'
+                          return i
+    (ResAtn a False) -> do let (i, _) = evalArrTree idMap a
+                           return i
+    (ResFtn f True) -> do let (i, f') = evalFnTree idMap f
+                          outputStrLn . show $ f'
+                          return i
+    (ResFtn f False) -> do let (i, _) = evalFnTree idMap f
+                           return i
+    (ResOp o True) -> do let (i, o') = evalOpTree idMap o
+                         outputStrLn . show $ o'
+                         return i
+    (ResOp o False) -> do let (i, o') = evalOpTree idMap o
+                          return i
+    (ResNull) -> return idMap
+
+execStatement :: IdMap -> [Token] -> InputT IO IdMap
+execStatement idm [] = return idm
+execStatement idm ts = case parseExpr (idm, ts) of
+    Nothing -> do outputStrLn "parse error" -- TODO syntax error
+                  return idm
+    Just (res, ts') -> do idm' <- handleRes idm res
+                          execStatement idm' ts'
 
 mainloop :: IdMap -> InputT IO ()
 mainloop idMap = do
@@ -29,16 +40,8 @@ mainloop idMap = do
     case input of
         Nothing -> return ()
         Just s -> do -- outputStrLn . show . tokenize $ s
-                     case parseStatement (idMap, tokenize s) of
-                         Nothing -> outputStrLn "parse error"
-                         Just xs -> do idMap'' <- foldM (
-                                                  \idMap' x -> do -- outputStrLn . show $ x
-                                                               let (idMap'', out) = handleRes idMap' x
-                                                               out
-                                                               outputStrLn . show $ idMap''
-                                                               return idMap''
-                                                   ) idMap $ xs
-                                       mainloop idMap''
+                     idMap' <- execStatement idMap $ tokenize s
+                     mainloop idMap'
 
 {-
         Just s -> do outputStrLn $ "tokens: " ++ (show . length $ s)

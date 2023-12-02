@@ -225,14 +225,6 @@ data DfnExprResult = DResAtn ArrTreeNode Bool -- Bool = should return?
 
 {- Parsing Functions -}
 
-parseStatement :: (IdMap, [Token]) -> Maybe [ExprResult]
-parseStatement (_, []) = Just [ResNull]
-parseStatement args@(idm, ts) = case parseExpr args of
-    Nothing -> Nothing
-    (Just (res, ts')) -> case parseStatement (idm, ts') of
-        Nothing -> Nothing
-        Just (ress) -> Just $ res : ress
-
 parseExpr :: MatchFn ExprResult
 parseExpr = matchOne [
         chFst (\(atn, _) -> mkResAtn atn) . matchT2 (parseDerArr, matchOne [matchComment, matchEoe]),
