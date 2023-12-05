@@ -10,7 +10,7 @@ import Glyphs
  -
  - dfn_expr => [der_arr | guard | fn_ass | op_ass ] [⍝ <ignore-until-eoe>] (eoe)
  -
- - dop_decl => { <skip tokens> }             (result is operator iff ⍺⍺ or ⍵⍵ ∊ tokens)
+ - dfn_decl => { <skip tokens> }             (result is operator iff ⍺⍺ or ⍵⍵ ∊ tokens)
  -
  - guard => der_arr : der_arr
  -
@@ -192,6 +192,9 @@ matchComment (idm, (ChTok '⍝':ts)) = chFst (\_ -> ()) . matchT2 (
     ) $ (idm, ts)
 matchComment _ = Nothing
 
+matchCommentOrEoe :: MatchFn ()
+matchCommentOrEoe = matchOne [ matchComment, matchEoe ]
+
 matchIdWith :: (IdEntry -> Maybe a) -> MatchFn a
 matchIdWith f (idm, ((IdTok id):ts)) = case mapLookup id idm of
     Nothing -> Nothing
@@ -229,16 +232,17 @@ instance Show ExprResult where
 data DfnExprResult = DResAtn ArrTreeNode Bool -- Bool = should return?
                    | DresCond ArrTreeNode ArrTreeNode
                    | DResFtn FnTreeNode -- no bool: can't return function (should be an assignment)
-                   | DResOp OpTreeNode  -- nor operator                   (should be an assignment)
+                   | DResOtn OpTreeNode -- nor operator                   (should be an assignment)
+                   | DResNull
 
 {- Parsing Functions -}
 
 parseExpr :: MatchFn ExprResult
 parseExpr = matchOne [
-        chFst (\(atn, _) -> mkResAtn atn) . matchT2 (parseDerArr, matchOne [matchComment, matchEoe]),
-        chFst (\(ftn, _) -> mkResFtn ftn) . matchT2(parseTrain, matchOne [matchComment, matchEoe]),
-        chFst (\(op, _) -> mkResOp op) . matchT2(parseOp, matchOne [matchComment, matchEoe]),
-        chFst (\_ -> ResNull) . matchOne [matchComment, matchEoe]
+        chFst (mkResAtn . fst) . matchT2 (parseDerArr, matchCommentOrEoe),
+        chFst (mkResFtn . fst) . matchT2 (parseTrain, matchCommentOrEoe),
+        chFst (mkResOp . fst) . matchT2 (parseOp, matchCommentOrEoe),
+        chFst (\_ -> ResNull) . matchCommentOrEoe
     ]
     where mkResAtn a@(ArrInternalAssignment _ _) = ResAtn a False
           mkResAtn a = ResAtn a True
@@ -249,8 +253,19 @@ parseExpr = matchOne [
 
 parseDfnExpr :: MatchFn DfnExprResult
 parseDfnExpr = matchOne [
-        -- TODO
+        chFst (DResAtn . fst) . matchT2 (parseDerArr, matchCommentOrEoe),
+        chFst ((\(a1, a2) -> DResAtn a1 a2) . fst) . matchT2 (parseGuard, matchCommentOrEoe),
+        chFst (DResFtn . fst) . matchT2 (parseFnAss, matchCommentOrEoe),
+        chFst (DResOtn . fst) . matchT2 (parseOpAss, matchCommentOrEoe),
+        chFst (\_ -> DResNull) . matchCommentOrEoe
     ]
+
+parseGuard :: MatchFn (ArrTreeNode, ArrTreeNode)
+parseGuard = chFst (\(a1, _, a2) -> (a1, a2)) . matchT3 (
+        parseDerArr,
+        matchCh ':',
+        parseDerArr
+    )
 
 parseDfnDecl :: MatchFn ([Token], Bool, Bool) -- toks, is_op, is_dyadic_op
 parseDfnDecl = chFst (\(_, x, _) -> wrapToks x) . matchT3 (
