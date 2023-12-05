@@ -102,6 +102,17 @@ fDivide = pureMonDyadFn "÷" F.reciprocal F.divide
 fIota = pureMonDyadFn "⍳" F.iota F.indexOf
 fShape = pureMonDyadFn "⍴" F.shapeOf F.reshape
 
+functionGlyphs :: [(Char, Function)]
+functionGlyphs = [
+        ('+', fPlus),
+        ('-', fMinus),
+        ('×', fTimes),
+        ('÷', fDivide),
+        ('⍳', fIota),
+        ('⍴', fShape)
+        -- TODO big list of functions
+    ]
+
 {- Operators -}
 
 oReduce = pureMonOp "/" (mOPH "/")
@@ -113,3 +124,10 @@ oSelfie = pureMonOpOptA "⍨" O.selfie
 oAtop = pureDyadOp "⍤" (dOPH "⍤")
 
 oAxisSpec axis = pureMonOp ("[" ++ (show axis) ++ "]") (mOPH "[]") -- TODO remove `axis' arg and add arg to called fn
+
+operatorGlyphs :: [(Char, Operator)]
+operatorGlyphs = [
+        ('⍨', oSelfie),
+        ('⍤', oAtop)
+        -- TODO big list of operators
+    ]

@@ -8,17 +8,21 @@ import Glyphs
  -
  - expr => [der_arr | train | op] [⍝ <ignore-until-eoe>] (eoe)
  -
- - dfn_expr
+ - dfn_expr => [der_arr | guard | fn_ass | op_ass ] [⍝ <ignore-until-eoe>] (eoe)
  -
  - dop_decl => { <skip tokens> }             (result is operator iff ⍺⍺ or ⍵⍵ ∊ tokens)
  -
+ - guard => der_arr : der_arr
+ -
  - index_list => (der_arr|;)*
  -
- - der_arr => ID ← der_arr
+ - der_arr => arr_ass
  -         => ⎕ ← der_arr
  -         => der_fn der_arr
  -         => arr der_fn der_arr
  -         => arr
+ -
+ - arr_ass => ID ← der_arr
  -
  - train => [df] {(arr|df) df} df            (where df = der_fn)
  -
@@ -33,11 +37,13 @@ import Glyphs
  -    => ⍣ . ∘ ⍤ ⍥ @ ⍠ ⌺                     (dyadic)
  -    => [der_arr]                           (monadic)
  -    => dfn_decl                            (if dfn_decl is op)
- -    => ID ← op
+ -    => op_ass
  -    => ⎕ ← op
  -    => ID                                  (if ID is op)
  -    => op_or_fn
  -    => (op)
+ -
+ - op_ass => ID ← op
  -
  - fn => = ≤ < > ≥ ∨ ∧ ⍲ ⍱ ⍷ ∩ ←             (dyadic)
  -    => + - × ÷ * ⍟ ⌹ ○ ! ? | ⌈ ⌊ ⊥ ⊤       (monadic or dyadic)
@@ -46,11 +52,13 @@ import Glyphs
  -    => ⎕ID                                 (if ⎕ID is a d_fn)
  -    => ⍺⍺ | ⍵⍵ | ∇                         (if dfn_decl state matches these)
  -    => dfn_decl                            (if dfn_decl is fn)
- -    => ID ← train
+ -    => fn_ass
  -    => ⎕ ← train
  -    => ID                                  (if ID is fn)
  -    => op_or_fn
  -    => (train)
+ -
+ - fn_ass => ID ← train
  -
  - op_or_fn => / ⌿ \ ⍀                       (monadic operators / dyadic functions)
  -
@@ -220,8 +228,8 @@ instance Show ExprResult where
 
 data DfnExprResult = DResAtn ArrTreeNode Bool -- Bool = should return?
                    | DresCond ArrTreeNode ArrTreeNode
-                   | DResFtn FnTreeNode -- no bool: can't return function
-                   | DResOp OpTreeNode  -- nor operator
+                   | DResFtn FnTreeNode -- no bool: can't return function (should be an assignment)
+                   | DResOp OpTreeNode  -- nor operator                   (should be an assignment)
 
 {- Parsing Functions -}
 
@@ -239,7 +247,10 @@ parseExpr = matchOne [
           mkResOp o@(OpInternalAssignment _ _) = ResOp o False
           mkResOp o = ResOp o True
 
--- parseDfnExpr :: [Token] -> Maybe (???, [Token])
+parseDfnExpr :: MatchFn DfnExprResult
+parseDfnExpr = matchOne [
+        -- TODO
+    ]
 
 parseDfnDecl :: MatchFn ([Token], Bool, Bool) -- toks, is_op, is_dyadic_op
 parseDfnDecl = chFst (\(_, x, _) -> wrapToks x) . matchT3 (
@@ -271,11 +282,7 @@ parseIdxList = chFst (foldIdxList . concat) . matchMax [
 
 parseDerArr :: MatchFn ArrTreeNode
 parseDerArr = matchOne [
-        chFst (\(id, _, da) -> ArrInternalAssignment id da) . matchT3 (
-            matchId,
-            matchCh '←',
-            parseDerArr
-        ),
+        parseArrAss,
         chFst (\(f, da) -> ArrInternalMonFn f da) . matchT2 (parseDerFn, parseDerArr),
         chFst (\(lhs, f, rhs) -> ArrInternalDyadFn f lhs rhs) . matchT3 (
             parseArr,
@@ -284,6 +291,13 @@ parseDerArr = matchOne [
         ),
         parseArr
     ]
+
+parseArrAss :: MatchFn ArrTreeNode
+parseArrAss = chFst (\(id, _, da) -> ArrInternalAssignment id da) . matchT3 (
+        matchId,
+        matchCh '←',
+        parseDerArr
+    )
 
 parseTrain :: MatchFn FnTreeNode
 parseTrain = chFst (tranify) . matchOne [
@@ -328,20 +342,14 @@ parseDerFn (idm, ts) = matchOne [
 
 parseOp :: MatchFn OpTreeNode
 parseOp = matchOne [
-        -- TODO big list of operators
-        chFst (\_ -> OpLeaf oSelfie) . matchCh '⍨',
-        chFst (\_ -> OpLeaf oAtop) . matchCh '⍤',
+        matchOne $ map (\(c, o) -> chFst (\_ -> OpLeaf o) . matchCh c) operatorGlyphs,
         chFst (\(_, da, _) -> OpLeaf $ oAxisSpec da) . matchT3 (
             matchCh '[',
             parseDerArr,
             matchCh ']'
         ),
         -- TODO dfn_decl
-        chFst (\(id, _, op) -> OpInternalAssignment id op) . matchT3 (
-            matchId,
-            matchCh '←',
-            parseOp
-        ),
+        parseOpAss,
         matchIdWith (idEntryToOtn),
         chFst (OpLeaf . fst) . parseOpOrFn,
         chFst (\(_, o, _) -> OpInternalDummyNode o) . matchT3 (
@@ -354,26 +362,23 @@ parseOp = matchOne [
               (IdOp o) -> Just (OpLeaf o)
               _ -> Nothing
 
+parseOpAss :: MatchFn OpTreeNode
+parseOpAss = chFst (\(id, _, op) -> OpInternalAssignment id op) . matchT3 (
+        matchId,
+        matchCh '←',
+        parseOp
+    )
+
 parseFn :: MatchFn FnTreeNode
 parseFn = matchOne [
-        chFst (\_ -> FnLeafFn fPlus) . matchCh '+',
-        chFst (\_ -> FnLeafFn fMinus) . matchCh '-',
-        chFst (\_ -> FnLeafFn fTimes) . matchCh '×',
-        chFst (\_ -> FnLeafFn fDivide) . matchCh '÷',
-        chFst (\_ -> FnLeafFn fIota) . matchCh '⍳',
-        chFst (\_ -> FnLeafFn fShape) . matchCh '⍴',
-        -- TODO big list of functions
+        matchOne $ map (\(c, f) -> chFst (\_ -> FnLeafFn f) . matchCh c) functionGlyphs,
         matchQuadIdWith (idEntryToFnTree),
         -- ⍺⍺ ⌊ ⍵⍵ | ∇
         -- TODO
         -- dfn_decl
         -- TODO
         -- ID ← train
-        chFst (\(id, _, ftn) -> FnInternalAssignment id ftn) . matchT3 (
-            matchId,
-            matchCh '←',
-            parseTrain
-        ),
+        parseFnAss,
         -- ID
         matchIdWith (idEntryToFnTree),
         -- op_or_fn
@@ -387,6 +392,13 @@ parseFn = matchOne [
     ]
     where idEntryToFnTree (IdFn f) = Just $ FnLeafFn f
           idEntryToFnTree _ = Nothing
+
+parseFnAss :: MatchFn FnTreeNode
+parseFnAss = chFst (\(id, _, ftn) -> FnInternalAssignment id ftn) . matchT3 (
+        matchId,
+        matchCh '←',
+        parseTrain
+    )
 
 parseOpOrFn :: MatchFn (Operator, FnTreeNode)
 parseOpOrFn = matchOne [
