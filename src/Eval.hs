@@ -1,5 +1,7 @@
 module Eval where
+import Lex
 import GrammarTree
+import {-# SOURCE #-} Parse
 
 {- Helpers -}
 
@@ -135,3 +137,45 @@ evalOpTree idm (OpLeaf o) = (idm, o)
 evalOpTree idm (OpInternalAssignment id next) = (mapInsert id (IdOp o) idm', o)
     where (idm', o) = evalOpTree idm next
 evalOpTree idm (OpInternalDummyNode next) = evalOpTree idm next
+
+{- Eval Dfns -}
+
+mkDfn :: [Token] -> Function
+mkDfn toks = MonDyadFn name (evalDfnM toks) (evalDfnD toks)
+    where name = ("{" ++ (concat . map (show) $ toks) ++ "}")
+
+evalDfnM :: [Token] -> FuncM
+evalDfnM toks idm arg = (idm', snd $ execDfnStatement idm'''' toks)
+    where (idm', arg') = evalArrTree idm arg
+          idm'' = mapInsert "⍵" (IdArr arg') idm'
+          idm''' = mapDelete "⍺" idm''
+          idm'''' = mapInsert "∇" (IdTokList toks False False) idm'''
+
+evalDfnD :: [Token] -> FuncD
+evalDfnD toks idm arg1 arg2 = (idm'', snd $ execDfnStatement idm5 toks)
+    where (idm', arg1') = evalArrTree idm arg1
+          (idm'', arg2') = evalArrTree idm' arg2
+          idm''' = mapInsert "⍺" (IdArr arg1') idm''
+          idm'''' = mapInsert "⍵" (IdArr arg2') idm'''
+          idm5 = mapInsert "∇" (IdTokList toks False False) idm''''
+
+execDfnStatement :: IdMap -> [Token] -> (IdMap, Array)
+execDfnStatement _ [] = undefined -- TODO expected result (or make mechanism for no result)
+execDfnStatement idm toks = case parseDfnExpr (idm, toks) of
+    Nothing -> undefined -- TODO syntax error
+    (Just (res, toks')) -> case res of
+        (DResAtn atn True) -> evalArrTree idm atn
+        (DResAtn atn False) -> let (idm', _) = evalArrTree idm atn
+                               in execDfnStatement idm' toks'
+        (DResFtn ftn) -> let (idm', _) = evalFnTree idm ftn
+                               in execDfnStatement idm' toks'
+        (DResOtn otn) -> let (idm', _) = evalOpTree idm otn
+                               in execDfnStatement idm' toks'
+        (DResNull) -> execDfnStatement idm toks'
+        (DResCond cond res) -> case evalArrTree idm cond of
+            (idm', a)
+                | arrIsTrue a -> evalArrTree idm' res
+                | arrIsFalse a -> execDfnStatement idm' toks'
+            _ -> undefined -- TODO lhs of guard must be boolean singleton
+    where arrIsTrue a = a == (arrFromList [ScalarNum $ Left 1]) || (a == arrFromList [ScalarNum $ Right 1.0])
+          arrIsFalse a = a == (arrFromList [ScalarNum $ Left 0]) || (a == arrFromList [ScalarNum $ Right 0.0])

@@ -190,27 +190,15 @@ instance Show Function where
     show (DyadFn name _)  = name
     show (MonDyadFn name _ _) = name
 
-data Operator = MonOp String (IdMap -> FnTreeNode -> (IdMap, Function))
-              | DyadOp String (IdMap -> FnTreeNode -> FnTreeNode -> (IdMap, Function))
+type OpM = IdMap -> FnTreeNode -> (IdMap, Function)
+type OpD = IdMap -> FnTreeNode -> FnTreeNode -> (IdMap, Function)
+
+data Operator = MonOp String OpM
+              | DyadOp String OpD
 
 instance Show Operator where
     show (MonOp name _) = name
     show (DyadOp name _) = name
-
-data OpTreeNode = OpLeaf Operator -- not really a tree, more like a linked-list of assignments
-                | OpInternalAssignment String OpTreeNode
-                | OpInternalDop [Token] Bool -- Bool = is dyadic?
-                | OpInternalDummyNode OpTreeNode -- does nothing except prevent OpInternalAssignment
-                                                 -- from being matched
-
-instance Show OpTreeNode where
-    show (OpInternalDop ts _) = "{" ++ (concat . map (show) $ ts) ++ "}"
-    show otn = show . unwrapOpTree $ otn
-
-unwrapOpTree :: OpTreeNode -> Operator
-unwrapOpTree (OpLeaf o) = o
-unwrapOpTree (OpInternalAssignment _ otn) = unwrapOpTree otn
-unwrapOpTree (OpInternalDummyNode otn) = unwrapOpTree otn
 
 {- Tree Nodes -}
 
@@ -223,7 +211,6 @@ data FnTreeNode = FnLeafFn Function
                 | FnInternalAtop FnTreeNode FnTreeNode
                 | FnInternalFork FnTreeNode FnTreeNode FnTreeNode
                 | FnInternalAssignment String FnTreeNode
-                | FnInternalDfn [Token]
                 | FnInternalDummyNode FnTreeNode
 
 horizCat :: String -> String -> (String, Int)
@@ -288,7 +275,6 @@ showFtnHelper (FnInternalFork f1 f2 f3) = showForkHelper h1 h2 h3
           h2 = showFtnHelper f2
           h3 = showFtnHelper f3
 showFtnHelper (FnInternalAssignment _ child) = showFtnHelper child
-showFtnHelper (FnInternalDfn ts) = ("{" ++ (concat . map (show) $ ts) ++ "}", 0)
 showFtnHelper (FnInternalDummyNode child) = showFtnHelper child
 
 instance Show FnTreeNode where
@@ -320,11 +306,25 @@ showAtnHelper (ArrInternalAssignment it a) = showMonTreeHelper (showAtnHelper a)
 instance Show ArrTreeNode where
     show = fst . showAtnHelper
 
+data OpTreeNode = OpLeaf Operator -- not really a tree, more like a linked-list of assignments
+                | OpInternalAssignment String OpTreeNode
+                | OpInternalDummyNode OpTreeNode -- does nothing except prevent OpInternalAssignment
+                                                 -- from being matched
+
+instance Show OpTreeNode where
+    show otn = show . unwrapOpTree $ otn
+
+unwrapOpTree :: OpTreeNode -> Operator
+unwrapOpTree (OpLeaf o) = o
+unwrapOpTree (OpInternalAssignment _ otn) = unwrapOpTree otn
+unwrapOpTree (OpInternalDummyNode otn) = unwrapOpTree otn
+
 {- Id Map -}
 
 data IdEntry = IdArr Array
              | IdFn Function
              | IdOp Operator
+             | IdTokList [Token] Bool Bool -- toks, is_op, is_dyadic_op
     deriving (Show)
 
 type IdMap = Map.Map String IdEntry
@@ -337,6 +337,9 @@ mapLookup = Map.lookup
 
 mapInsert :: String -> IdEntry -> IdMap -> IdMap
 mapInsert = Map.insert
+
+mapDelete :: String -> IdMap -> IdMap
+mapDelete = Map.delete
 
 {- Iterators -}
 

@@ -2,6 +2,7 @@ module Parse where
 import Lex (Token(..))
 import GrammarTree
 import Glyphs
+import Eval
 
 {-
  - statement => {expr}
@@ -211,6 +212,14 @@ matchQuadIdWith f (idm, (ChTok '⎕':(IdTok id):ts)) = case mapLookup ('⎕' : i
         (Just x) -> Just (x, ts)
 matchQuadIdWith _ _ = Nothing
 
+matchSpecialIdWith :: Token -> String -> (IdEntry -> Maybe a) -> MatchFn a
+matchSpecialIdWith specT specId f (idm, (t:ts)) | t == specT = case mapLookup specId idm of
+    Nothing -> Nothing
+    Just (entry) -> case f entry of
+        Nothing -> Nothing
+        (Just x) -> Just (x, ts)
+matchSpecialIdWith _ _ _ _ = Nothing
+
 matchAnyTokenExcept :: [Token] -> MatchFn Token
 matchAnyTokenExcept blacklist (_, (t:ts)) = if t `elem` blacklist
                                             then Nothing
@@ -230,7 +239,7 @@ instance Show ExprResult where
     show (ResOp o _) = show o
 
 data DfnExprResult = DResAtn ArrTreeNode Bool -- Bool = should return?
-                   | DresCond ArrTreeNode ArrTreeNode
+                   | DResCond ArrTreeNode ArrTreeNode
                    | DResFtn FnTreeNode -- no bool: can't return function (should be an assignment)
                    | DResOtn OpTreeNode -- nor operator                   (should be an assignment)
                    | DResNull
@@ -253,12 +262,14 @@ parseExpr = matchOne [
 
 parseDfnExpr :: MatchFn DfnExprResult
 parseDfnExpr = matchOne [
-        chFst (DResAtn . fst) . matchT2 (parseDerArr, matchCommentOrEoe),
-        chFst ((\(a1, a2) -> DResAtn a1 a2) . fst) . matchT2 (parseGuard, matchCommentOrEoe),
+        chFst (mkDResAtn . fst) . matchT2 (parseDerArr, matchCommentOrEoe),
+        chFst ((\(a1, a2) -> DResCond a1 a2) . fst) . matchT2 (parseGuard, matchCommentOrEoe),
         chFst (DResFtn . fst) . matchT2 (parseFnAss, matchCommentOrEoe),
         chFst (DResOtn . fst) . matchT2 (parseOpAss, matchCommentOrEoe),
         chFst (\_ -> DResNull) . matchCommentOrEoe
     ]
+    where mkDResAtn a@(ArrInternalAssignment _ _) = DResAtn a False
+          mkDResAtn a = DResAtn a True
 
 parseGuard :: MatchFn (ArrTreeNode, ArrTreeNode)
 parseGuard = chFst (\(a1, _, a2) -> (a1, a2)) . matchT3 (
@@ -273,7 +284,7 @@ parseDfnDecl = chFst (\(_, x, _) -> wrapToks x) . matchT3 (
         chFst (concat . concat) . matchMax [
             matchOne [
                 chFst (:[]) . matchAnyTokenExcept [ChTok '{', ChTok '}'],
-                chFst (\(a, b, c) -> a) . parseDfnDecl
+                chFst (\(a, b, c) -> [ChTok '{'] ++ a ++ [ChTok '}']) . parseDfnDecl
             ]
         ],
         matchCh '}'
@@ -388,9 +399,11 @@ parseFn :: MatchFn FnTreeNode
 parseFn = matchOne [
         matchOne $ map (\(c, f) -> chFst (\_ -> FnLeafFn f) . matchCh c) functionGlyphs,
         matchQuadIdWith (idEntryToFnTree),
-        -- ⍺⍺ ⌊ ⍵⍵ | ∇
-        -- TODO
-        -- dfn_decl
+        -- ⍺⍺ | ⍵⍵
+        -- TODO ⍺⍺, ⍵⍵
+        -- ∇
+        matchSpecialIdWith (ChTok '∇') "∇" idEntryToFnTree,
+        mchFst (dfnDeclToFn) . parseDfnDecl, -- TODO here
         -- TODO
         -- ID ← train
         parseFnAss,
@@ -406,7 +419,10 @@ parseFn = matchOne [
         )
     ]
     where idEntryToFnTree (IdFn f) = Just $ FnLeafFn f
+          idEntryToFnTree (IdTokList toks False False) = Just . FnLeafFn . mkDfn $ toks
           idEntryToFnTree _ = Nothing
+          dfnDeclToFn (toks, False, False) = Just . FnLeafFn . mkDfn $ toks
+          dfnDeclToFn _ = Nothing
 
 parseFnAss :: MatchFn FnTreeNode
 parseFnAss = chFst (\(id, _, ftn) -> FnInternalAssignment id ftn) . matchT3 (
@@ -454,7 +470,8 @@ parseScalar = matchOne [
             -- ⎕ID
             matchQuadIdWith (idEntryToArrTree),
             -- ⍺ | ⍵
-            -- TODO (where ⍺ or ⍵ is in namespace)
+            matchSpecialIdWith (ChTok '⍺') "⍺" (idEntryToArrTree),
+            matchSpecialIdWith (ChTok '⍵') "⍵" (idEntryToArrTree),
             -- ⍺⍺ | ⍵⍵
             -- TODO (where ⍺⍺ or ⍵⍵ is in namespace and is array)
             -- ⍬
