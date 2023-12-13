@@ -10,7 +10,7 @@ import Data.List (isPrefixOf)
  -
  - expr => [der_arr | train | op] [⍝ <ignore-until-eoe>] (eoe)
  -
- - dfn_expr => [der_arr | guard | fn_ass | op_ass ] [⍝ <ignore-until-eoe>] (eoe)
+ - dfn_expr => [der_arr | guard | alpha_ass | fn_ass | op_ass ] [⍝ <ignore-until-eoe>] (eoe)
  -
  - dfn_decl => { <skip tokens> }             (result is operator iff ⍺⍺ or ⍵⍵ ∊ tokens)
  -
@@ -242,6 +242,7 @@ instance Show ExprResult where
 
 data DfnExprResult = DResAtn ArrTreeNode Bool -- Bool = should return?
                    | DResCond ArrTreeNode ArrTreeNode
+                   | DResDefaultAlpha ArrTreeNode
                    | DResFtn FnTreeNode -- no bool: can't return function (should be an assignment)
                    | DResOtn OpTreeNode -- nor operator                   (should be an assignment)
                    | DResNull
@@ -266,6 +267,7 @@ parseDfnExpr :: MatchFn DfnExprResult
 parseDfnExpr = matchOne [
         chFst (mkDResAtn . fst) . matchT2 (parseDerArr, matchCommentOrEoe),
         chFst ((\(a1, a2) -> DResCond a1 a2) . fst) . matchT2 (parseGuard, matchCommentOrEoe),
+        chFst (DResDefaultAlpha . fst) . matchT2(parseAlphaAss, matchCommentOrEoe),
         chFst (DResFtn . fst) . matchT2 (parseFnAss, matchCommentOrEoe),
         chFst (DResOtn . fst) . matchT2 (parseOpAss, matchCommentOrEoe),
         chFst (\_ -> DResNull) . matchCommentOrEoe
@@ -277,6 +279,13 @@ parseGuard :: MatchFn (ArrTreeNode, ArrTreeNode)
 parseGuard = chFst (\(a1, _, a2) -> (a1, a2)) . matchT3 (
         parseDerArr,
         matchCh ':',
+        parseDerArr
+    )
+
+parseAlphaAss :: MatchFn ArrTreeNode
+parseAlphaAss = chFst (\(_, _, da) -> da) . matchT3 (
+        matchCh '⍺',
+        matchCh '←',
         parseDerArr
     )
 

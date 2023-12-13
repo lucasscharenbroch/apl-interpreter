@@ -203,7 +203,7 @@ evalDopD idtfs toks idm arg1 arg2 = (idm'', derFn)
           derFn = MonDyadFn (showTokListAsDfn toks) (evalDfnM idtfs' toks) (evalDfnD idtfs' toks)
 
 execDfnStatement :: IdMap -> [Token] -> (IdMap, Array)
-execDfnStatement _ [] = undefined -- TODO expected result (or make mechanism for no result)
+execDfnStatement _ [] = undefined -- TODO expected return val (or make mechanism for no value)
 execDfnStatement idm toks = case parseDfnExpr (idm, toks) of
     Nothing -> undefined -- TODO syntax error
     (Just (res, toks')) -> case res of
@@ -211,10 +211,15 @@ execDfnStatement idm toks = case parseDfnExpr (idm, toks) of
         (DResAtn atn False) -> let (idm', _) = evalArrTree idm atn
                                in execDfnStatement idm' toks'
         (DResFtn ftn) -> let (idm', _) = evalFnTree idm ftn
-                               in execDfnStatement idm' toks'
+                         in execDfnStatement idm' toks'
         (DResOtn otn) -> let (idm', _) = evalOpTree idm otn
-                               in execDfnStatement idm' toks'
+                         in execDfnStatement idm' toks'
         (DResNull) -> execDfnStatement idm toks'
+        (DResDefaultAlpha atn) -> case mapLookup "⍺" idm of
+            (Just _) -> execDfnStatement idm toks'
+            Nothing -> let (idm', a) = evalArrTree idm atn
+                           idm'' = mapInsert "⍺" (IdArr a) idm'
+                       in execDfnStatement idm'' toks'
         (DResCond cond res) -> case evalArrTree idm cond of
             (idm', a)
                 | a == arrFromList [ScalarNum 1.0] -> evalArrTree idm' res
