@@ -1,11 +1,11 @@
 #!/bin/bash
 
 test_files=(
+        "numeric_fns"
         "multi_expr_line"
         "function_tree"
         "basic_assignment"
         "float_literals"
-        "numeric_fns"
         "iota"
         "shape"
         "comments"

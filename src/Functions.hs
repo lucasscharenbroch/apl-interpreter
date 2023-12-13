@@ -120,6 +120,15 @@ divide = arithFnD _divide
     where _divide _ 0 = undefined -- TODO domain error
           _divide n m = n / m
 
+equ :: Array -> Array -> Array
+equ = arithFnD (\n m -> fromIntegral . fromEnum $ n == m)
+
+geq :: Array -> Array -> Array
+geq = arithFnD (\n m -> fromIntegral . fromEnum $ n >= m)
+
+gtr :: Array -> Array -> Array
+gtr = arithFnD (\n m -> fromIntegral . fromEnum $ n > m)
+
 iota :: Array -> Array
 iota x = shapedArrFromList x' [toScalar . map (ScalarNum . fromIntegral . (+iO)) . calcIndex $ i | i <- [0..(sz - 1)]]
     where x' = toIntVec x
@@ -144,6 +153,12 @@ indexOf x y
               Just i -> ScalarNum . fromIntegral $ iO + i
           toArray (ScalarArr a) = a
           toArray s = arrFromList [s]
+
+leq :: Array -> Array -> Array
+leq = arithFnD (\n m -> fromIntegral . fromEnum $ n <= m)
+
+lss :: Array -> Array -> Array
+lss = arithFnD (\n m -> fromIntegral . fromEnum $ n < m)
 
 multiply :: Array -> Array -> Array
 multiply = arithFnD (*)

@@ -101,6 +101,11 @@ fTimes = pureMonDyadFn "×" F.direction F.multiply
 fDivide = pureMonDyadFn "÷" F.reciprocal F.divide
 fIota = pureMonDyadFn "⍳" F.iota F.indexOf
 fShape = pureMonDyadFn "⍴" F.shapeOf F.reshape
+fLss = pureDyadFn "<" F.lss
+fLeq = pureDyadFn "≤" F.leq
+fGtr = pureDyadFn ">" F.gtr
+fGeq = pureDyadFn "≥" F.geq
+fEqu = pureDyadFn "=" F.equ
 
 functionGlyphs :: [(Char, Function)]
 functionGlyphs = [
@@ -109,7 +114,12 @@ functionGlyphs = [
         ('×', fTimes),
         ('÷', fDivide),
         ('⍳', fIota),
-        ('⍴', fShape)
+        ('⍴', fShape),
+        ('<', fLss),
+        ('≤', fLeq),
+        ('>', fGtr),
+        ('≥', fGeq),
+        ('=', fEqu)
         -- TODO big list of functions
     ]
 
