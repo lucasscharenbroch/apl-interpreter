@@ -3,6 +3,7 @@ import Lex (Token(..))
 import GrammarTree
 import Glyphs
 import Eval
+import Data.List (isPrefixOf)
 
 {-
  - statement => {expr}
@@ -38,6 +39,7 @@ import Eval
  -    => ⍣ . ∘ ⍤ ⍥ @ ⍠ ⌺                     (dyadic)
  -    => [der_arr]                           (monadic)
  -    => dfn_decl                            (if dfn_decl is op)
+ -    => ∇∇                                  (if in dop body)
  -    => op_ass
  -    => ⎕ ← op
  -    => ID                                  (if ID is op)
@@ -212,12 +214,12 @@ matchQuadIdWith f (idm, (ChTok '⎕':(IdTok id):ts)) = case mapLookup ('⎕' : i
         (Just x) -> Just (x, ts)
 matchQuadIdWith _ _ = Nothing
 
-matchSpecialIdWith :: Token -> String -> (IdEntry -> Maybe a) -> MatchFn a
-matchSpecialIdWith specT specId f (idm, (t:ts)) | t == specT = case mapLookup specId idm of
+matchSpecialIdWith :: [Token] -> String -> (IdEntry -> Maybe a) -> MatchFn a
+matchSpecialIdWith specTs specId f (idm, ts) | specTs `isPrefixOf` ts = case mapLookup specId idm of
     Nothing -> Nothing
     Just (entry) -> case f entry of
         Nothing -> Nothing
-        (Just x) -> Just (x, ts)
+        (Just x) -> Just (x, drop (length specTs) ts)
 matchSpecialIdWith _ _ _ _ = Nothing
 
 matchAnyTokenExcept :: [Token] -> MatchFn Token
@@ -374,7 +376,10 @@ parseOp = matchOne [
             parseDerArr,
             matchCh ']'
         ),
-        -- TODO dfn_decl
+        -- dfn_decl
+        mchFst (dfnDeclToOp) . parseDfnDecl,
+        -- ∇∇
+        -- matchSpecialIdWith [ChTok '∇', ChTok '∇'] "∇∇" idEntryToOtn, -- TODO
         parseOpAss,
         matchIdWith (idEntryToOtn),
         chFst (OpLeaf . fst) . parseOpOrFn,
@@ -387,6 +392,8 @@ parseOp = matchOne [
     where idEntryToOtn e = case e of
               (IdOp o) -> Just (OpLeaf o)
               _ -> Nothing
+          dfnDeclToOp (toks, True, is_dy) = Just . OpLeaf $ mkDop [] toks is_dy
+          dfnDeclToOp _ = Nothing
 
 parseOpAss :: MatchFn OpTreeNode
 parseOpAss = chFst (\(id, _, op) -> OpInternalAssignment id op) . matchT3 (
@@ -400,11 +407,12 @@ parseFn = matchOne [
         matchOne $ map (\(c, f) -> chFst (\_ -> FnLeafFn f) . matchCh c) functionGlyphs,
         matchQuadIdWith (idEntryToFnTree),
         -- ⍺⍺ | ⍵⍵
-        -- TODO ⍺⍺, ⍵⍵
+        matchSpecialIdWith [AATok] "⍺⍺" (idEntryToFnTree),
+        matchSpecialIdWith [WWTok] "⍵⍵" (idEntryToFnTree),
         -- ∇
-        matchSpecialIdWith (ChTok '∇') "∇" idEntryToFnTree,
-        mchFst (dfnDeclToFn) . parseDfnDecl, -- TODO here
-        -- TODO
+        matchSpecialIdWith [ChTok '∇'] "∇" idEntryToFnTree,
+        -- dfn_decl
+        mchFst (dfnDeclToFn) . parseDfnDecl,
         -- ID ← train
         parseFnAss,
         -- ID
@@ -419,9 +427,9 @@ parseFn = matchOne [
         )
     ]
     where idEntryToFnTree (IdFn f) = Just $ FnLeafFn f
-          idEntryToFnTree (IdTokList toks False False) = Just . FnLeafFn . mkDfn $ toks
+          idEntryToFnTree (IdTokList idtfs toks False False) = Just . FnLeafFn . mkDfn idtfs $ toks
           idEntryToFnTree _ = Nothing
-          dfnDeclToFn (toks, False, False) = Just . FnLeafFn . mkDfn $ toks
+          dfnDeclToFn (toks, False, False) = Just . FnLeafFn . mkDfn [] $ toks
           dfnDeclToFn _ = Nothing
 
 parseFnAss :: MatchFn FnTreeNode
@@ -470,10 +478,11 @@ parseScalar = matchOne [
             -- ⎕ID
             matchQuadIdWith (idEntryToArrTree),
             -- ⍺ | ⍵
-            matchSpecialIdWith (ChTok '⍺') "⍺" (idEntryToArrTree),
-            matchSpecialIdWith (ChTok '⍵') "⍵" (idEntryToArrTree),
+            matchSpecialIdWith [ChTok '⍺'] "⍺" (idEntryToArrTree),
+            matchSpecialIdWith [ChTok '⍵'] "⍵" (idEntryToArrTree),
             -- ⍺⍺ | ⍵⍵
-            -- TODO (where ⍺⍺ or ⍵⍵ is in namespace and is array)
+            matchSpecialIdWith [AATok] "⍺⍺" (idEntryToArrTree),
+            matchSpecialIdWith [WWTok] "⍵⍵" (idEntryToArrTree),
             -- ⍬
             chFst (\_ -> ArrInternalMonFn (FnLeafFn fImplicitGroup) $ (ArrLeaf . arrFromList) []) . matchCh '⍬',
             -- (der_arr)

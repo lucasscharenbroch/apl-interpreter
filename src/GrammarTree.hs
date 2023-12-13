@@ -12,6 +12,14 @@ data Scalar = ScalarNum (Either Int Double)
             | ScalarArr Array
     deriving (Eq)
 
+instance Show Scalar where
+    show (ScalarNum (Left i))
+        | i >= 10^maxDigits = map (swapMinus) . map (toUpper) . showSigFigures maxDigits $ fromIntegral i
+        | otherwise = map (swapMinus) $ show i
+    show (ScalarNum (Right d)) =  map (swapMinus) . map (toUpper) . showSigFigures maxDigits $ d
+    show (ScalarCh c) = [c]
+    show (ScalarArr a) = show a
+
 {- Misc Helpers -}
 
 swapMinus '-' = '¯'
@@ -51,13 +59,15 @@ showSigFigures i d' -- TODO here...
                      else ""
               d = abs d'
 
-instance Show Scalar where
-    show (ScalarNum (Left i))
-        | i >= 10^maxDigits = map (swapMinus) . map (toUpper) . showSigFigures maxDigits $ fromIntegral i
-        | otherwise = map (swapMinus) $ show i
-    show (ScalarNum (Right d)) =  map (swapMinus) . map (toUpper) . showSigFigures maxDigits $ d
-    show (ScalarCh c) = [c]
-    show (ScalarArr a) = show a
+showTokListAsDfn :: [Token] -> String
+showTokListAsDfn toks = ("{" ++ (concat . map (showTokVal) $ toks) ++ "}")
+    where showTokVal (NumTok (Left i)) = show i
+          showTokVal (NumTok (Right d)) = show d
+          showTokVal (StrTok s) = "'" ++ s ++ "'"
+          showTokVal (IdTok s) = s
+          showTokVal AATok = "⍺⍺"
+          showTokVal WWTok = "⍵⍵"
+          showTokVal (ChTok c) = c:[]
 
 {- Arrays -}
 
@@ -324,8 +334,7 @@ unwrapOpTree (OpInternalDummyNode otn) = unwrapOpTree otn
 data IdEntry = IdArr Array
              | IdFn Function
              | IdOp Operator
-             | IdTokList [Token] Bool Bool -- toks, is_op, is_dyadic_op
-    deriving (Show)
+             | IdTokList [IdMap -> IdMap] [Token] Bool Bool -- id_map_transforms, toks, is_op, is_dyadic_op
 
 type IdMap = Map.Map String IdEntry
 

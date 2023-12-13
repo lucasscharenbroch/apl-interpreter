@@ -140,24 +140,67 @@ evalOpTree idm (OpInternalDummyNode next) = evalOpTree idm next
 
 {- Eval Dfns -}
 
-mkDfn :: [Token] -> Function
-mkDfn toks = MonDyadFn name (evalDfnM toks) (evalDfnD toks)
-    where name = ("{" ++ (concat . map (show) $ toks) ++ "}")
+mkDfn :: [IdMap -> IdMap] -> [Token] -> Function
+mkDfn idtfs toks = MonDyadFn (showTokListAsDfn toks) (evalDfnM idtfs toks) (evalDfnD idtfs toks)
 
-evalDfnM :: [Token] -> FuncM
-evalDfnM toks idm arg = (idm', snd $ execDfnStatement idm'''' toks)
+evalDfnM :: [IdMap -> IdMap] -> [Token] -> FuncM
+evalDfnM idtfs toks idm arg = (idm', snd $ execDfnStatement idm'' toks)
     where (idm', arg') = evalArrTree idm arg
-          idm'' = mapInsert "⍵" (IdArr arg') idm'
-          idm''' = mapDelete "⍺" idm''
-          idm'''' = mapInsert "∇" (IdTokList toks False False) idm'''
+          idm'' = foldl (flip ($)) idm' (idtfs ++ [
+                  mapInsert "⍵" (IdArr arg'),
+                  mapDelete "⍺",
+                  mapInsert "∇" (IdTokList idtfs toks False False)
+              ])
 
-evalDfnD :: [Token] -> FuncD
-evalDfnD toks idm arg1 arg2 = (idm'', snd $ execDfnStatement idm5 toks)
+evalDfnD :: [IdMap -> IdMap] -> [Token] -> FuncD
+evalDfnD idtfs toks idm arg1 arg2 = (idm'', snd $ execDfnStatement idm''' toks)
     where (idm', arg1') = evalArrTree idm arg1
           (idm'', arg2') = evalArrTree idm' arg2
-          idm''' = mapInsert "⍺" (IdArr arg1') idm''
-          idm'''' = mapInsert "⍵" (IdArr arg2') idm'''
-          idm5 = mapInsert "∇" (IdTokList toks False False) idm''''
+          idm''' = foldl (flip ($)) idm'' (idtfs ++ [
+                  mapInsert "⍺" (IdArr arg1'),
+                  mapInsert "⍵" (IdArr arg2'),
+                  mapInsert "∇" (IdTokList idtfs toks False False)
+              ])
+
+mkDop :: [IdMap -> IdMap] -> [Token] -> Bool -> Operator -- Bool: isDyadic
+mkDop idtfs toks False = MonOp (showTokListAsDfn toks) (evalDopM idtfs toks)
+mkDop idtfs toks True = DyadOp (showTokListAsDfn toks) (evalDopD idtfs toks)
+
+evalDopM :: [IdMap -> IdMap] -> [Token] -> OpM
+evalDopM idtfs toks idm arg = (idm', derFn)
+    where (idm', arg') = case arg of
+              (FnLeafArr atn) -> (\(i, a) -> (i, Right a)) $ evalArrTree idm atn
+              ftn -> (\(i, f) -> (i, Left f)) $ evalFnTree idm ftn
+          argAsIdEntry = case arg' of
+              (Right  a) -> IdArr a
+              (Left f) -> IdFn f
+          idtfs' = idtfs ++ [
+                  mapInsert "⍺⍺" argAsIdEntry,
+                  mapDelete "⍵⍵",
+                  mapInsert "∇∇" (IdTokList [] toks True False)
+              ]
+          derFn = MonDyadFn (showTokListAsDfn toks) (evalDfnM idtfs' toks) (evalDfnD idtfs' toks)
+
+evalDopD :: [IdMap -> IdMap] -> [Token] -> OpD
+evalDopD idtfs toks idm arg1 arg2 = (idm'', derFn)
+    where (idm', arg1') = case arg1 of
+              (FnLeafArr atn) -> (\(i, a) -> (i, Right a)) $ evalArrTree idm atn
+              ftn -> (\(i, f) -> (i, Left f)) $ evalFnTree idm ftn
+          (idm'', arg2') = case arg2 of
+              (FnLeafArr atn) -> (\(i, a) -> (i, Right a)) $ evalArrTree idm' atn
+              ftn -> (\(i, f) -> (i, Left f)) $ evalFnTree idm' ftn
+          arg1AsIdEntry = case arg1' of
+              (Right  a) -> IdArr a
+              (Left f) -> IdFn f
+          arg2AsIdEntry = case arg2' of
+              (Right  a) -> IdArr a
+              (Left f) -> IdFn f
+          idtfs' = idtfs ++ [
+                  mapInsert "⍺⍺" arg1AsIdEntry,
+                  mapInsert "⍵⍵" arg2AsIdEntry,
+                  mapInsert "∇∇" (IdTokList [] toks True False)
+              ]
+          derFn = MonDyadFn (showTokListAsDfn toks) (evalDfnM idtfs' toks) (evalDfnD idtfs' toks)
 
 execDfnStatement :: IdMap -> [Token] -> (IdMap, Array)
 execDfnStatement _ [] = undefined -- TODO expected result (or make mechanism for no result)
