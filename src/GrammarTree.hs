@@ -7,16 +7,13 @@ import qualified Data.Map as Map
 
 {- Scalar -}
 
-data Scalar = ScalarNum (Either Int Double)
+data Scalar = ScalarNum Double
             | ScalarCh Char
             | ScalarArr Array
     deriving (Eq)
 
 instance Show Scalar where
-    show (ScalarNum (Left i))
-        | i >= 10^maxDigits = map (swapMinus) . map (toUpper) . showSigFigures maxDigits $ fromIntegral i
-        | otherwise = map (swapMinus) $ show i
-    show (ScalarNum (Right d)) =  map (swapMinus) . map (toUpper) . showSigFigures maxDigits $ d
+    show (ScalarNum d) =  map (swapMinus) . map (toUpper) . showSigFigures maxDigits $ d
     show (ScalarCh c) = [c]
     show (ScalarArr a) = show a
 
@@ -61,8 +58,7 @@ showSigFigures i d' -- TODO here...
 
 showTokListAsDfn :: [Token] -> String
 showTokListAsDfn toks = ("{" ++ (concat . intersperse " " . map (showTokVal) $ toks) ++ "}")
-    where showTokVal (NumTok (Left i)) = show i
-          showTokVal (NumTok (Right d)) = show d
+    where showTokVal (NumTok n) = show n
           showTokVal (StrTok s) = "'" ++ s ++ "'"
           showTokVal (IdTok s) = s
           showTokVal AATok = "⍺⍺"

@@ -35,7 +35,7 @@ strip s = singleize s'    -- (remove leading/trailing quotes and replace double-
           singleize ('\'':'\'':xs) = '\'' : singleize xs
           singleize (x:xs) = x : singleize xs
 
-data Token = NumTok (Either Int Double)
+data Token = NumTok Double
            | StrTok [Char]
            | IdTok [Char]
            | AATok
@@ -48,8 +48,8 @@ tokenize :: [Char] -> [Token]
 tokenize [] = []
 tokenize xs
     | elem (head xs) whitespace = tokenize $ tail xs
-    | (length floatMatch) > 0 = NumTok (Right . stod $ floatMatch) : tokenize (drop (length floatMatch) xs)
-    | (length intMatch) > 0 = NumTok (Left . stoi $ intMatch) : tokenize (drop (length intMatch) xs)
+    | (length floatMatch) > 0 = NumTok (stod $ floatMatch) : tokenize (drop (length floatMatch) xs)
+    | (length intMatch) > 0 = NumTok (stod $ intMatch) : tokenize (drop (length intMatch) xs)
     | (length strMatch) > 0 = StrTok (strip strMatch) : tokenize (drop (length strMatch) xs)
     | (length idMatch) > 0 = IdTok idMatch : tokenize (drop (length idMatch) xs)
     | (length aaMatch) > 0 = AATok : tokenize (drop (length aaMatch) xs)

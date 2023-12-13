@@ -178,7 +178,7 @@ matchId :: MatchFn String
 matchId (_, (IdTok idt:ts)) = Just (idt, ts)
 matchId _ = Nothing
 
-matchNumLiteral :: MatchFn (Either Int Double)
+matchNumLiteral :: MatchFn Double
 matchNumLiteral (_, (NumTok n:ts)) = Just (n, ts)
 matchNumLiteral _ = Nothing
 

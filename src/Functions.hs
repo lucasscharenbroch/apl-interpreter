@@ -10,7 +10,7 @@ iO = 1 :: Int -- index origin
 
 {- Helpers -}
 
-rankMorph :: ((Array, Array) -> (Array, Array))
+rankMorph :: (Array, Array) -> (Array, Array)
 rankMorph (x, y)
     | shape x == shape y = (x, y)
     | shape x == [1] = (shapedArrFromList (shape y) xs, y)
@@ -21,8 +21,8 @@ rankMorph (x, y)
 
 toIntVec :: Array -> [Int]
 toIntVec = map (toInt) . arrToList
-    where toInt (ScalarNum (Left i)) = i
-          toInt _ = undefined -- TODO exception
+    where toInt (ScalarNum n) | (fromIntegral . floor $ n) - n == 0 = floor n
+          toInt _ = undefined -- TODO exception (domain error)
 
 alongAxis :: Array -> Int -> [Array]
 alongAxis a ax
@@ -53,19 +53,22 @@ alongRank a r
           n = (length $ shape a) - r
           groupSz = foldr (*) 1 innerShape
 
-arithFn :: (Int -> Int -> Int) -> (Double -> Double -> Double) -> Array -> Array -> Array
-arithFn fi' fd' x' y' = arrZipWith (f) x y
+arithFnD :: (Double -> Double -> Double) -> Array -> Array -> Array
+arithFnD f x' y' = arrZipWith (f') x y
     where (x, y) = rankMorph (x', y')
-          f :: Scalar -> Scalar -> Scalar
-          f (ScalarNum (Left n)) (ScalarNum (Left m)) = ScalarNum . Left $ n `fi'` m
-          f (ScalarNum (Left n)) (ScalarNum (Right m)) = ScalarNum . Right $ (fromIntegral n) `fd'` m
-          f (ScalarNum (Right n)) (ScalarNum (Left m)) = ScalarNum . Right $ n `fd'` (fromIntegral m)
-          f (ScalarNum (Right n)) (ScalarNum (Right m)) = ScalarNum . Right $ n `fd'` m
-          f n@(ScalarNum _) (ScalarArr arr) = ScalarArr $ rec (arrFromList [n]) arr
-          f (ScalarArr a1) (ScalarArr a2) = ScalarArr $ rec a1 a2
-          f (ScalarArr arr) n@(ScalarNum _) = ScalarArr $ rec arr (arrFromList [n])
-          f _ _ = undefined -- TODO domain error
-          rec = arithFn fi' fd'
+          f' :: Scalar -> Scalar -> Scalar
+          f' (ScalarNum n) (ScalarNum m) = ScalarNum $ f n m
+          f' n@(ScalarNum _) (ScalarArr arr) = ScalarArr $ rec (arrFromList [n]) arr
+          f' (ScalarArr a) (ScalarArr b) = ScalarArr $ rec a b
+          f' (ScalarArr arr) n@(ScalarNum _) = ScalarArr $ rec arr (arrFromList [n])
+          f' _ _ = undefined -- TODO domain error
+          rec = arithFnD f
+
+arithFnM :: (Double -> Double) -> Array -> Array
+arithFnM f = arrMap (f')
+    where f' (ScalarNum n) = ScalarNum $ f n
+          f' (ScalarArr a) = ScalarArr . arithFnM f $ a
+          f' _ = undefined -- TODO domain error
 
 {- Impure Functions -}
 
@@ -100,43 +103,25 @@ implicitGroup = id
 {- General Functions -}
 
 add :: Array -> Array -> Array
-add = arithFn (+) (+)
+add = arithFnD (+)
 
 conjugate :: Array -> Array
 conjugate = id
 
 direction :: Array -> Array
-direction = arrMap (_direction)
-    where _direction (ScalarNum (Left i))
-              | i == 0 = ScalarNum . Left $ 0
-              | i > 0 = ScalarNum . Left $ 1
-              | otherwise = ScalarNum . Left  $ -1
-          _direction (ScalarNum (Right d))
-              | d == 0 = ScalarNum . Left $ 0
-              | d >= 0 = ScalarNum . Left $ 1
-              | otherwise = ScalarNum . Left  $ -1
-          _direction (ScalarArr a) = ScalarArr $ arrMap (_direction) a
-          _direction _ = undefined -- TODO domain error
+direction = arithFnM _direction
+    where _direction n
+              | n < 0 = -1
+              | n == 0 = 0
+              | n > 0 = 1
 
 divide :: Array -> Array -> Array
-divide x' y' = arrZipWith (_div) x y
-    where (x, y) = rankMorph (x', y')
-          _div (ScalarNum n') (ScalarNum m')
-              | m == 0 = undefined -- TODO domain error: divide by zero
-              | otherwise = ScalarNum . Right $ n / m
-           where n = case n' of
-                     (Left i) -> fromIntegral i
-                     (Right d) -> d
-                 m = case m' of
-                     (Left i) -> fromIntegral i
-                     (Right d) -> d
-          _div n@(ScalarNum _) (ScalarArr arr) = ScalarArr $ divide (arrFromList [n]) arr
-          _div (ScalarArr a1) (ScalarArr a2) = ScalarArr $ divide a1 a2
-          _div (ScalarArr arr) n@(ScalarNum _) = ScalarArr $ divide arr (arrFromList [n])
-          _div _ _ = undefined -- TODO domain error
+divide = arithFnD _divide
+    where _divide _ 0 = undefined -- TODO domain error
+          _divide n m = n / m
 
 iota :: Array -> Array
-iota x = shapedArrFromList x' [toScalar . map (ScalarNum . Left . (+iO)) . calcIndex $ i | i <- [0..(sz - 1)]]
+iota x = shapedArrFromList x' [toScalar . map (ScalarNum . fromIntegral . (+iO)) . calcIndex $ i | i <- [0..(sz - 1)]]
     where x' = toIntVec x
           sz = foldr (*) 1 x'
           indexMod = reverse . init $ scanl (*) 1 (reverse x')
@@ -155,42 +140,32 @@ indexOf x y
           xs = alongAxis x 1
           ys = alongRank y (xRank - 1)
           findIndexInXs e = case elemIndex (toArray e) xs of
-              Nothing -> ScalarNum . Left $ iO + (head . shape $ x)
-              Just i -> ScalarNum . Left $ iO + i
+              Nothing -> ScalarNum . fromIntegral $ iO + (head . shape $ x)
+              Just i -> ScalarNum . fromIntegral $ iO + i
           toArray (ScalarArr a) = a
           toArray s = arrFromList [s]
 
 multiply :: Array -> Array -> Array
-multiply = arithFn (*) (*)
+multiply = arithFnD (*)
 
 negate :: Array -> Array
-negate = arrMap (_negate)
-    where _negate (ScalarNum (Left i)) = ScalarNum . Left $ -i
-          _negate (ScalarNum (Right d)) = ScalarNum . Right $ -d
-          _negate (ScalarArr a) = ScalarArr $ arrMap (_negate) a
-          _negate _ = undefined -- TODO domain error
+negate = arithFnM (Prelude.negate)
 
 reciprocal :: Array -> Array
-reciprocal = arrMap (_reciprocal)
-    where _reciprocal (ScalarNum (Left i))
-              | i == 0 = undefined -- TODO domain error: divide by zero
-              | otherwise = ScalarNum . Right $ 1.0 / (fromIntegral i)
-          _reciprocal (ScalarNum (Right d))
-              | d == 0 = undefined -- TODO domain error: divide by zero
-              | otherwise = ScalarNum . Right $ 1.0 / d
-          _reciprocal (ScalarArr a) = ScalarArr $ arrMap (_reciprocal) a
-          _reciprocal _ = undefined -- TODO domain error
+reciprocal = arithFnM (_reciprocal)
+    where _reciprocal 0 = undefined -- TODO domain error: divide by zero
+          _reciprocal n = 1 / n
 
 reshape :: Array -> Array -> Array
 reshape x y = shapedArrFromList newShape . take newSize . concat . replicate intMax $ baseList
     where newShape = toIntVec x
           newSize = foldr (*) 1 newShape
           baseList = case arrToList y of
-                     [] -> [ScalarNum (Left 0)]
+                     [] -> [ScalarNum 0]
                      ss -> ss
 
 shapeOf :: Array -> Array
-shapeOf = arrFromList . map (ScalarNum . Left) . shape
+shapeOf = arrFromList . map (ScalarNum . fromIntegral) . shape
 
 subtract :: Array -> Array -> Array
-subtract = arithFn (-) (-)
+subtract = arithFnD (-)

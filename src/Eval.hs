@@ -217,8 +217,6 @@ execDfnStatement idm toks = case parseDfnExpr (idm, toks) of
         (DResNull) -> execDfnStatement idm toks'
         (DResCond cond res) -> case evalArrTree idm cond of
             (idm', a)
-                | arrIsTrue a -> evalArrTree idm' res
-                | arrIsFalse a -> execDfnStatement idm' toks'
+                | a == arrFromList [ScalarNum 1.0] -> evalArrTree idm' res
+                | a == arrFromList [ScalarNum 0.0] -> execDfnStatement idm' toks'
             _ -> undefined -- TODO lhs of guard must be boolean singleton
-    where arrIsTrue a = a == (arrFromList [ScalarNum $ Left 1]) || (a == arrFromList [ScalarNum $ Right 1.0])
-          arrIsFalse a = a == (arrFromList [ScalarNum $ Left 0]) || (a == arrFromList [ScalarNum $ Right 0.0])
