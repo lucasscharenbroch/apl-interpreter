@@ -1,7 +1,7 @@
 import System.Console.Haskeline
 import Control.Monad (foldM)
 import GlyphCompletion
-import Lex (Token, tokenize)
+import Lex (Token(..), tokenize, countBracketNesting)
 import Parse
 import Eval
 import GrammarTree
@@ -33,15 +33,22 @@ execStatement idm ts = case parseExpr (idm, ts) of
     Just (res, ts') -> do idm' <- handleRes idm res
                           execStatement idm' ts'
 
-mainloop :: IdMap -> InputT IO ()
-mainloop idMap = do
+mainloop :: IdMap -> [Token] -> InputT IO ()
+mainloop idMap carriedToks = do
     isInterractive <- haveTerminalUI
-    input <- getInputLine $ if isInterractive then "    " else ""
+    input <- getInputLine $ if isInterractive then ps else ""
     case input of
         Nothing -> return ()
         Just s -> do -- outputStrLn . show . tokenize $ s
-                     idMap' <- execStatement idMap $ tokenize s
-                     mainloop idMap'
+                     let toks = carriedToks ++ tokenize s
+                     let nestingLevel' = countBracketNesting toks
+                     let (mIdMap', carriedToks')  = if nestingLevel' <= 0 then (execStatement idMap toks, [])
+                                                    else (return idMap, toks ++ [ChTok '\n'])
+                     idMap' <- mIdMap'
+                     mainloop idMap' carriedToks'
+    where nestingLevel = countBracketNesting carriedToks
+          ps = if nestingLevel == 0 then "    "
+               else (concat $ replicate nestingLevel "    ") ++ ">   "
 
 {-
         Just s -> do outputStrLn $ "tokens: " ++ (show . length $ s)
@@ -60,5 +67,5 @@ mainloop idMap = do
 -}
 
 main :: IO ()
-main = runInputT settings (mainloop emptyIdMap)
+main = runInputT settings (mainloop emptyIdMap [])
     where settings = setComplete completeGlyph defaultSettings

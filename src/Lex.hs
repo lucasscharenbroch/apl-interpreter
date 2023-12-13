@@ -63,3 +63,9 @@ tokenize xs
           aaMatch  = xs =~ aaRegex
           wwMatch  = xs =~ wwRegex
           ddMatch  = xs =~ ddRegex
+
+countBracketNesting :: [Token] -> Int
+countBracketNesting (ChTok '{':ts) = 1 + countBracketNesting ts
+countBracketNesting (ChTok '}':ts) = (-1) + countBracketNesting ts
+countBracketNesting (t:ts) = countBracketNesting ts
+countBracketNesting [] = 0
