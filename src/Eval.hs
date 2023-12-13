@@ -172,7 +172,7 @@ evalDopM idtfs toks idm arg = (idm', derFn)
               (FnLeafArr atn) -> (\(i, a) -> (i, Right a)) $ evalArrTree idm atn
               ftn -> (\(i, f) -> (i, Left f)) $ evalFnTree idm ftn
           argAsIdEntry = case arg' of
-              (Right  a) -> IdArr a
+              (Right a) -> IdArr a
               (Left f) -> IdFn f
           idtfs' = idtfs ++ [
                   mapInsert "⍺⍺" argAsIdEntry,
@@ -190,15 +190,15 @@ evalDopD idtfs toks idm arg1 arg2 = (idm'', derFn)
               (FnLeafArr atn) -> (\(i, a) -> (i, Right a)) $ evalArrTree idm' atn
               ftn -> (\(i, f) -> (i, Left f)) $ evalFnTree idm' ftn
           arg1AsIdEntry = case arg1' of
-              (Right  a) -> IdArr a
+              (Right a) -> IdArr a
               (Left f) -> IdFn f
           arg2AsIdEntry = case arg2' of
-              (Right  a) -> IdArr a
+              (Right a) -> IdArr a
               (Left f) -> IdFn f
           idtfs' = idtfs ++ [
                   mapInsert "⍺⍺" arg1AsIdEntry,
                   mapInsert "⍵⍵" arg2AsIdEntry,
-                  mapInsert "∇∇" (IdTokList [] toks True False)
+                  mapInsert "∇∇" (IdTokList [] toks True True)
               ]
           derFn = MonDyadFn (showTokListAsDfn toks) (evalDfnM idtfs' toks) (evalDfnD idtfs' toks)
 

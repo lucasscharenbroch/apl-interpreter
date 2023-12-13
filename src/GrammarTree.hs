@@ -60,13 +60,14 @@ showSigFigures i d' -- TODO here...
               d = abs d'
 
 showTokListAsDfn :: [Token] -> String
-showTokListAsDfn toks = ("{" ++ (concat . map (showTokVal) $ toks) ++ "}")
+showTokListAsDfn toks = ("{" ++ (concat . intersperse " " . map (showTokVal) $ toks) ++ "}")
     where showTokVal (NumTok (Left i)) = show i
           showTokVal (NumTok (Right d)) = show d
           showTokVal (StrTok s) = "'" ++ s ++ "'"
           showTokVal (IdTok s) = s
           showTokVal AATok = "⍺⍺"
           showTokVal WWTok = "⍵⍵"
+          showTokVal DDTok = "∇∇"
           showTokVal (ChTok c) = c:[]
 
 {- Arrays -}

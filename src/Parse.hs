@@ -39,7 +39,7 @@ import Data.List (isPrefixOf)
  -    => ⍣ . ∘ ⍤ ⍥ @ ⍠ ⌺                     (dyadic)
  -    => [der_arr]                           (monadic)
  -    => dfn_decl                            (if dfn_decl is op)
- -    => ∇∇                                  (if in dop body)
+ -    => ∇∇                                  (if ∇∇ is in id map)
  -    => op_ass
  -    => ⎕ ← op
  -    => ID                                  (if ID is op)
@@ -379,7 +379,7 @@ parseOp = matchOne [
         -- dfn_decl
         mchFst (dfnDeclToOp) . parseDfnDecl,
         -- ∇∇
-        -- matchSpecialIdWith [ChTok '∇', ChTok '∇'] "∇∇" idEntryToOtn, -- TODO
+        matchSpecialIdWith [DDTok] "∇∇" idEntryToOtn,
         parseOpAss,
         matchIdWith (idEntryToOtn),
         chFst (OpLeaf . fst) . parseOpOrFn,
@@ -389,9 +389,9 @@ parseOp = matchOne [
             matchCh ')'
         )
     ]
-    where idEntryToOtn e = case e of
-              (IdOp o) -> Just (OpLeaf o)
-              _ -> Nothing
+    where idEntryToOtn (IdOp o) = Just (OpLeaf o)
+          idEntryToOtn (IdTokList idtfs toks True is_dy) = Just . OpLeaf $ mkDop idtfs toks is_dy
+          idEntryToOtn _ = Nothing
           dfnDeclToOp (toks, True, is_dy) = Just . OpLeaf $ mkDop [] toks is_dy
           dfnDeclToOp _ = Nothing
 

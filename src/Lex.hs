@@ -17,6 +17,7 @@ strRegex = makeRegex "^'([^']|'')*'"
 idRegex = makeRegex "^[a-zA-Z_][a-zA-Z_0-9]*"
 aaRegex = makeRegex "^⍺⍺"
 wwRegex = makeRegex "^⍵⍵"
+ddRegex = makeRegex "^∇∇"
 
 stod :: String -> Double
 stod ('¯':xs) = read $ '-' : xs
@@ -39,6 +40,7 @@ data Token = NumTok (Either Int Double)
            | IdTok [Char]
            | AATok
            | WWTok
+           | DDTok
            | ChTok Char
     deriving (Show, Eq)
 
@@ -52,6 +54,7 @@ tokenize xs
     | (length idMatch) > 0 = IdTok idMatch : tokenize (drop (length idMatch) xs)
     | (length aaMatch) > 0 = AATok : tokenize (drop (length aaMatch) xs)
     | (length wwMatch) > 0 = WWTok : tokenize (drop (length wwMatch) xs)
+    | (length ddMatch) > 0 = DDTok : tokenize (drop (length ddMatch) xs)
     | otherwise = ChTok (head xs) : (tokenize (tail xs))
     where intMatch = xs =~ intRegex
           floatMatch = xs =~ floatRegex
@@ -59,3 +62,4 @@ tokenize xs
           idMatch  = xs =~ idRegex
           aaMatch  = xs =~ aaRegex
           wwMatch  = xs =~ wwRegex
+          ddMatch  = xs =~ ddRegex
