@@ -2,6 +2,7 @@ module Functions where
 import Eval
 import GrammarTree
 import Data.List (elemIndex)
+import Data.Fixed (mod')
 
 {- Constants -}
 
@@ -70,6 +71,12 @@ arithFnM f = arrMap (f')
           f' (ScalarArr a) = ScalarArr . arithFnM f $ a
           f' _ = undefined -- TODO domain error
 
+intToScalarArr :: Int -> Array
+intToScalarArr = arrFromList . (:[]) . ScalarNum . fromIntegral
+
+doubleToScalarArr :: Double -> Array
+doubleToScalarArr = arrFromList . (:[]) . ScalarNum
+
 {- Impure Functions -}
 
 {-
@@ -102,14 +109,29 @@ implicitGroup = id
 
 {- General Functions -}
 
+absoluteValue :: Array -> Array
+absoluteValue = arithFnM (abs)
+
 add :: Array -> Array -> Array
 add = arithFnD (+)
 
 ceiling :: Array -> Array
-ceiling = arithFnM (fromIntegral. Prelude.ceiling)
+ceiling = arithFnM (fromIntegral . Prelude.ceiling)
 
 conjugate :: Array -> Array
 conjugate = id
+
+depth :: Array -> Array
+depth = intToScalarArr . _depth . ScalarArr
+    where _depth :: Scalar -> Int
+          _depth (ScalarArr a) = mult * (1 + (foldr (max) 0 . map abs) childDepths)
+              where childDepths = map (_depth) . arrToList $ a
+                    mult = if allMatch childDepths && all (>=0) childDepths then 1 else -1
+                    allMatch (x:x':xs)
+                        | x /= x' = False
+                        | otherwise = allMatch (x':xs)
+                    allMatch _ = True
+          _depth _ = 0
 
 direction :: Array -> Array
 direction = arithFnM _direction
@@ -180,6 +202,9 @@ logBase = arithFnD (_logBase)
 lss :: Array -> Array -> Array
 lss = arithFnD (\n m -> fromIntegral . fromEnum $ n < m)
 
+match :: Array -> Array -> Array
+match x y = intToScalarArr . fromEnum $ (x == y)
+
 minimum :: Array -> Array -> Array
 minimum = arithFnD (min)
 
@@ -197,6 +222,9 @@ naturalLog = arithFnM (_log)
 negate :: Array -> Array
 negate = arithFnM (Prelude.negate)
 
+notMatch :: Array -> Array -> Array
+notMatch x y = intToScalarArr . fromEnum $ (x /= y)
+
 power :: Array -> Array -> Array
 power = arithFnD (**)
 
@@ -212,6 +240,12 @@ reshape x y = shapedArrFromList newShape . take newSize . concat . replicate int
           baseList = case arrToList y of
                      [] -> [ScalarNum 0]
                      ss -> ss
+
+residue :: Array -> Array -> Array
+residue = arithFnD (_residue)
+    where _residue 0 m = 0
+          _residue n m =  mod' m n
+
 right :: Array -> Array -> Array
 right = flip const
 
@@ -220,3 +254,6 @@ shapeOf = arrFromList . map (ScalarNum . fromIntegral) . shape
 
 subtract :: Array -> Array -> Array
 subtract = arithFnD (-)
+
+tally :: Array -> Array
+tally = intToScalarArr . foldr (*) 1 . shape

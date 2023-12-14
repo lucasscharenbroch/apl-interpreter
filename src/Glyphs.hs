@@ -112,6 +112,9 @@ fFloor = pureMonDyadFn "⌊" F.floor F.minimum
 fCeil = pureMonDyadFn "⌈" F.ceiling F.maximum
 fRightTack = pureMonDyadFn "⊢" F.identity F.right
 fLeftTack = pureMonDyadFn "⊣" F.identity F.left
+fPipe = pureMonDyadFn "|" F.absoluteValue F.residue
+fTripleEqu = pureMonDyadFn "≡" F.depth F.match
+fTripleNeq = pureMonDyadFn "≢" F.tally F.notMatch
 
 functionGlyphs :: [(Char, Function)]
 functionGlyphs = [
@@ -131,7 +134,10 @@ functionGlyphs = [
         ('⌊', fFloor),
         ('⌈', fCeil),
         ('⊢', fRightTack),
-        ('⊣', fLeftTack)
+        ('⊣', fLeftTack),
+        ('|', fPipe),
+        ('≡', fTripleEqu),
+        ('≢', fTripleNeq)
         -- TODO big list of functions
     ]
 
