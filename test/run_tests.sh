@@ -1,8 +1,8 @@
 #!/bin/bash
 
 test_files=(
-        "simple_fns"
         "numeric_fns"
+        "simple_fns"
         "dfns_dops"
         "multi_expr_line"
         "function_tree"

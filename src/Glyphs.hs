@@ -115,6 +115,12 @@ fLeftTack = pureMonDyadFn "⊣" F.identity F.left
 fPipe = pureMonDyadFn "|" F.absoluteValue F.residue
 fTripleEqu = pureMonDyadFn "≡" F.depth F.match
 fTripleNeq = pureMonDyadFn "≢" F.tally F.notMatch
+fNand = pureDyadFn "⍲" F.nand
+fNor = pureDyadFn "⍱" F.nor
+fAnd = pureDyadFn "∧" F.lcm
+fOr = pureDyadFn "∨" F.gcd
+fCircle = pureMonDyadFn "○" F.piTimes F.circularFormulae
+fBang = pureMonDyadFn "!" F.factorial F.binomial
 
 functionGlyphs :: [(Char, Function)]
 functionGlyphs = [
@@ -137,7 +143,13 @@ functionGlyphs = [
         ('⊣', fLeftTack),
         ('|', fPipe),
         ('≡', fTripleEqu),
-        ('≢', fTripleNeq)
+        ('≢', fTripleNeq),
+        ('⍲', fNand),
+        ('⍱', fNor),
+        ('∧', fAnd),
+        ('∨', fOr),
+        ('○', fCircle),
+        ('!', fBang)
         -- TODO big list of functions
     ]
 

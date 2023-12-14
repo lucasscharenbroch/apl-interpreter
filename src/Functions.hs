@@ -77,6 +77,22 @@ intToScalarArr = arrFromList . (:[]) . ScalarNum . fromIntegral
 doubleToScalarArr :: Double -> Array
 doubleToScalarArr = arrFromList . (:[]) . ScalarNum
 
+doubleToBool :: Double -> Bool
+doubleToBool 1.0 = True
+doubleToBool 0.0 = False
+doubleToBool _ = undefined -- TODO domain error: expected boolean singleton
+
+boolToDouble :: Bool -> Double
+boolToDouble True = 1.0
+boolToDouble False = 0.0
+
+scalarToBool :: Scalar -> Bool
+scalarToBool (ScalarNum n) = doubleToBool n
+scalarToBool _ = undefined -- TODO domain error: expected number
+
+boolToScalar :: Bool -> Scalar
+boolToScalar = ScalarNum . boolToDouble
+
 {- Impure Functions -}
 
 {-
@@ -115,8 +131,35 @@ absoluteValue = arithFnM (abs)
 add :: Array -> Array -> Array
 add = arithFnD (+)
 
+binomial :: Array -> Array -> Array
+binomial = arithFnD _binomial
+    where _binomial x y
+              | x /= (fromIntegral . Prelude.floor $ x) = undefined -- TODO domain error
+              | y /= (fromIntegral . Prelude.floor $ y) = undefined -- TODO domain error
+              | x < 0 = undefined -- TODO domain error
+              | y < 0 = undefined -- TODO domain error
+              | otherwise = (flip _binomialRec) (Prelude.floor x) (Prelude.floor y)
+          _binomialRec x y
+              | y > x = 0
+              | y == 0 = 1
+              | x == y = 1
+              | otherwise = _binomialRec (x - 1) (y - 1) + _binomialRec (x - 1) y
+
 ceiling :: Array -> Array
 ceiling = arithFnM (fromIntegral . Prelude.ceiling)
+
+circularFormulae :: Array -> Array -> Array
+circularFormulae = arithFnD _cf
+    where _cf x y
+              | x == 1 = sin y
+              | x == 2 = cos y
+              | x == 3 = tan y
+              | x == -1 && y >= -1 && y <= 1 = asin y
+              | x == -1 = undefined -- TODO domain error: asin out of range
+              | x == -2 && y >= -1 && y <= 1 = acos y
+              | x == -2 = undefined -- TODO domain error: asin out of range
+              | x == -3 = atan y
+              | otherwise = undefined -- domain error
 
 conjugate :: Array -> Array
 conjugate = id
@@ -151,8 +194,23 @@ equ = arithFnD (\n m -> fromIntegral . fromEnum $ n == m)
 exponential :: Array -> Array
 exponential = arithFnM (exp)
 
+factorial :: Array -> Array
+factorial = arithFnM (_factorial)
+    where _factorial :: Double -> Double
+          _factorial n
+              | n /= (fromIntegral . Prelude.floor $ n) = undefined -- TODO domain error
+              | n < 0 = undefined -- TODO domain error
+              | otherwise = fromIntegral . foldr (*) 1 $ [1..(Prelude.floor n)]
+
 floor :: Array -> Array
 floor = arithFnM (fromIntegral . Prelude.floor)
+
+gcd :: Array -> Array -> Array
+gcd = arithFnD (_gcd)
+    where _gcd x y
+              | x /= (fromIntegral . Prelude.floor $ x) = undefined
+              | y /= (fromIntegral . Prelude.floor $ y) = undefined
+              | otherwise = fromIntegral $ Prelude.gcd (Prelude.floor x) (Prelude.floor y)
 
 geq :: Array -> Array -> Array
 geq = arithFnD (\n m -> fromIntegral . fromEnum $ n >= m)
@@ -188,6 +246,15 @@ indexOf x y
           toArray (ScalarArr a) = a
           toArray s = arrFromList [s]
 
+lcm :: Array -> Array -> Array
+lcm = arithFnD (_lcm)
+    where _lcm x y
+              | x /= (fromIntegral . Prelude.floor $ x) = undefined
+              | y /= (fromIntegral . Prelude.floor $ y) = undefined
+              | x < 0 && y >= 0 = -1 * _lcm (-1 * x) y
+              | y < 0 && x >= 0 = -1 * _lcm x (-1 * y)
+              | otherwise = fromIntegral $ Prelude.lcm (Prelude.floor x) (Prelude.floor y)
+
 left :: Array -> Array -> Array
 left = const
 
@@ -214,6 +281,9 @@ maximum = arithFnD (max)
 multiply :: Array -> Array -> Array
 multiply = arithFnD (*)
 
+nand :: Array -> Array -> Array
+nand = arithFnD (\x y -> boolToDouble $ not (doubleToBool x && doubleToBool y))
+
 naturalLog :: Array -> Array
 naturalLog = arithFnM (_log)
     where _log n | n <= 0 = undefined -- TODO domain error
@@ -222,8 +292,14 @@ naturalLog = arithFnM (_log)
 negate :: Array -> Array
 negate = arithFnM (Prelude.negate)
 
+nor :: Array -> Array -> Array
+nor = arithFnD (\x y -> boolToDouble $ not (doubleToBool x || doubleToBool y))
+
 notMatch :: Array -> Array -> Array
 notMatch x y = intToScalarArr . fromEnum $ (x /= y)
+
+piTimes :: Array -> Array
+piTimes = arithFnM (pi*)
 
 power :: Array -> Array -> Array
 power = arithFnD (**)
