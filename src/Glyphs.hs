@@ -106,6 +106,8 @@ fLeq = pureDyadFn "≤" F.leq
 fGtr = pureDyadFn ">" F.gtr
 fGeq = pureDyadFn "≥" F.geq
 fEqu = pureDyadFn "=" F.equ
+fAsterisk = pureMonDyadFn "*" F.exponential F.power
+fAsteriskCircle = pureMonDyadFn "⍟" F.naturalLog F.logBase
 
 functionGlyphs :: [(Char, Function)]
 functionGlyphs = [
@@ -119,7 +121,9 @@ functionGlyphs = [
         ('≤', fLeq),
         ('>', fGtr),
         ('≥', fGeq),
-        ('=', fEqu)
+        ('=', fEqu),
+        ('*', fAsterisk),
+        ('⍟', fAsteriskCircle)
         -- TODO big list of functions
     ]
 

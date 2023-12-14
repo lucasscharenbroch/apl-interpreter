@@ -57,7 +57,7 @@ showSigFigures i d' -- TODO here...
               d = abs d'
 
 showTokListAsDfn :: [Token] -> String
-showTokListAsDfn toks = ("{" ++ (concat . intersperse " " . map (showTokVal) $ toks) ++ "}")
+showTokListAsDfn toks = ("{" ++ (filter (/='\n'). concat . intersperse " " . map (showTokVal) $ toks) ++ "}")
     where showTokVal (NumTok n) = show n
           showTokVal (StrTok s) = "'" ++ s ++ "'"
           showTokVal (IdTok s) = s

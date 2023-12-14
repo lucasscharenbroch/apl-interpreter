@@ -123,6 +123,9 @@ divide = arithFnD _divide
 equ :: Array -> Array -> Array
 equ = arithFnD (\n m -> fromIntegral . fromEnum $ n == m)
 
+exponential :: Array -> Array
+exponential = arithFnM (exp)
+
 geq :: Array -> Array -> Array
 geq = arithFnD (\n m -> fromIntegral . fromEnum $ n >= m)
 
@@ -157,14 +160,27 @@ indexOf x y
 leq :: Array -> Array -> Array
 leq = arithFnD (\n m -> fromIntegral . fromEnum $ n <= m)
 
+logBase :: Array -> Array -> Array
+logBase = arithFnD (_logBase)
+    where _logBase b n | b <= 0 || b == 1 || n <= 0 = undefined -- TODO domain error
+          _logBase b n = Prelude.logBase b n
+
 lss :: Array -> Array -> Array
 lss = arithFnD (\n m -> fromIntegral . fromEnum $ n < m)
 
 multiply :: Array -> Array -> Array
 multiply = arithFnD (*)
 
+naturalLog :: Array -> Array
+naturalLog = arithFnM (_log)
+    where _log n | n <= 0 = undefined -- TODO domain error
+          _log n = log n
+
 negate :: Array -> Array
 negate = arithFnM (Prelude.negate)
+
+power :: Array -> Array -> Array
+power = arithFnD (**)
 
 reciprocal :: Array -> Array
 reciprocal = arithFnM (_reciprocal)
