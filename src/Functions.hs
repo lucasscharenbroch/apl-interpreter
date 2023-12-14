@@ -21,7 +21,7 @@ rankMorph (x, y)
 
 toIntVec :: Array -> [Int]
 toIntVec = map (toInt) . arrToList
-    where toInt (ScalarNum n) | (fromIntegral . floor $ n) - n == 0 = floor n
+    where toInt (ScalarNum n) | (fromIntegral . Prelude.floor $ n) - n == 0 = Prelude.floor n
           toInt _ = undefined -- TODO exception (domain error)
 
 alongAxis :: Array -> Int -> [Array]
@@ -105,6 +105,9 @@ implicitGroup = id
 add :: Array -> Array -> Array
 add = arithFnD (+)
 
+ceiling :: Array -> Array
+ceiling = arithFnM (fromIntegral. Prelude.ceiling)
+
 conjugate :: Array -> Array
 conjugate = id
 
@@ -126,11 +129,17 @@ equ = arithFnD (\n m -> fromIntegral . fromEnum $ n == m)
 exponential :: Array -> Array
 exponential = arithFnM (exp)
 
+floor :: Array -> Array
+floor = arithFnM (fromIntegral . Prelude.floor)
+
 geq :: Array -> Array -> Array
 geq = arithFnD (\n m -> fromIntegral . fromEnum $ n >= m)
 
 gtr :: Array -> Array -> Array
 gtr = arithFnD (\n m -> fromIntegral . fromEnum $ n > m)
+
+identity :: Array -> Array
+identity = id
 
 iota :: Array -> Array
 iota x = shapedArrFromList x' [toScalar . map (ScalarNum . fromIntegral . (+iO)) . calcIndex $ i | i <- [0..(sz - 1)]]
@@ -157,6 +166,9 @@ indexOf x y
           toArray (ScalarArr a) = a
           toArray s = arrFromList [s]
 
+left :: Array -> Array -> Array
+left = const
+
 leq :: Array -> Array -> Array
 leq = arithFnD (\n m -> fromIntegral . fromEnum $ n <= m)
 
@@ -167,6 +179,12 @@ logBase = arithFnD (_logBase)
 
 lss :: Array -> Array -> Array
 lss = arithFnD (\n m -> fromIntegral . fromEnum $ n < m)
+
+minimum :: Array -> Array -> Array
+minimum = arithFnD (min)
+
+maximum :: Array -> Array -> Array
+maximum = arithFnD (max)
 
 multiply :: Array -> Array -> Array
 multiply = arithFnD (*)
@@ -194,6 +212,8 @@ reshape x y = shapedArrFromList newShape . take newSize . concat . replicate int
           baseList = case arrToList y of
                      [] -> [ScalarNum 0]
                      ss -> ss
+right :: Array -> Array -> Array
+right = flip const
 
 shapeOf :: Array -> Array
 shapeOf = arrFromList . map (ScalarNum . fromIntegral) . shape
