@@ -106,14 +106,20 @@ evalArrTree idm (ArrLeaf a) = (idm, a)
 evalArrTree idm (ArrInternalMonFn ft at) = case evalFnTree idm ft of
     (idm', (MonFn _ f)) -> f idm' at
     (idm', (MonDyadFn _ f _)) -> f idm' at
-    _ -> undefined -- TODO exception
+    _ -> undefined -- TODO exception - function isn't monadic
 evalArrTree idm (ArrInternalDyadFn ft at1 at2) = case evalFnTree idm ft of
     (idm', (DyadFn _ f)) -> f idm' at1 at2
     (idm', (MonDyadFn _ _ f)) -> f idm' at1 at2
-    _ -> undefined -- TODO exception
+    _ -> undefined -- TODO exception - function isn't dyadic
 evalArrTree idm (ArrInternalSubscript a is) = undefined -- TODO implement
-evalArrTree idm (ArrInternalAssignment it a) = (mapInsert it (IdArr a') idm', a') -- TODO actually assign to iterator, not just id
+evalArrTree idm (ArrInternalAssignment id a) = (mapInsert id (IdArr a') idm', a')
     where (idm', a') = evalArrTree idm a
+evalArrTree idm (ArrInternalModAssignment id f rhs) = (mapInsert id (IdArr res) idm'', rhs')
+    where (idm', rhs') = evalArrTree idm rhs
+          lhs = ArrLeaf $ case mapLookup id idm' of
+                Just (IdArr a) -> a
+                _ -> undefined -- TODO error: undefined name
+          (idm'', res) = evalArrTree idm' (ArrInternalDyadFn f lhs (ArrLeaf rhs'))
 
 evalFnTree :: IdMap -> FnTreeNode -> (IdMap, Function)
 evalFnTree idm (FnLeafFn f) = (idm, f)

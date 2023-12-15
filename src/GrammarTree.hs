@@ -33,7 +33,7 @@ _round numPlaces d = (/mult) . fromIntegral . round . (*mult) $ d
     where mult = 10^numPlaces
 
 showSigFigures :: Int -> Double -> String
-showSigFigures i d' -- TODO here...
+showSigFigures i d'
     | e >= i = sign ++ (show . (/(10^i')) . _round 0 $ d / (10^(e-i'))) ++ "E" ++ (show e)
     | d - (fromIntegral intPortion) == 0 = sign ++ show intPortion
     | d <= (1e-6) = sign ++ (head . show $ decPortionInt) : "." ++ (stripTrailingZeroes . tail . show $ decPortionInt) ++ "E¯" ++ (show (numDecZeroes + 1))
@@ -290,7 +290,8 @@ instance Show FnTreeNode where
 -- "array tree": a tree that makes up a derived array
 data ArrTreeNode = ArrLeaf Array
                  | ArrInternalSubscript ArrTreeNode [ArrTreeNode]
-                 | ArrInternalAssignment Iterator ArrTreeNode
+                 | ArrInternalAssignment String ArrTreeNode
+                 | ArrInternalModAssignment String FnTreeNode ArrTreeNode
                  | ArrInternalMonFn FnTreeNode ArrTreeNode
                  | ArrInternalDyadFn FnTreeNode ArrTreeNode ArrTreeNode
 
@@ -309,6 +310,7 @@ showAtnHelper (ArrInternalDyadFn f a1 a2) = showDyadTreeHelper (showAtnHelper a1
 showAtnHelper (ArrInternalSubscript a is) = showDyadTreeHelper (showAtnHelper a) (showIs is, 0) "[]"
     where showIs = foldl (\s a -> fst . horizCat s $ (singleBoxify . show $ a)) ""
 showAtnHelper (ArrInternalAssignment it a) = showMonTreeHelper (showAtnHelper a) (it ++ "←")
+showAtnHelper (ArrInternalModAssignment it f a) = showMonTreeHelper (showAtnHelper a) (it ++ " " ++ show f ++ "←")
 
 instance Show ArrTreeNode where
     show = fst . showAtnHelper
@@ -346,7 +348,3 @@ mapInsert = Map.insert
 
 mapDelete :: String -> IdMap -> IdMap
 mapDelete = Map.delete
-
-{- Iterators -}
-
-type Iterator = String -- TODO

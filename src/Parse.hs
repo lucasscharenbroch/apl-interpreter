@@ -25,6 +25,7 @@ import Data.List (isPrefixOf)
  -         => arr
  -
  - arr_ass => ID ← der_arr
+ -         => ID der_fn ← der_arr
  -
  - train => [df] {(arr|df) df} df            (where df = der_fn)
  -
@@ -257,6 +258,7 @@ parseExpr = matchOne [
         chFst (\_ -> ResNull) . matchCommentOrEoe
     ]
     where mkResAtn a@(ArrInternalAssignment _ _) = ResAtn a False
+          mkResAtn a@(ArrInternalModAssignment _ _ _) = ResAtn a False
           mkResAtn a = ResAtn a True
           mkResFtn f@(FnInternalAssignment _ _) = ResFtn f False
           mkResFtn f = ResFtn f True
@@ -273,6 +275,7 @@ parseDfnExpr = matchOne [
         chFst (\_ -> DResNull) . matchCommentOrEoe
     ]
     where mkDResAtn a@(ArrInternalAssignment _ _) = DResAtn a False
+          mkDResAtn a@(ArrInternalModAssignment _ _ _) = DResAtn a False
           mkDResAtn a = DResAtn a True
 
 parseGuard :: MatchFn (ArrTreeNode, ArrTreeNode)
@@ -330,11 +333,19 @@ parseDerArr = matchOne [
     ]
 
 parseArrAss :: MatchFn ArrTreeNode
-parseArrAss = chFst (\(id, _, da) -> ArrInternalAssignment id da) . matchT3 (
-        matchId,
-        matchCh '←',
-        parseDerArr
-    )
+parseArrAss = matchOne [
+        chFst (\(id, _, da) -> ArrInternalAssignment id da) . matchT3 (
+            matchId,
+            matchCh '←',
+            parseDerArr
+        ),
+        chFst (\(id, df, _, da) -> ArrInternalModAssignment id df da) . matchT4 (
+            matchId,
+            parseDerFn,
+            matchCh '←',
+            parseDerArr
+        )
+    ]
 
 parseTrain :: MatchFn FnTreeNode
 parseTrain = chFst (tranify) . matchOne [

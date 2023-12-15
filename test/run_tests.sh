@@ -1,6 +1,7 @@
 #!/bin/bash
 
 test_files=(
+        "modified_assignment"
         "numeric_fns"
         "simple_fns"
         "dfns_dops"

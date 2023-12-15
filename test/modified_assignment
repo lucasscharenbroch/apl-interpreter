@@ -1,0 +1,37 @@
+x ← 1 2 3
+x
+x +← 1 2 3
+x
+x +← 10
+x
+y ← 100
+x ⋄ y
+y -← x
+x ⋄ y
+y {⍵-⍺}← x
+x ⋄ y
+x (≢+≢)← y
+x ⋄ y
+x (≢-≢)← y
+x ⋄ y
+x (≢×≢)← y
+x ⋄ y
+x ⍴← x ← 2 2
+x
+y
+(z ← 2 2⍳10)
+y + z
+y +← z ← 2 2⍳10
+y ⋄ z
+x +← y +← z ← 100 ⍝ result of modified assignment is the evaluated rhs (!)
+x ⋄ y ⋄ z
+y ← z +← 2 2⍴9 8 7
+'a1'
+y ⋄ z
+x +← y +← z +← a ← 2 2⍴⍳10
+x ≢  ← x
+'a'
+x ⋄ y ⋄ z
+'b'
+y≢ ←y
+x ⋄ y ⋄ z
