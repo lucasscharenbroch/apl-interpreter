@@ -332,4 +332,6 @@ subtract :: Array -> Array -> Array
 subtract = arithFnD (-)
 
 tally :: Array -> Array
-tally = intToScalarArr . foldr (*) 1 . shape
+tally a
+    | (length . shape $ a) == 0 = intToScalarArr 0
+    | otherwise = intToScalarArr . head . shape $ a
