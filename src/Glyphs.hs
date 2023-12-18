@@ -171,3 +171,11 @@ operatorGlyphs = [
         ('⍤', oAtop)
         -- TODO big list of operators
     ]
+
+opOrFnGlyphs :: [(Char, Operator, Function)]
+opOrFnGlyphs = [
+        ('/', oReduce, fReplicate),
+        ('⌿', oReduceFirst, fReplicateFirst),
+        ('\\', oScan, fExpand),
+        ('⍀', oScanFirst, fExpandFirst)
+    ]

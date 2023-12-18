@@ -458,7 +458,7 @@ parseFn = matchOne [
         -- ID
         matchIdWith (idEntryToFnTree),
         -- op_or_fn
-        (snd) <$> parseOpOrFn,
+        (FnLeafFn . snd) <$> parseOpOrFn,
         -- (train)
         (\(_, t, _) -> FnInternalDummyNode t) <$> matchT3 (
             matchCh '(',
@@ -479,13 +479,8 @@ parseFnAss = (\(id, _, ftn) -> FnInternalAssignment id ftn) <$> matchT3 (
         parseTrain
     )
 
-parseOpOrFn :: MatchFn (Operator, FnTreeNode)
-parseOpOrFn = matchOne [
-        (\_ -> (oReduce, FnLeafFn fReplicate)) <$> matchCh '/',
-        (\_ -> (oScan, FnLeafFn fExpand)) <$> matchCh '\\',
-        (\_ -> (oReduceFirst, FnLeafFn fReplicateFirst)) <$> matchCh '⌿',
-        (\_ -> (oScanFirst, FnLeafFn fExpandFirst)) <$> matchCh '⍀'
-    ]
+parseOpOrFn :: MatchFn (Operator, Function)
+parseOpOrFn = matchOne $ map (\(c, o, f) -> (\_ -> (o, f)) <$> matchCh c) opOrFnGlyphs
 
 parseArr :: MatchFn ArrTreeNode -- parse an entire literal array
 parseArr = (_roll) <$> matchT2 (
