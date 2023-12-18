@@ -1,8 +1,13 @@
 module Parse where
 import GrammarTree
+import Control.Monad.Reader
+import Control.Monad.State
+import Control.Monad.Trans.Maybe
 import Lex
 
-type MatchFn a = (IdMap, [Token]) -> Maybe (a, [Token])
+evalMatchFn :: IdMap -> [Token] -> MatchFn a -> Maybe (a, [Token])
+
+type MatchFn a = StateT [Token] (MaybeT (Reader IdMap)) a
 
 parseDfnExpr :: MatchFn DfnExprResult
 

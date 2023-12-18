@@ -1,6 +1,7 @@
 module Eval where
 import Lex
 import GrammarTree
+import Control.Monad.Reader
 import {-# SOURCE #-} Parse
 
 {- Helpers -}
@@ -210,7 +211,7 @@ evalDopD idtfs toks idm arg1 arg2 = (idm'', derFn)
 
 execDfnStatement :: IdMap -> [Token] -> (IdMap, Array)
 execDfnStatement _ [] = undefined -- TODO expected return val (or make mechanism for no value)
-execDfnStatement idm toks = case parseDfnExpr (idm, toks) of
+execDfnStatement idm toks = case evalMatchFn idm toks parseDfnExpr of
     Nothing -> undefined -- TODO syntax error
     (Just (res, toks')) -> case res of
         (DResAtn atn True) -> evalArrTree idm atn

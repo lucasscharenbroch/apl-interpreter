@@ -1,10 +1,10 @@
 import System.Console.Haskeline
-import Control.Monad (foldM)
 import GlyphCompletion
 import Lex (Token(..), tokenize, countBracketNesting)
 import Parse
 import Eval
 import GrammarTree
+import Control.Monad.Reader
 
 handleRes :: IdMap -> ExprResult -> InputT IO IdMap
 handleRes idMap x = case x of
@@ -27,7 +27,7 @@ handleRes idMap x = case x of
 
 execStatement :: IdMap -> [Token] -> InputT IO IdMap
 execStatement idm [] = return idm
-execStatement idm ts = case parseExpr (idm, ts) of
+execStatement idm ts = case evalMatchFn idm ts parseExpr of
     Nothing -> do outputStrLn "parse error" -- TODO syntax error
                   return idm
     Just (res, ts') -> do idm' <- handleRes idm res

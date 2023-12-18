@@ -4,6 +4,10 @@ import GrammarTree
 import Glyphs
 import Eval
 import Data.List (isPrefixOf)
+import Control.Monad.Reader
+import Control.Monad.State
+import Control.Monad.Trans.Maybe
+import Control.Monad
 
 {-
  - statement => {expr}
@@ -87,147 +91,163 @@ import Data.List (isPrefixOf)
  -
  -}
 
+{- Monad Helpers -}
+
+evalMatchFn :: IdMap -> [Token] -> MatchFn a -> Maybe (a, [Token])
+evalMatchFn idm toks = (flip runReader) idm . runMaybeT . (flip runStateT) toks
+
+getIdm :: MatchFn IdMap
+getIdm = lift . lift $ ask
+
 {- Matching Functions -}
 
-chFst :: (a -> b) -> Maybe (a, c) -> Maybe (b, c)
--- chain first: apply function to first element of maybe-wrapped tuple
-chFst f m = case m of
-    Nothing -> Nothing
-    Just (x, y) -> Just (f x, y)
+type MatchFn a = StateT [Token] (MaybeT (Reader IdMap)) a
 
-mchFst :: (a -> Maybe b) -> Maybe (a, c) -> Maybe (b, c)
--- maybe chain first
-mchFst f m = case m of
-    Nothing -> Nothing
-    Just (x, y) -> case (f x) of
-        Nothing -> Nothing
-        Just z -> Just(z, y)
-
-type MatchFn a = (IdMap, [Token]) -> Maybe (a, [Token])
+maybeMatch :: MatchFn a -> MatchFn (Maybe a)
+maybeMatch f = do
+    idm <- getIdm
+    toks <- get
+    case evalMatchFn idm toks f of
+        Nothing -> return Nothing
+        Just (x, toks') -> do
+            put toks'
+            return $ Just x
 
 matchOne :: [MatchFn a] -> MatchFn a
 -- return first successful match, else Nothing
-matchOne fns args = foldl try Nothing fns
-    where try (Just x) _ = Just x -- already found match
-          try Nothing f = f args
+matchOne [] = mzero
+matchOne (f:fs) = do
+    mb <- maybeMatch f
+    case mb of
+        Nothing -> matchOne fs
+        Just x -> return x
 
 matchAll :: [MatchFn a] -> MatchFn [a]
--- match every function in list (sequentially), returning their results, else Nothing
-matchAll fns (idm, toks) = chFst (reverse) . foldl try (Just ([], toks)) $ fns
-    where try Nothing _ = Nothing
-          try (Just (rs, ts)) f = case f (idm, ts) of
-              Just (r, ts') -> Just(r:rs, ts')
-              _ -> Nothing
+matchAll [] = return []
+matchAll (f:fs) = do
+    a <- f
+    as <- matchAll fs
+    return $ a:as
 
 matchMax :: [MatchFn a] -> MatchFn [[a]]
 -- match 0 or more repetitions of the entire function list
-matchMax fns (idm, toks) = case matchAll fns (idm, toks) of
-    Nothing -> Just ([], toks)
-    Just (r, ts) -> case matchMax fns (idm, ts) of
-        Nothing -> Just ([r], ts)
-        Just (rs, ts') -> Just (r:rs, ts')
+matchMax fns = do
+    mb <- maybeMatch $ matchAll fns
+    case mb of
+        Nothing -> return []
+        Just x -> do
+            xs <- matchMax fns
+            return $ x:xs
 
 matchAllThenMax :: [MatchFn a] -> MatchFn [[a]]
 -- match 1 or more repetitions of entire function list
-matchAllThenMax fns = chFst (concat) . matchAll [
-        chFst (:[]) . matchAll fns,
-        matchMax fns
-    ]
+matchAllThenMax fns = do
+    x <- matchAll fns
+    xs <- matchMax fns
+    return $ x:xs
 
-{- Tuple Matching (hard-coded) -}
+{- Matching Tuples (hard-coded) -}
 
 matchT2 :: (MatchFn a, MatchFn b) -> MatchFn (a, b)
-matchT2 (fa, fb) (idm, ts) = case fa (idm, ts) of
-    Nothing -> Nothing
-    Just (a, ts') -> case fb (idm, ts') of
-        Nothing -> Nothing
-        Just (b, ts'') -> Just ((a, b), ts'')
+matchT2 (fa, fb) = do
+    a <- fa
+    b <- fb
+    return (a, b)
 
 matchT3 :: (MatchFn a, MatchFn b, MatchFn c) -> MatchFn (a, b, c)
-matchT3 (fa, fb, fc) (idm, ts) = case fa (idm, ts) of
-    Nothing -> Nothing
-    Just (a, ts') -> case fb (idm, ts') of
-        Nothing -> Nothing
-        Just (b, ts'') -> case fc (idm, ts'') of
-            Nothing -> Nothing
-            Just (c, ts''') -> Just ((a, b, c), ts''')
+matchT3 (fa, fb, fc) = do
+    a <- fa
+    b <- fb
+    c <- fc
+    return (a, b, c)
 
 matchT4 :: (MatchFn a, MatchFn b, MatchFn c, MatchFn d) -> MatchFn (a, b, c, d)
-matchT4 (fa, fb, fc, fd) (idm, ts) = case fa (idm, ts) of
-    Nothing -> Nothing
-    Just (a, ts') -> case fb (idm, ts') of
-        Nothing -> Nothing
-        Just (b, ts'') -> case fc (idm, ts'') of
-            Nothing -> Nothing
-            Just (c, ts''') -> case fd (idm, ts''') of
-                Nothing -> Nothing
-                Just (d, ts'''') -> Just ((a, b, c, d), ts'''')
+matchT4 (fa, fb, fc, fd) = do
+    a <- fa
+    b <- fb
+    c <- fc
+    d <- fd
+    return (a, b, c, d)
 
 {- Matching Specific Types -}
 
+matchA :: (Token -> Maybe a) -> MatchFn a
+matchA tokToMbA = do
+    toks <- get
+    case toks of
+        (t:toks')
+            | (Just x) <- tokToMbA t -> do
+                put toks'
+                return x
+            | otherwise -> mzero
+        [] -> mzero
+
 matchCh :: Char -> MatchFn Char
-matchCh c (_, (ChTok c':ts))
-    | c == c' = Just (c, ts)
-    | otherwise = Nothing
-matchCh _ _ = Nothing
+matchCh c = matchA $ \t -> case t of
+    ChTok ch | ch == c -> Just c
+    _ -> Nothing
 
 matchStrLiteral :: MatchFn String
-matchStrLiteral (_, (StrTok s:ts)) = Just (s, ts)
-matchStrLiteral _ = Nothing
+matchStrLiteral = matchA $ \t -> case t of
+    StrTok s -> Just s
+    _ -> Nothing
 
 matchId :: MatchFn String
-matchId (_, (IdTok idt:ts)) = Just (idt, ts)
-matchId _ = Nothing
+matchId = matchA $ \t -> case t of
+    IdTok s -> Just s
+    _ -> Nothing
 
 matchNumLiteral :: MatchFn Double
-matchNumLiteral (_, (NumTok n:ts)) = Just (n, ts)
-matchNumLiteral _ = Nothing
+matchNumLiteral = matchA $ \t -> case t of
+    NumTok n -> Just n
+    _ -> Nothing
 
 matchEoe :: MatchFn ()
-matchEoe (_, []) = Just ((), [])
-matchEoe (_, (ChTok '⋄':ts)) = Just ((), ts)
-matchEoe (_, (ChTok '\n':ts)) = Just ((), ts)
-matchEoe _ = Nothing
+matchEoe = do
+    toks <- get
+    case toks of
+        [] -> return ()
+        (ChTok '⋄':toks') -> put toks'
+        (ChTok '\n':toks') -> put toks'
+        _ -> mzero
+    return ()
 
 matchComment :: MatchFn ()
-matchComment (idm, (ChTok '⍝':ts)) = chFst (\_ -> ()) . matchT2 (
-        matchMax [matchAnyTokenExcept [ChTok '\n']],
-        matchEoe
-    ) $ (idm, ts)
-matchComment _ = Nothing
+matchComment = do
+    matchCh '⍝'
+    matchMax [matchAnyTokenExcept [ChTok '\n']]
+    matchEoe
 
 matchCommentOrEoe :: MatchFn ()
-matchCommentOrEoe = matchOne [ matchComment, matchEoe ]
+matchCommentOrEoe = matchOne [matchComment, matchEoe]
+
+mapGetIf :: String -> (IdEntry -> Maybe a) -> MatchFn a
+mapGetIf s f = do
+    idm <- getIdm
+    case mapLookup s idm of
+        Nothing -> mzero
+        Just entry -> case f entry of
+            Nothing -> mzero
+            Just x -> return x
 
 matchIdWith :: (IdEntry -> Maybe a) -> MatchFn a
-matchIdWith f (idm, ((IdTok id):ts)) = case mapLookup id idm of
-    Nothing -> Nothing
-    Just (entry) -> case f entry of
-        Nothing -> Nothing
-        (Just x) -> Just (x, ts)
-matchIdWith _ _ = Nothing
+matchIdWith f = do
+    s <- matchId
+    mapGetIf s f
 
 matchQuadIdWith :: (IdEntry -> Maybe a) -> MatchFn a
-matchQuadIdWith f (idm, (ChTok '⎕':(IdTok id):ts)) = case mapLookup ('⎕' : id) idm of
-    Nothing -> Nothing
-    Just (entry) -> case f entry of
-        Nothing -> Nothing
-        (Just x) -> Just (x, ts)
-matchQuadIdWith _ _ = Nothing
+matchQuadIdWith f = do
+    matchCh '⎕'
+    s <- matchId
+    mapGetIf ('⎕':s) f
 
-matchSpecialIdWith :: [Token] -> String -> (IdEntry -> Maybe a) -> MatchFn a
-matchSpecialIdWith specTs specId f (idm, ts) | specTs `isPrefixOf` ts = case mapLookup specId idm of
-    Nothing -> Nothing
-    Just (entry) -> case f entry of
-        Nothing -> Nothing
-        (Just x) -> Just (x, drop (length specTs) ts)
-matchSpecialIdWith _ _ _ _ = Nothing
+matchSpecialIdWith :: Token -> String -> (IdEntry -> Maybe a) -> MatchFn a
+matchSpecialIdWith specTok s f = do
+    matchA $ \t -> if t == specTok then Just () else Nothing
+    mapGetIf s f
 
 matchAnyTokenExcept :: [Token] -> MatchFn Token
-matchAnyTokenExcept blacklist (_, (t:ts)) = if t `elem` blacklist
-                                            then Nothing
-                                            else Just (t, ts)
-matchAnyTokenExcept _ (_, _) = Nothing
+matchAnyTokenExcept blacklist = matchA $ \t -> if t `elem` blacklist then Nothing else Just t
 
 {- Data Types -}
 
@@ -252,10 +272,10 @@ data DfnExprResult = DResAtn ArrTreeNode Bool -- Bool = should return?
 
 parseExpr :: MatchFn ExprResult
 parseExpr = matchOne [
-        chFst (mkResAtn . fst) . matchT2 (parseDerArr, matchCommentOrEoe),
-        chFst (mkResFtn . fst) . matchT2 (parseTrain, matchCommentOrEoe),
-        chFst (mkResOp . fst) . matchT2 (parseOp, matchCommentOrEoe),
-        chFst (\_ -> ResNull) . matchCommentOrEoe
+        (mkResAtn . fst) <$> matchT2 (parseDerArr, matchCommentOrEoe),
+        (mkResFtn . fst) <$> matchT2 (parseTrain, matchCommentOrEoe),
+        (mkResOp . fst) <$> matchT2 (parseOp, matchCommentOrEoe),
+        (\_ -> ResNull) <$> matchCommentOrEoe
     ]
     where mkResAtn a@(ArrInternalAssignment _ _) = ResAtn a False
           mkResAtn a@(ArrInternalModAssignment _ _ _) = ResAtn a False
@@ -267,51 +287,48 @@ parseExpr = matchOne [
 
 parseDfnExpr :: MatchFn DfnExprResult
 parseDfnExpr = matchOne [
-        chFst (mkDResAtn . fst) . matchT2 (parseDerArr, matchCommentOrEoe),
-        chFst ((\(a1, a2) -> DResCond a1 a2) . fst) . matchT2 (parseGuard, matchCommentOrEoe),
-        chFst (DResDefaultAlpha . fst) . matchT2(parseAlphaAss, matchCommentOrEoe),
-        chFst (DResFtn . fst) . matchT2 (parseFnAss, matchCommentOrEoe),
-        chFst (DResOtn . fst) . matchT2 (parseOpAss, matchCommentOrEoe),
-        chFst (\_ -> DResNull) . matchCommentOrEoe
+        (mkDResAtn . fst) <$> matchT2 (parseDerArr, matchCommentOrEoe),
+        ((\(a1, a2) -> DResCond a1 a2) . fst) <$> matchT2 (parseGuard, matchCommentOrEoe),
+        (DResDefaultAlpha . fst) <$> matchT2 (parseAlphaAss, matchCommentOrEoe),
+        (DResFtn . fst) <$> matchT2 (parseFnAss, matchCommentOrEoe),
+        (DResOtn . fst) <$> matchT2 (parseOpAss, matchCommentOrEoe),
+        (\_ -> DResNull) <$> matchCommentOrEoe
     ]
     where mkDResAtn a@(ArrInternalAssignment _ _) = DResAtn a False
           mkDResAtn a@(ArrInternalModAssignment _ _ _) = DResAtn a False
           mkDResAtn a = DResAtn a True
 
 parseGuard :: MatchFn (ArrTreeNode, ArrTreeNode)
-parseGuard = chFst (\(a1, _, a2) -> (a1, a2)) . matchT3 (
+parseGuard = (\(a1, _, a2) -> (a1, a2)) <$> matchT3 (
         parseDerArr,
         matchCh ':',
         parseDerArr
     )
 
 parseAlphaAss :: MatchFn ArrTreeNode
-parseAlphaAss = chFst (\(_, _, da) -> da) . matchT3 (
+parseAlphaAss = (\(_, _, da) -> da) <$> matchT3 (
         matchCh '⍺',
         matchCh '←',
         parseDerArr
     )
 
 parseDfnDecl :: MatchFn ([Token], Bool, Bool) -- toks, is_op, is_dyadic_op
-parseDfnDecl = chFst (\(_, x, _) -> wrapToks x) . matchT3 (
-        matchCh '{',
-        chFst (concat . concat) . matchMax [
+parseDfnDecl = do
+    matchCh '{'
+    toks <- (concat . concat) <$> matchMax [
             matchOne [
-                chFst (:[]) . matchAnyTokenExcept [ChTok '{', ChTok '}'],
-                chFst (\(a, b, c) -> [ChTok '{'] ++ a ++ [ChTok '}']) . parseDfnDecl
+                (:[]) <$> matchAnyTokenExcept [ChTok '{', ChTok '}'],
+                (\(a, b, c) -> [ChTok '{'] ++ a ++ [ChTok '}']) <$> parseDfnDecl
             ]
-        ],
-        matchCh '}'
-    )
-    where wrapToks ts = (ts, aa || ww, ww)
-            where aa = AATok `elem` ts
-                  ww = WWTok `elem` ts
+        ]
+    matchCh '}'
+    return (toks, AATok `elem` toks, WWTok `elem` toks)
 
 parseIdxList :: MatchFn [ArrTreeNode]
-parseIdxList = chFst (foldIdxList . concat) . matchMax [
+parseIdxList = (foldIdxList . concat) <$> matchMax [
         matchOne [
-            chFst (Right) . matchCh ';',
-            chFst (Left) . parseDerArr
+            (Right) <$> matchCh ';',
+            (Left) <$> parseDerArr
         ]
     ]
     where emptyArr = ArrLeaf . arrFromList $ []
@@ -323,8 +340,8 @@ parseIdxList = chFst (foldIdxList . concat) . matchMax [
 parseDerArr :: MatchFn ArrTreeNode
 parseDerArr = matchOne [
         parseArrAss,
-        chFst (\(f, da) -> ArrInternalMonFn f da) . matchT2 (parseDerFn, parseDerArr),
-        chFst (\(lhs, f, rhs) -> ArrInternalDyadFn f lhs rhs) . matchT3 (
+        (\(f, da) -> ArrInternalMonFn f da) <$> matchT2 (parseDerFn, parseDerArr),
+        (\(lhs, f, rhs) -> ArrInternalDyadFn f lhs rhs) <$> matchT3 (
             parseArr,
             parseDerFn,
             parseDerArr
@@ -334,12 +351,12 @@ parseDerArr = matchOne [
 
 parseArrAss :: MatchFn ArrTreeNode
 parseArrAss = matchOne [
-        chFst (\(id, _, da) -> ArrInternalAssignment id da) . matchT3 (
+        (\(id, _, da) -> ArrInternalAssignment id da) <$> matchT3 (
             matchId,
             matchCh '←',
             parseDerArr
         ),
-        chFst (\(id, df, _, da) -> ArrInternalModAssignment id df da) . matchT4 (
+        (\(id, df, _, da) -> ArrInternalModAssignment id df da) <$> matchT4 (
             matchId,
             parseDerFn,
             matchCh '←',
@@ -348,23 +365,23 @@ parseArrAss = matchOne [
     ]
 
 parseTrain :: MatchFn FnTreeNode
-parseTrain = chFst (tranify) . matchOne [
-        chFst (\(f, t) -> f : t) . matchT2 (
+parseTrain = (tranify) <$> matchOne [
+        (\(f, t) -> f : t) <$> matchT2 (
             parseDerFn,
             _matchTail
         ),
         _matchTail
     ] where
-    _matchTail = chFst (concat) . matchAll [ -- {(arr|df) df} df
-            chFst (concat) . matchMax [
-                matchOne [
-                    chFst (FnLeafArr) . parseArr,
-                    parseDerFn
-                ],
-                parseDerFn
-            ],
-            chFst (:[]) . parseDerFn
-        ]
+    _matchTail = do -- {(arr|df) df} df
+        fs <- (concat) <$> matchMax [
+               matchOne [
+                   (FnLeafArr) <$> parseArr,
+                   parseDerFn
+               ],
+               parseDerFn
+           ]
+        f <- parseDerFn
+        return $ fs ++ [f]
     tranify nodes
         | length nodes == 1 = head nodes
         | length nodes == 2 = FnInternalAtop (nodes !! 0) (nodes !! 1)
@@ -374,36 +391,39 @@ parseTrain = chFst (tranify) . matchOne [
               forkify (n1:n2:rest) = FnInternalFork n1 n2 (forkify rest)
 
 parseDerFn :: MatchFn FnTreeNode
-parseDerFn (idm, ts) = matchOne [
-        (=<<) (parseDerFnRec) . (=<<) (finishOpMatch) . matchT2 (_parseArg, parseOp),
-        parseFn
-    ] (idm, ts)
-    where _parseArg = matchOne [parseFn, chFst (FnLeafArr) . parseArr]
-          finishOpMatch :: ((FnTreeNode, OpTreeNode), [Token]) -> Maybe (FnTreeNode, [Token])
-          finishOpMatch ((lhs, otn), toks) = case unwrapOpTree otn of
-              (DyadOp _ _) -> chFst (FnInternalDyadOp otn lhs) $ _parseArg (idm, toks)
-              (MonOp _ _) -> Just (FnInternalMonOp otn lhs, toks)
-          parseDerFnRec :: (FnTreeNode, [Token]) -> Maybe (FnTreeNode, [Token])
-          parseDerFnRec (lhs, toks) = case (=<<) (finishOpMatch) . chFst (\op -> (lhs, op)) $ parseOp (idm, toks) of
-              Nothing -> Just (lhs, toks)
-              Just res -> parseDerFnRec res
+parseDerFn = matchOne [_parseOpExpr, parseFn]
+    where _parseOpExpr = do
+              lhs <- _parseArg
+              otn <- parseOp
+              _parseOpExprRec lhs otn
+          _parseArg = matchOne [parseFn, FnLeafArr <$> parseArr]
+          _parseOpExprRec :: FnTreeNode -> OpTreeNode -> MatchFn FnTreeNode
+          _parseOpExprRec lhs otn = do
+              df <- case unwrapOpTree otn of
+                        (MonOp _ _) -> return $ FnInternalMonOp otn lhs
+                        (DyadOp _ _) -> do rhs <- _parseArg
+                                           return $ FnInternalDyadOp otn lhs rhs
+              mb <- maybeMatch parseOp
+              case mb of
+                   Nothing -> return $ df
+                   (Just otn2) -> _parseOpExprRec df otn2
 
 parseOp :: MatchFn OpTreeNode
 parseOp = matchOne [
-        matchOne $ map (\(c, o) -> chFst (\_ -> OpLeaf o) . matchCh c) operatorGlyphs,
-        chFst (\(_, da, _) -> OpLeaf $ oAxisSpec da) . matchT3 (
+        matchOne $ map (\(c, o) -> (\_ -> OpLeaf o) <$> matchCh c) operatorGlyphs,
+        (\(_, da, _) -> OpLeaf $ oAxisSpec da) <$> matchT3 (
             matchCh '[',
             parseDerArr,
             matchCh ']'
         ),
         -- dfn_decl
-        mchFst (dfnDeclToOp) . parseDfnDecl,
+        dfnDeclToOp =<< parseDfnDecl,
         -- ∇∇
-        matchSpecialIdWith [DDTok] "∇∇" idEntryToOtn,
+        matchSpecialIdWith DDTok "∇∇" idEntryToOtn,
         parseOpAss,
         matchIdWith (idEntryToOtn),
-        chFst (OpLeaf . fst) . parseOpOrFn,
-        chFst (\(_, o, _) -> OpInternalDummyNode o) . matchT3 (
+        (OpLeaf . fst) <$> parseOpOrFn,
+        (\(_, o, _) -> OpInternalDummyNode o) <$> matchT3 (
             matchCh '(',
             parseOp,
             matchCh ')'
@@ -412,11 +432,11 @@ parseOp = matchOne [
     where idEntryToOtn (IdOp o) = Just (OpLeaf o)
           idEntryToOtn (IdTokList idtfs toks True is_dy) = Just . OpLeaf $ mkDop idtfs toks is_dy
           idEntryToOtn _ = Nothing
-          dfnDeclToOp (toks, True, is_dy) = Just . OpLeaf $ mkDop [] toks is_dy
-          dfnDeclToOp _ = Nothing
+          dfnDeclToOp (toks, True, is_dy) = return . OpLeaf $ mkDop [] toks is_dy
+          dfnDeclToOp _ = mzero
 
 parseOpAss :: MatchFn OpTreeNode
-parseOpAss = chFst (\(id, _, op) -> OpInternalAssignment id op) . matchT3 (
+parseOpAss = (\(id, _, op) -> OpInternalAssignment id op) <$> matchT3 (
         matchId,
         matchCh '←',
         parseOp
@@ -424,23 +444,23 @@ parseOpAss = chFst (\(id, _, op) -> OpInternalAssignment id op) . matchT3 (
 
 parseFn :: MatchFn FnTreeNode
 parseFn = matchOne [
-        matchOne $ map (\(c, f) -> chFst (\_ -> FnLeafFn f) . matchCh c) functionGlyphs,
+        matchOne $ map (\(c, f) -> (\_ -> FnLeafFn f) <$> matchCh c) functionGlyphs,
         matchQuadIdWith (idEntryToFnTree),
         -- ⍺⍺ | ⍵⍵
-        matchSpecialIdWith [AATok] "⍺⍺" (idEntryToFnTree),
-        matchSpecialIdWith [WWTok] "⍵⍵" (idEntryToFnTree),
+        matchSpecialIdWith (AATok) "⍺⍺" (idEntryToFnTree),
+        matchSpecialIdWith (WWTok) "⍵⍵" (idEntryToFnTree),
         -- ∇
-        matchSpecialIdWith [ChTok '∇'] "∇" idEntryToFnTree,
+        matchSpecialIdWith (ChTok '∇') "∇" idEntryToFnTree,
         -- dfn_decl
-        mchFst (dfnDeclToFn) . parseDfnDecl,
+        dfnDeclToFn =<< parseDfnDecl,
         -- ID ← train
         parseFnAss,
         -- ID
         matchIdWith (idEntryToFnTree),
         -- op_or_fn
-        chFst (snd) . parseOpOrFn,
+        (snd) <$> parseOpOrFn,
         -- (train)
-        chFst (\(_, t, _) -> FnInternalDummyNode t) . matchT3 (
+        (\(_, t, _) -> FnInternalDummyNode t) <$> matchT3 (
             matchCh '(',
             parseTrain,
             matchCh ')'
@@ -449,11 +469,11 @@ parseFn = matchOne [
     where idEntryToFnTree (IdFn f) = Just $ FnLeafFn f
           idEntryToFnTree (IdTokList idtfs toks False False) = Just . FnLeafFn . mkDfn idtfs $ toks
           idEntryToFnTree _ = Nothing
-          dfnDeclToFn (toks, False, False) = Just . FnLeafFn . mkDfn [] $ toks
-          dfnDeclToFn _ = Nothing
+          dfnDeclToFn (toks, False, False) = return . FnLeafFn . mkDfn [] $ toks
+          dfnDeclToFn _ = mzero
 
 parseFnAss :: MatchFn FnTreeNode
-parseFnAss = chFst (\(id, _, ftn) -> FnInternalAssignment id ftn) . matchT3 (
+parseFnAss = (\(id, _, ftn) -> FnInternalAssignment id ftn) <$> matchT3 (
         matchId,
         matchCh '←',
         parseTrain
@@ -461,52 +481,52 @@ parseFnAss = chFst (\(id, _, ftn) -> FnInternalAssignment id ftn) . matchT3 (
 
 parseOpOrFn :: MatchFn (Operator, FnTreeNode)
 parseOpOrFn = matchOne [
-        chFst (\_ -> (oReduce, FnLeafFn fReplicate)) . matchCh '/',
-        chFst (\_ -> (oScan, FnLeafFn fExpand)) . matchCh '\\',
-        chFst (\_ -> (oReduceFirst, FnLeafFn fReplicateFirst)) . matchCh '⌿',
-        chFst (\_ -> (oScanFirst, FnLeafFn fExpandFirst)) . matchCh '⍀'
+        (\_ -> (oReduce, FnLeafFn fReplicate)) <$> matchCh '/',
+        (\_ -> (oScan, FnLeafFn fExpand)) <$> matchCh '\\',
+        (\_ -> (oReduceFirst, FnLeafFn fReplicateFirst)) <$> matchCh '⌿',
+        (\_ -> (oScanFirst, FnLeafFn fExpandFirst)) <$> matchCh '⍀'
     ]
 
 parseArr :: MatchFn ArrTreeNode -- parse an entire literal array
-parseArr = chFst (_roll) . matchT2 (
+parseArr = (_roll) <$> matchT2 (
         parseArrComp,
-        chFst (concat) . matchMax [ matchOne [
-            chFst (Left) . parseArrComp,
-            chFst (\(_, il, _) -> Right il) . matchT3 (
+        (concat) <$> matchMax [ matchOne [
+            (Left) <$> parseArrComp,
+            (\(_, il, _) -> Right il) <$> matchT3 (
                 matchCh '[',
                 parseIdxList,
                 matchCh ']'
             )
         ]]
     )
-        where _roll (a, xs) = foldl (_merge) a xs
-              _merge a (Right i) = ArrInternalSubscript a i
-              _merge a (Left a2) = ArrInternalDyadFn (FnLeafFn fImplicitCat) a a2
+    where _roll (a, xs) = foldl (_merge) a xs
+          _merge a (Right i) = ArrInternalSubscript a i
+          _merge a (Left a2) = ArrInternalDyadFn (FnLeafFn fImplicitCat) a a2
 
 parseArrComp :: MatchFn ArrTreeNode -- parse array "component"
-parseArrComp = chFst (applyImplCat . concat) . matchAllThenMax [parseScalar]
+parseArrComp = (applyImplCat . concat) <$> matchAllThenMax [parseScalar]
     where applyImplCat as@(_:_) = foldr (ArrInternalDyadFn (FnLeafFn fImplicitCat)) (last as) (init as)
 
 parseScalar :: MatchFn ArrTreeNode
 parseScalar = matchOne [
             -- NUM
-            chFst (\n -> ArrLeaf . arrFromList . (:[]) . ScalarNum $ n) . matchNumLiteral,
+            (\n -> ArrLeaf . arrFromList . (:[]) . ScalarNum $ n) <$> matchNumLiteral,
             -- STR
-            chFst (toScalarStr . map ScalarCh) . matchStrLiteral,
+            (toScalarStr . map ScalarCh) <$> matchStrLiteral,
             -- ID
             matchIdWith (idEntryToArrTree),
             -- ⎕ID
             matchQuadIdWith (idEntryToArrTree),
             -- ⍺ | ⍵
-            matchSpecialIdWith [ChTok '⍺'] "⍺" (idEntryToArrTree),
-            matchSpecialIdWith [ChTok '⍵'] "⍵" (idEntryToArrTree),
+            matchSpecialIdWith (ChTok '⍺') "⍺" (idEntryToArrTree),
+            matchSpecialIdWith (ChTok '⍵') "⍵" (idEntryToArrTree),
             -- ⍺⍺ | ⍵⍵
-            matchSpecialIdWith [AATok] "⍺⍺" (idEntryToArrTree),
-            matchSpecialIdWith [WWTok] "⍵⍵" (idEntryToArrTree),
+            matchSpecialIdWith AATok "⍺⍺" (idEntryToArrTree),
+            matchSpecialIdWith WWTok "⍵⍵" (idEntryToArrTree),
             -- ⍬
-            chFst (\_ -> ArrInternalMonFn (FnLeafFn fImplicitGroup) $ (ArrLeaf . arrFromList) []) . matchCh '⍬',
+            (\_ -> ArrInternalMonFn (FnLeafFn fImplicitGroup) $ (ArrLeaf . arrFromList) []) <$> matchCh '⍬',
             -- (der_arr)
-            chFst (\(_, da, _) -> ArrInternalMonFn (FnLeafFn fImplicitGroup) da) . matchT3 (
+            (\(_, da, _) -> ArrInternalMonFn (FnLeafFn fImplicitGroup) da) <$> matchT3 (
                 matchCh '(',
                 parseDerArr,
                 matchCh ')'
