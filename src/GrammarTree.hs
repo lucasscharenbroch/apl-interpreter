@@ -34,6 +34,7 @@ _round numPlaces d = (/mult) . fromIntegral . round . (*mult) $ d
 
 showSigFigures :: Int -> Double -> String
 showSigFigures i d'
+    | d == 0 = "0"
     | e >= i = sign ++ (show . (/(10^i')) . _round 0 $ d / (10^(e-i'))) ++ "E" ++ (show e)
     | d - (fromIntegral intPortion) == 0 = sign ++ show intPortion
     | d <= (1e-6) = sign ++ (head . show $ decPortionInt) : "." ++ (stripTrailingZeroes . tail . show $ decPortionInt) ++ "E¯" ++ (show (numDecZeroes + 1))
