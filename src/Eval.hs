@@ -1,6 +1,7 @@
 module Eval where
 import Lex
 import GrammarTree
+import PrettyPrint
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
