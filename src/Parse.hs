@@ -430,9 +430,9 @@ parseOp = matchOne [
         )
     ]
     where idEntryToOtn (IdOp o) = Just (OpLeaf o)
-          idEntryToOtn (IdTokList idtfs toks True is_dy) = Just . OpLeaf $ mkDop idtfs toks is_dy
+          idEntryToOtn (IdDop toks is_dy) = Just . OpLeaf $ mkDop toks is_dy
           idEntryToOtn _ = Nothing
-          dfnDeclToOp (toks, True, is_dy) = return . OpLeaf $ mkDop [] toks is_dy
+          dfnDeclToOp (toks, True, is_dy) = return . OpLeaf $ mkDop toks is_dy
           dfnDeclToOp _ = mzero
 
 parseOpAss :: MatchFn OpTreeNode
@@ -467,9 +467,10 @@ parseFn = matchOne [
         )
     ]
     where idEntryToFnTree (IdFn f) = Just $ FnLeafFn f
-          idEntryToFnTree (IdTokList idtfs toks False False) = Just . FnLeafFn . mkDfn idtfs $ toks
+          idEntryToFnTree (IdDfn toks) = Just . FnLeafFn $ mkDfn toks Nothing Nothing Nothing
+          idEntryToFnTree (IdDerDfn toks aa ww dd) = Just . FnLeafFn $ mkDfn toks aa ww dd
           idEntryToFnTree _ = Nothing
-          dfnDeclToFn (toks, False, False) = return . FnLeafFn . mkDfn [] $ toks
+          dfnDeclToFn (toks, False, False) = return . FnLeafFn $ mkDfn toks Nothing Nothing Nothing
           dfnDeclToFn _ = mzero
 
 parseFnAss :: MatchFn FnTreeNode

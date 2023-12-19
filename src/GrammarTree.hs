@@ -124,7 +124,9 @@ unwrapOpTree (OpInternalDummyNode otn) = unwrapOpTree otn
 data IdEntry = IdArr Array
              | IdFn Function
              | IdOp Operator
-             | IdTokList [IdMap -> IdMap] [Token] Bool Bool -- id_map_transforms, toks, is_op, is_dyadic_op
+             | IdDfn [Token]
+             | IdDop [Token] Bool -- toks, is_dyadic
+             | IdDerDfn [Token] (Maybe IdEntry) (Maybe IdEntry) (Maybe IdEntry) -- toks, ⍺⍺, ⍵⍵, ∇∇
 
 type IdMap = Map.Map String IdEntry
 

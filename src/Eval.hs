@@ -5,6 +5,8 @@ import PrettyPrint
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
+import Data.Bifunctor (bimap)
+import Data.Maybe (isJust, fromJust)
 import {-# SOURCE #-} Parse
 
 {- Helpers -}
@@ -190,59 +192,53 @@ evalOpTree (OpInternalDummyNode next) = evalOpTree next
 
 {- Eval Dfns -}
 
-mkDfn :: [IdMap -> IdMap] -> [Token] -> Function
-mkDfn idtfs toks = MonDyadFn (showTokListAsDfn toks) (evalDfnM idtfs toks) (evalDfnD idtfs toks)
+mkDfn :: [Token] -> (Maybe IdEntry) -> (Maybe IdEntry) -> (Maybe IdEntry) -> Function
+mkDfn toks aa ww dd = MonDyadFn (showTokListAsDfn toks) (evalDfnM toks aa ww dd) (evalDfnD toks aa ww dd)
 
-evalDfnM :: [IdMap -> IdMap] -> [Token] -> FuncM
-evalDfnM idtfs toks arg = do
+evalDfnM :: [Token] -> (Maybe IdEntry) -> (Maybe IdEntry) -> (Maybe IdEntry) -> FuncM
+evalDfnM toks aa ww dd arg = do
     idm <- get
-    put $ foldl (flip ($)) idm (idtfs ++ [
+    put $ foldl (flip ($)) idm [
+            (if isJust aa then mapInsert "⍺⍺" (fromJust aa) else mapDelete "⍺⍺"),
+            (if isJust ww then mapInsert "⍵⍵" (fromJust ww) else mapDelete "⍵⍵"),
+            (if isJust dd then mapInsert "∇∇" (fromJust dd) else mapDelete "∇∇"),
             mapInsert "⍵" (IdArr arg),
             mapDelete "⍺",
-            mapInsert "∇" (IdTokList idtfs toks False False)
-        ])
+            mapInsert "∇" (IdDerDfn toks aa ww dd)
+        ]
     execDfnStatement toks
 
-evalDfnD :: [IdMap -> IdMap] -> [Token] -> FuncD
-evalDfnD idtfs toks arg1 arg2 = do
+evalDfnD :: [Token] -> (Maybe IdEntry) -> (Maybe IdEntry) -> (Maybe IdEntry) -> FuncD
+evalDfnD toks aa ww dd arg1 arg2 = do
     idm <- get
-    put $ foldl (flip ($)) idm (idtfs ++ [
+    put $ foldl (flip ($)) idm [
+            (if isJust aa then mapInsert "⍺⍺" (fromJust aa) else mapDelete "⍺⍺"),
+            (if isJust ww then mapInsert "⍵⍵" (fromJust ww) else mapDelete "⍵⍵"),
+            (if isJust dd then mapInsert "∇∇" (fromJust dd) else mapDelete "∇∇"),
             mapInsert "⍺" (IdArr arg1),
             mapInsert "⍵" (IdArr arg2),
-            mapInsert "∇" (IdTokList idtfs toks False False)
-        ])
+            mapInsert "∇" (IdDfn toks)
+        ]
     execDfnStatement toks
 
-mkDop :: [IdMap -> IdMap] -> [Token] -> Bool -> Operator -- Bool: isDyadic
-mkDop idtfs toks False = MonOp (showTokListAsDfn toks) (evalDopM idtfs toks)
-mkDop idtfs toks True = DyadOp (showTokListAsDfn toks) (evalDopD idtfs toks)
+mkDop :: [Token] -> Bool -> Operator -- Bool: isDyadic
+mkDop toks False = MonOp (showTokListAsDfn toks) (evalDopM toks)
+mkDop toks True = DyadOp (showTokListAsDfn toks) (evalDopD toks)
 
-evalDopM :: [IdMap -> IdMap] -> [Token] -> OpM
-evalDopM idtfs toks arg = do
-    let argAsIdEntry = case arg of
-            (Left a) -> IdArr a
-            (Right f) -> IdFn f
-    let idtfs' = idtfs ++ [
-                mapInsert "⍺⍺" argAsIdEntry,
-                mapDelete "⍵⍵",
-                mapInsert "∇∇" (IdTokList [] toks True False)
-            ]
-    return $ MonDyadFn (showTokListAsDfn toks) (evalDfnM idtfs' toks) (evalDfnD idtfs' toks)
+evalDopM :: [Token] -> OpM
+evalDopM toks arg = do
+    idm <- get
+    let aa = Just $ liftHomoEither . bimap IdArr IdFn $ arg
+    let ww = Nothing
+    let dd = Just $ IdDop toks False
+    return $ MonDyadFn (showTokListAsDfn toks) (evalDfnM toks aa ww dd) (evalDfnD toks aa ww dd)
 
-evalDopD :: [IdMap -> IdMap] -> [Token] -> OpD
-evalDopD idtfs toks arg1 arg2 = do
-    let arg1AsIdEntry = case arg1 of
-            (Left a) -> IdArr a
-            (Right f) -> IdFn f
-    let arg2AsIdEntry = case arg2 of
-            (Left a) -> IdArr a
-            (Right f) -> IdFn f
-    let idtfs' = idtfs ++ [
-                mapInsert "⍺⍺" arg1AsIdEntry,
-                mapInsert "⍵⍵" arg2AsIdEntry,
-                mapInsert "∇∇" (IdTokList [] toks True True)
-            ]
-    return $ MonDyadFn (showTokListAsDfn toks) (evalDfnM idtfs' toks) (evalDfnD idtfs' toks)
+evalDopD :: [Token] -> OpD
+evalDopD toks arg1 arg2 = do
+    let aa = Just $ liftHomoEither . bimap IdArr IdFn $ arg1
+    let ww = Just $ liftHomoEither . bimap IdArr IdFn $ arg2
+    let dd = Just $ IdDop toks True
+    return $ MonDyadFn (showTokListAsDfn toks) (evalDfnM toks aa ww dd) (evalDfnD toks aa ww dd)
 
 execDfnStatement :: [Token] -> StateT IdMap IO Array
 execDfnStatement [] = undefined -- TODO expected return val (or make mechanism for no value)
