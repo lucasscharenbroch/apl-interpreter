@@ -35,11 +35,11 @@ pureDyadOp name o = DyadOp name opd
                               arg2' = expectFunc arg2
                           in return $ o arg1' arg2' (_hackShowTreeD arg1' arg2' name)
 
-pureMonOpOptA :: String -> ((Either Function Array) -> (String -> Function)) -> Operator
+pureMonOpOptA :: String -> ((Either Array Function) -> (String -> Function)) -> Operator
 pureMonOpOptA name o = MonOp name opm
     where opm arg = return $ o arg (hackShowTreeM (liftHomoEither . bimap show show $ arg) name)
 
-pureDyadOpOptA :: String -> ((Either Function Array) -> (Either Function Array) -> (String -> Function)) -> Operator
+pureDyadOpOptA :: String -> ((Either Array Function) -> (Either Array Function) -> (String -> Function)) -> Operator
 pureDyadOpOptA name o = DyadOp name opd
     where opd arg1 arg2 = let _showSubtree = liftHomoEither . bimap show show
                           in return $ o arg1 arg2 (_hackShowTreeD (_showSubtree arg1) (_showSubtree arg2) name)

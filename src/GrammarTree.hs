@@ -1,7 +1,5 @@
 module GrammarTree where
 import qualified Data.Array as A
-import Data.List (intersperse, zip4, elemIndex)
-import Data.Char (toUpper)
 import Lex
 import qualified Data.Map as Map
 import Control.Monad.Reader
@@ -83,8 +81,8 @@ data Function = MonFn String FuncM
               | DyadFn String FuncD
               | MonDyadFn String FuncM FuncD
 
-type OpM = (Either Function Array) -> StateT IdMap IO Function
-type OpD = (Either Function Array) -> OpM
+type OpM = (Either Array Function) -> StateT IdMap IO Function
+type OpD = (Either Array Function) -> OpM
 
 data Operator = MonOp String OpM
               | DyadOp String OpD

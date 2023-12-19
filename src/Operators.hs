@@ -33,11 +33,11 @@ getMonFn f = case f of
 
 {- Operators that sometimes take Arrays -}
 
-selfie :: Either Function Array -> (String -> Function)
+selfie :: Either Array Function -> (String -> Function)
 selfie arg = case arg of
-    (Left f) -> _MonDyadFn (\a -> dyFn a a) (\l r -> dyFn r l)
+    (Left a) -> _MonDyadFn (\_ -> return a) (\_ _ -> return a)
+    (Right f) -> _MonDyadFn (\a -> dyFn a a) (\l r -> dyFn r l)
         where dyFn = getDyadFn f
-    (Right a) -> _MonDyadFn (\_ -> return a) (\_ _ -> return a)
 
 {-
 reduce :: FnTreeNode -> Function

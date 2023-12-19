@@ -26,15 +26,15 @@ hackShowTreeM x headStr = fst $ showMonTreeHelper (countPad x) headStr
 hackShowTreeD :: String -> String -> String -> String
 hackShowTreeD x y headStr = fst $ showDyadTreeHelper (countPad x) (countPad y) headStr
 
-expectFunc :: (Either Function Array) -> Function
+expectFunc :: (Either Array Function) -> Function
 expectFunc eaf = case eaf of
-    (Left f) -> f
-    (Right  _) -> undefined -- TODO exception: expected function
+    (Left  _) -> undefined -- TODO exception: expected function
+    (Right f) -> f
 
-expectArr :: (Either Function Array) -> Array
+expectArr :: (Either Array Function) -> Array
 expectArr eaf = case eaf of
-    (Left _) -> undefined
-    (Right a) -> a
+    (Left a) -> a
+    (Right _) -> undefined
 
 liftHomoEither :: Either a a -> a
 liftHomoEither eaa = case eaa of
@@ -81,7 +81,7 @@ fork f g h = do
     g' <- expectFunc <$> evalFnTree g
     _f' <- evalFnTree f
     case _f' of
-        Right fA -> do
+        Left fA -> do
             let dName = fst $ showForkHelper (showAndCountPad fA) (showAndCountPad g') (showAndCountPad h')
             return $ case (g', h') of
                 (DyadFn _ gF, DyadFn _ hF) -> DyadFn dName (forkADD fA gF hF)
@@ -89,7 +89,7 @@ fork f g h = do
                 (MonDyadFn _ _ gF, DyadFn _ hF) -> DyadFn dName (forkADD fA gF hF)
                 (MonDyadFn _ _ gF, MonFn _ hF) -> MonFn dName (forkADM fA gF hF)
                 (MonDyadFn _ _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn dName (forkADM fA gF hMF) (forkADD fA gF hDF)
-        Left f' -> do
+        Right f' -> do
             let dName = fst $ showForkHelper (showAndCountPad f') (showAndCountPad g') (showAndCountPad h')
             return $ case (f', g', h') of
                 (DyadFn _ fF, DyadFn _ gF, DyadFn _ hF) -> DyadFn dName (forkDDD fF gF hF)
@@ -156,27 +156,27 @@ evalArrTree (ArrInternalImplCat at1 at2) = do
               (s:[]) -> s
               _ -> ScalarArr arr
 
-evalFnTree :: FnTreeNode -> StateT IdMap IO (Either Function Array)
-evalFnTree (FnLeafFn ftn) = return $ Left ftn
-evalFnTree (FnLeafArr atn) = Right <$> evalArrTree atn
+evalFnTree :: FnTreeNode -> StateT IdMap IO (Either Array Function)
+evalFnTree (FnLeafFn ftn) = return $ Right ftn
+evalFnTree (FnLeafArr atn) = Left <$> evalArrTree atn
 evalFnTree orig@(FnInternalMonOp otn ft) = evalOpTree otn >>= \x -> case x of
     (MonOp _ o) -> do
         efa <- evalFnTree ft
-        Left <$> o efa
+        Right <$> o efa
     (DyadOp _ _) -> undefined
 evalFnTree orig@(FnInternalDyadOp otn ft1 ft2) = evalOpTree otn >>= \x -> case x of
     (MonOp _ _) -> undefined
     (DyadOp _ o) -> do
         efa2 <- evalFnTree ft2
         efa1 <- evalFnTree ft1
-        Left <$> o efa1 efa2
-evalFnTree orig@(FnInternalAtop ft1 ft2) = Left <$> atop ft1 ft2
-evalFnTree orig@(FnInternalFork ft1 ft2 ft3) = Left <$> fork ft1 ft2 ft3
+        Right <$> o efa1 efa2
+evalFnTree orig@(FnInternalAtop ft1 ft2) = Right <$> atop ft1 ft2
+evalFnTree orig@(FnInternalFork ft1 ft2 ft3) = Right <$> fork ft1 ft2 ft3
 evalFnTree (FnInternalAssignment id next) = do
     f <- expectFunc <$> evalFnTree next
     idm <- get
     put $ mapInsert id (IdFn f) idm
-    return . Left $ f
+    return . Right $ f
 evalFnTree (FnInternalDummyNode next) = evalFnTree next
 
 evalOpTree :: OpTreeNode -> StateT IdMap IO Operator
@@ -220,8 +220,8 @@ mkDop idtfs toks True = DyadOp (showTokListAsDfn toks) (evalDopD idtfs toks)
 evalDopM :: [IdMap -> IdMap] -> [Token] -> OpM
 evalDopM idtfs toks arg = do
     let argAsIdEntry = case arg of
-            (Right a) -> IdArr a
-            (Left f) -> IdFn f
+            (Left a) -> IdArr a
+            (Right f) -> IdFn f
     let idtfs' = idtfs ++ [
                 mapInsert "⍺⍺" argAsIdEntry,
                 mapDelete "⍵⍵",
@@ -231,12 +231,12 @@ evalDopM idtfs toks arg = do
 
 evalDopD :: [IdMap -> IdMap] -> [Token] -> OpD
 evalDopD idtfs toks arg1 arg2 = do
-    let arg1AsIdEntry =case arg1 of
-            (Right a) -> IdArr a
-            (Left f) -> IdFn f
+    let arg1AsIdEntry = case arg1 of
+            (Left a) -> IdArr a
+            (Right f) -> IdFn f
     let arg2AsIdEntry = case arg2 of
-            (Right a) -> IdArr a
-            (Left f) -> IdFn f
+            (Left a) -> IdArr a
+            (Right f) -> IdFn f
     let idtfs' = idtfs ++ [
                 mapInsert "⍺⍺" arg1AsIdEntry,
                 mapInsert "⍵⍵" arg2AsIdEntry,
