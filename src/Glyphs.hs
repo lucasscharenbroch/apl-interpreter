@@ -3,66 +3,46 @@ import GrammarTree
 import qualified Functions as F
 import qualified Operators as O
 import Eval
+import Data.Bifunctor (bimap)
+
+{- Show Helpers -}
+
+_hackShowTreeM :: (Show a) => a -> String -> String
+_hackShowTreeM x hs = hackShowTreeM (show x) hs
+
+_hackShowTreeD :: (Show a, Show b) => a -> b -> String -> String
+_hackShowTreeD x y hs = hackShowTreeD (show x) (show y) hs
 
 {- Pure Wrappers -}
 
 pureMonFn :: String -> (Array -> Array) -> Function
-pureMonFn name pfn = MonFn name ipfn
-    where ipfn idm arg = (idm', pfn $ arg')
-            where (idm', arg') = evalArrTree idm arg
+pureMonFn name f = MonFn name (\a -> return $ f a)
 
 pureDyadFn :: String -> (Array -> Array -> Array) -> Function
-pureDyadFn name pfn = DyadFn name ipfn
-    where ipfn idm arg1 arg2 = (idm'', pfn arg1' arg2')
-            where (idm', arg2') = evalArrTree idm arg2
-                  (idm'', arg1') = evalArrTree idm' arg1
+pureDyadFn name f = DyadFn name (\a b -> return $ f a b)
 
 pureMonDyadFn :: String -> (Array -> Array) -> (Array -> Array -> Array) -> Function
-pureMonDyadFn name pmfn pdfn = MonDyadFn name ipmfn ipdfn
-    where ipmfn idm arg = (idm', pmfn arg')
-            where (idm', arg') = evalArrTree idm arg
-          ipdfn idm arg1 arg2 = (idm'', pdfn arg1' arg2')
-            where (idm', arg2') = evalArrTree idm arg2
-                  (idm'', arg1') = evalArrTree idm' arg1
+pureMonDyadFn name fm fd = MonDyadFn name (\a -> return $ fm a) (\a b -> return $ fd a b)
 
-pureMonOp :: String -> (Function -> (String -> Function)) -> Operator
-pureMonOp name pop = MonOp name ipop
-    where ipop idm arg = (idm', pop arg' $ fst $ showMonTreeHelper showA1 name)
-            where (idm', arg') = evalFnTree idm arg
-                  showA1 = showAndCountPad arg'
+pureMonOp :: String -> (Function -> String -> Function) -> Operator
+pureMonOp name o = MonOp name opm
+    where opm arg = let arg' = expectFunc arg
+                    in return $ o arg' (_hackShowTreeM arg' name)
 
-pureDyadOp :: String -> (Function -> Function -> (String -> Function)) -> Operator
-pureDyadOp name pop = DyadOp name ipop
-    where ipop idm arg1 arg2 = (idm'', pop arg1' arg2' $ fst $ showDyadTreeHelper showA1 showA2 name)
-            where (idm', arg2') = evalFnTree idm arg2
-                  (idm'', arg1') = evalFnTree idm' arg1
-                  showA1 = showAndCountPad arg1'
-                  showA2 = showAndCountPad arg2'
+pureDyadOp :: String -> (Function -> Function -> String -> Function) -> Operator
+pureDyadOp name o = DyadOp name opd
+    where opd arg1 arg2 = let arg1' = expectFunc arg1
+                              arg2' = expectFunc arg2
+                          in return $ o arg1' arg2' (_hackShowTreeD arg1' arg2' name)
 
 pureMonOpOptA :: String -> ((Either Function Array) -> (String -> Function)) -> Operator
-pureMonOpOptA name pop = MonOp name ipop
-    where ipop idm arg = (idm', pop arg' $ fst $ showMonTreeHelper showA1 name)
-              where (idm', arg') = case arg of
-                                   (FnLeafArr a) -> (\(x, y) -> (x, Right y)) $ evalArrTree idm a
-                                   f -> (\(x, y) -> (x, Left y)) $ evalFnTree idm f
-                    showA1 = case arg' of
-                                    Left f -> showAndCountPad f
-                                    Right a -> showAndCountPad a
+pureMonOpOptA name o = MonOp name opm
+    where opm arg = return $ o arg (hackShowTreeM (liftHomoEither . bimap show show $ arg) name)
 
 pureDyadOpOptA :: String -> ((Either Function Array) -> (Either Function Array) -> (String -> Function)) -> Operator
-pureDyadOpOptA name pop = DyadOp name ipop
-    where ipop idm arg1 arg2 = (idm'', pop arg1' arg2' $ fst $ showDyadTreeHelper showA1 showA2 name)
-            where (idm', arg2') = _unwrap idm arg2
-                  (idm'', arg1') = _unwrap idm' arg1
-                  _unwrap i a = case a of
-                                (FnLeafArr arr) -> (\(x, y) -> (x, Right y)) $ evalArrTree i arr
-                                f -> (\(x, y) -> (x, Left y)) $ evalFnTree i f
-                  showA1 = case arg1' of
-                                Left f -> showAndCountPad f
-                                Right a -> showAndCountPad a
-                  showA2 = case arg2' of
-                                Left f -> showAndCountPad f
-                                Right a -> showAndCountPad a
+pureDyadOpOptA name o = DyadOp name opd
+    where opd arg1 arg2 = let _showSubtree = liftHomoEither . bimap show show
+                          in return $ o arg1 arg2 (_hackShowTreeD (_showSubtree arg1) (_showSubtree arg2) name)
 
 {- placeholders (TODO remove) -}
 
@@ -84,9 +64,7 @@ dOPH name _ _ _ = pureDyadFn ("derived from dyadic op: " ++ name) (dFPH "_derive
 -- fAssignToId id = MonFn (id ++ "←") (F.assignToId id)
 
 -- specialized
-fImplicitCat = DyadFn ")(" F.implicitCat
 fImplicitGroup = pureMonFn "()" F.implicitGroup
-fAssignToQuad = pureMonFn "⎕←" F.assignToQuad
 
 -- double-as-operators
 fReplicate = pureDyadFn "/" (dFPH "/")

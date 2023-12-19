@@ -35,9 +35,9 @@ getMonFn f = case f of
 
 selfie :: Either Function Array -> (String -> Function)
 selfie arg = case arg of
-    (Left f) -> _MonDyadFn (\i a -> dyFn i a a) (\i l r -> dyFn i r l)
+    (Left f) -> _MonDyadFn (\a -> dyFn a a) (\l r -> dyFn r l)
         where dyFn = getDyadFn f
-    (Right a) -> _MonDyadFn (\i _ -> (i, a)) (\i _ _ -> (i, a))
+    (Right a) -> _MonDyadFn (\_ -> return a) (\_ _ -> return a)
 
 {-
 reduce :: FnTreeNode -> Function

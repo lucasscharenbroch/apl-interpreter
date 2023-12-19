@@ -496,11 +496,11 @@ parseArr = (_roll) <$> matchT2 (
     )
     where _roll (a, xs) = foldl (_merge) a xs
           _merge a (Right i) = ArrInternalSubscript a i
-          _merge a (Left a2) = ArrInternalDyadFn (FnLeafFn fImplicitCat) a a2
+          _merge a (Left a2) = ArrInternalImplCat a a2
 
 parseArrComp :: MatchFn ArrTreeNode -- parse array "component"
 parseArrComp = (applyImplCat . concat) <$> matchAllThenMax [parseScalar]
-    where applyImplCat as@(_:_) = foldr (ArrInternalDyadFn (FnLeafFn fImplicitCat)) (last as) (init as)
+    where applyImplCat as@(_:_) = foldr (ArrInternalImplCat) (last as) (init as)
 
 parseScalar :: MatchFn ArrTreeNode
 parseScalar = matchOne [

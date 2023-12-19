@@ -103,9 +103,7 @@ assignToId id idm x = (mapInsert id (IdArr x') idm', x')
 
 {- Specialized Functions (non-primitive) -}
 
-assignToQuad :: Array -> Array
-assignToQuad = id
-
+{-
 implicitCat :: FuncD
 implicitCat idm x y = (idm'', arrCat x' y')
     where (idm'', x') = case x of
@@ -119,6 +117,7 @@ implicitCat idm x y = (idm'', arrCat x' y')
           maybeEnclose arr = case arrToList arr of
                              (s:[]) -> s
                              _ -> ScalarArr arr
+-}
 
 implicitGroup :: Array -> Array
 implicitGroup = id

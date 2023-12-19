@@ -5,23 +5,34 @@ import Parse
 import Eval
 import GrammarTree
 import Control.Monad.Reader
+import Control.Monad.State
+import Control.Monad.Trans.Maybe
+
+evalArrTree' :: IdMap -> ArrTreeNode -> IO (IdMap, Array)
+evalArrTree' idm atn = (\(r, i) -> (i, r)) <$> runStateT (evalArrTree atn) idm
+
+evalFnTree' :: IdMap -> FnTreeNode -> IO (IdMap, Function)
+evalFnTree' idm ftn = (\(r, i) -> (i, expectFunc r)) <$> runStateT (evalFnTree ftn) idm
+
+evalOpTree' :: IdMap -> OpTreeNode -> IO (IdMap, Operator)
+evalOpTree' idm otn = (\(r, i) -> (i, r)) <$> runStateT (evalOpTree otn) idm
 
 handleRes :: IdMap -> ExprResult -> InputT IO IdMap
 handleRes idMap x = case x of
-    (ResAtn a True) -> do let (i, a') = evalArrTree idMap a
+    (ResAtn a True) -> do (i, a') <- lift $ evalArrTree' idMap a
                           outputStrLn . show $ a'
                           return i
-    (ResAtn a False) -> do let (i, _) = evalArrTree idMap a
+    (ResAtn a False) -> do (i, _) <- lift $ evalArrTree' idMap a
                            return i
-    (ResFtn f True) -> do let (i, f') = evalFnTree idMap f
+    (ResFtn f True) -> do (i, f') <- lift $ evalFnTree' idMap f
                           outputStrLn . show $ f'
                           return i
-    (ResFtn f False) -> do let (i, _) = evalFnTree idMap f
+    (ResFtn f False) -> do (i, _) <- lift $ evalFnTree' idMap f
                            return i
-    (ResOp o True) -> do let (i, o') = evalOpTree idMap o
+    (ResOp o True) -> do (i, o') <- lift $ evalOpTree' idMap o
                          outputStrLn . show $ o'
                          return i
-    (ResOp o False) -> do let (i, o') = evalOpTree idMap o
+    (ResOp o False) -> do (i, o') <- lift $ evalOpTree' idMap o
                           return i
     (ResNull) -> return idMap
 

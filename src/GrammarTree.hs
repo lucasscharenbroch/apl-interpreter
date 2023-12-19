@@ -4,6 +4,9 @@ import Data.List (intersperse, zip4, elemIndex)
 import Data.Char (toUpper)
 import Lex
 import qualified Data.Map as Map
+import Control.Monad.Reader
+import Control.Monad.State
+import Control.Monad.Trans.Maybe
 
 {- Scalar -}
 
@@ -186,8 +189,8 @@ arrMap f a = shapedArrFromList (shape a) . map (f) . arrToList $ a
 
 {- Functions and Operators -}
 
-type FuncM = IdMap -> ArrTreeNode -> (IdMap, Array)
-type FuncD = IdMap -> ArrTreeNode -> ArrTreeNode -> (IdMap, Array)
+type FuncM = Array -> StateT IdMap IO Array
+type FuncD = Array -> FuncM
 
 data Function = MonFn String FuncM
               | DyadFn String FuncD
@@ -198,8 +201,8 @@ instance Show Function where
     show (DyadFn name _)  = name
     show (MonDyadFn name _ _) = name
 
-type OpM = IdMap -> FnTreeNode -> (IdMap, Function)
-type OpD = IdMap -> FnTreeNode -> FnTreeNode -> (IdMap, Function)
+type OpM = (Either Function Array) -> StateT IdMap IO Function
+type OpD = (Either Function Array) -> OpM
 
 data Operator = MonOp String OpM
               | DyadOp String OpD
@@ -295,6 +298,7 @@ data ArrTreeNode = ArrLeaf Array
                  | ArrInternalModAssignment String FnTreeNode ArrTreeNode
                  | ArrInternalMonFn FnTreeNode ArrTreeNode
                  | ArrInternalDyadFn FnTreeNode ArrTreeNode ArrTreeNode
+                 | ArrInternalImplCat ArrTreeNode ArrTreeNode
 
 singleBoxify :: String -> String
 singleBoxify x = boxify [xheight] [xwidth] [[leftJustify xheight xwidth xlines]]
@@ -312,6 +316,8 @@ showAtnHelper (ArrInternalSubscript a is) = showDyadTreeHelper (showAtnHelper a)
     where showIs = foldl (\s a -> fst . horizCat s $ (singleBoxify . show $ a)) ""
 showAtnHelper (ArrInternalAssignment it a) = showMonTreeHelper (showAtnHelper a) (it ++ "←")
 showAtnHelper (ArrInternalModAssignment it f a) = showMonTreeHelper (showAtnHelper a) (it ++ " " ++ show f ++ "←")
+showAtnHelper (ArrInternalImplCat a1 a2) = showDyadTreeHelper (showAtnHelper a1) (showAtnHelper a2) name
+    where name = singleBoxify ")("
 
 instance Show ArrTreeNode where
     show = fst . showAtnHelper
