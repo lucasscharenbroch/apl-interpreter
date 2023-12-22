@@ -1,8 +1,14 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ExplicitForAll #-}
+
 module Functions where
 import Eval
 import GrammarTree
 import Data.List (elemIndex)
 import Data.Fixed (mod')
+import Control.Monad
+import System.Random
+import System.Random.Stateful
 
 {- Constants -}
 
@@ -93,36 +99,59 @@ scalarToBool _ = undefined -- TODO domain error: expected number
 boolToScalar :: Bool -> Scalar
 boolToScalar = ScalarNum . boolToDouble
 
-{- Impure Functions -}
+isIntegral :: Double -> Bool
+isIntegral n = n == (fromIntegral . Prelude.floor $ n)
 
-{-
-assignToId :: String -> FuncM
-assignToId id idm x = (mapInsert id (IdArr x') idm', x')
-    where (idm', x') = evalArrTree idm x
--}
 
 {- Specialized Functions (non-primitive) -}
-
-{-
-implicitCat :: FuncD
-implicitCat idm x y = (idm'', arrCat x' y')
-    where (idm'', x') = case x of
-              (ArrInternalMonFn (FnLeafFn fImplicitGroup) _) -> (_idm, arrFromList [maybeEnclose _x])
-                  where (_idm, _x) = evalArrTree idm' x
-              otherwise -> evalArrTree idm' x
-          (idm', y') = case y of
-              (ArrInternalMonFn (FnLeafFn fImplicitGroup) _) -> (_idm, arrFromList [maybeEnclose _y])
-                  where (_idm, _y) = evalArrTree idm y
-              otherwise -> evalArrTree idm y
-          maybeEnclose arr = case arrToList arr of
-                             (s:[]) -> s
-                             _ -> ScalarArr arr
--}
 
 implicitGroup :: Array -> Array
 implicitGroup = id
 
-{- General Functions -}
+{- Rng Functions -}
+
+roll :: forall g m. StatefulGen g m => Array -> g -> m Array
+roll a gen = shapedArrFromList (shape a) <$> mapM (_mapF) (arrToList a)
+    where _mapF :: Scalar -> m Scalar
+          _mapF s = case s of
+              ScalarArr a -> ScalarArr <$> roll a gen
+              ScalarNum n -> ScalarNum <$> _roll n
+              _ -> undefined -- TODO domain error: expected number
+          _roll :: Double -> m Double
+          _roll n
+              | not . isIntegral $ n = undefined -- TODO domain error
+              | n < 0 = undefined -- TODO domain error
+              | n == 0 = uniformRM (0.0, 1.0) gen
+              | otherwise = fromIntegral <$> uniformRM (iO, Prelude.floor n) gen
+
+{- ⎕IO Functions -}
+
+iota :: Array -> Array
+iota x = shapedArrFromList x' [toScalar . map (ScalarNum . fromIntegral . (+iO)) . calcIndex $ i | i <- [0..(sz - 1)]]
+    where x' = toIntVec x
+          sz = foldr (*) 1 x'
+          indexMod = reverse . init $ scanl (*) 1 (reverse x')
+          calcIndex i = map (\(e, m) -> i `div` m `mod` e) $ zip x' indexMod
+          toScalar (s:[]) = s
+          toScalar (ss) = ScalarArr . arrFromList $ ss
+
+indexOf :: Array -> Array -> Array
+indexOf x y
+    | xRank > yRank = undefined -- TODO throw rank error
+    | xRank == 1 && (head . shape $ x) <= 1 = undefined -- TODO throw rank error
+    | (tail . shape $ x) /= (drop (1 + yRank - xRank) . shape $ y) = undefined -- TODO throw length error
+    | otherwise = arrMap (findIndexInXs) ys
+    where xRank = length . shape $ x
+          yRank = length . shape $ y
+          xs = alongAxis x 1
+          ys = alongRank y (xRank - 1)
+          findIndexInXs e = case elemIndex (toArray e) xs of
+              Nothing -> ScalarNum . fromIntegral $ iO + (head . shape $ x)
+              Just i -> ScalarNum . fromIntegral $ iO + i
+          toArray (ScalarArr a) = a
+          toArray s = arrFromList [s]
+
+{- Pure Functions -}
 
 absoluteValue :: Array -> Array
 absoluteValue = arithFnM (abs)
@@ -219,31 +248,6 @@ gtr = arithFnD (\n m -> fromIntegral . fromEnum $ n > m)
 
 identity :: Array -> Array
 identity = id
-
-iota :: Array -> Array
-iota x = shapedArrFromList x' [toScalar . map (ScalarNum . fromIntegral . (+iO)) . calcIndex $ i | i <- [0..(sz - 1)]]
-    where x' = toIntVec x
-          sz = foldr (*) 1 x'
-          indexMod = reverse . init $ scanl (*) 1 (reverse x')
-          calcIndex i = map (\(e, m) -> i `div` m `mod` e) $ zip x' indexMod
-          toScalar (s:[]) = s
-          toScalar (ss) = ScalarArr . arrFromList $ ss
-
-indexOf :: Array -> Array -> Array
-indexOf x y
-    | xRank > yRank = undefined -- TODO throw rank error
-    | xRank == 1 && (head . shape $ x) <= 1 = undefined -- TODO throw rank error
-    | (tail . shape $ x) /= (drop (1 + yRank - xRank) . shape $ y) = undefined -- TODO throw length error
-    | otherwise = arrMap (findIndexInXs) ys
-    where xRank = length . shape $ x
-          yRank = length . shape $ y
-          xs = alongAxis x 1
-          ys = alongRank y (xRank - 1)
-          findIndexInXs e = case elemIndex (toArray e) xs of
-              Nothing -> ScalarNum . fromIntegral $ iO + (head . shape $ x)
-              Just i -> ScalarNum . fromIntegral $ iO + i
-          toArray (ScalarArr a) = a
-          toArray s = arrFromList [s]
 
 lcm :: Array -> Array -> Array
 lcm = arithFnD (_lcm)

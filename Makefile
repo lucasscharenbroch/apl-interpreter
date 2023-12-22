@@ -1,4 +1,5 @@
-GHC := ghc -dynamic -no-keep-hi-files -no-keep-o-files -package haskeline -package utf8-string -package pcre-light -package mtl -O1
+PACKAGES := -package haskeline -package utf8-string -package pcre-light -package mtl -package random
+GHC := ghc -dynamic -no-keep-hi-files -no-keep-o-files $(PACKAGES) -O1
 SOURCE_FILES := src/*
 
 bin/ai: $(SOURCE_FILES)
