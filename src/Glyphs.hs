@@ -1,8 +1,7 @@
-{-# LANGUAGE DerivingVia #-}
-
 module Glyphs where
 import GrammarTree
 import qualified Functions as F
+import Functions (SubEvalM(..), IdxOriginM)
 import qualified Operators as O
 import Eval
 import Data.Bifunctor (bimap)
@@ -18,29 +17,6 @@ _hackShowTreeM x hs = hackShowTreeM (show x) hs
 _hackShowTreeD :: (Show a, Show b) => a -> b -> String -> String
 _hackShowTreeD x y hs = hackShowTreeD (show x) (show y) hs
 
-{- SubEvalM (subset of EvalM): typeclass for wrapper monads -}
--- (EvalM here refers to StateT IdMap IO)
-
-class (Monad m) => SubEvalM m where
-    toEvalM :: m a -> StateT IdMap IO a
-
-instance SubEvalM Identity where
-    toEvalM = return . runIdentity
-
-newtype IdxOriginM a = IdxOriginM { unIdxOriginM :: Reader Int a }
-    deriving (Functor, Applicative, Monad) via (Reader Int)
-    deriving (MonadReader Int) via (Reader Int)
-
-instance SubEvalM IdxOriginM where
-    toEvalM iom = do
-        idm <- get
-        let iO = case mapLookup "⎕IO" idm of
-                  Just (IdArr a)
-                      | ScalarNum n <- a `at` 0 -> floor $ n
-                  Just _ -> undefined -- TODO error (internal): unexpected val for ⎕IO
-                  _ -> undefined -- TODO error: no val for ⎕IO
-        return . (flip runReader) iO . unIdxOriginM $ iom
-
 {- Monad Wrappers -}
 
 mkMonFn :: SubEvalM m => String -> (Array -> m Array) -> Function
@@ -49,7 +25,7 @@ mkMonFn name f = MonFn name (\a -> toEvalM $ f a)
 mkDyadFn :: SubEvalM m => String -> (Array -> Array -> m Array) -> Function
 mkDyadFn name f = DyadFn name (\a b -> toEvalM $ f a b)
 
-mkMonDyadFn :: SubEvalM m => String -> (Array -> m Array) -> (Array -> Array -> m Array) -> Function
+mkMonDyadFn :: (SubEvalM m0, SubEvalM m1) => String -> (Array -> m0 Array) -> (Array -> Array -> m1 Array) -> Function
 mkMonDyadFn name fm fd = MonDyadFn name (\a -> toEvalM $ fm a) (\a b -> toEvalM $ fd a b)
 
 mkMonOp :: SubEvalM m => String -> (Function -> String -> m Function) -> Operator
@@ -128,7 +104,7 @@ fPlus = pureMonDyadFn "+" F.conjugate F.add
 fMinus = pureMonDyadFn "-" F.negate F.subtract
 fTimes = pureMonDyadFn "×" F.direction F.multiply
 fDivide = pureMonDyadFn "÷" F.reciprocal F.divide
-fIota = pureMonDyadFn "⍳" F.iota F.indexOf
+fIota = mkMonDyadFn "⍳" F.iota F.indexOf
 fShape = pureMonDyadFn "⍴" F.shapeOf F.reshape
 fLss = pureDyadFn "<" F.lss
 fLeq = pureDyadFn "≤" F.leq

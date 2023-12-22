@@ -1,5 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE DerivingVia #-}
 
 module Functions where
 import Eval
@@ -9,11 +10,36 @@ import Data.Fixed (mod')
 import Control.Monad
 import System.Random
 import System.Random.Stateful
+import Data.Functor.Identity
+import Control.Monad.State.Lazy
+import Control.Monad.Reader
+
+{- SubEvalM (subset of EvalM): typeclass for wrapper monads -}
+-- (EvalM here refers to StateT IdMap IO)
+
+class (Monad m) => SubEvalM m where
+    toEvalM :: m a -> StateT IdMap IO a
+
+instance SubEvalM Identity where
+    toEvalM = return . runIdentity
+
+newtype IdxOriginM a = IdxOriginM { unIdxOriginM :: Reader Int a }
+    deriving (Functor, Applicative, Monad) via (Reader Int)
+    deriving (MonadReader Int) via (Reader Int)
+
+instance SubEvalM IdxOriginM where
+    toEvalM iom = do
+        idm <- get
+        let iO = case mapLookup "⎕IO" idm of
+                  Just (IdArr a)
+                      | ScalarNum n <- a `at` 0 -> Prelude.floor $ n
+                  Just _ -> undefined -- TODO error (internal): unexpected val for ⎕IO
+                  _ -> undefined -- TODO error: no val for ⎕IO
+        return . (flip runReader) iO . unIdxOriginM $ iom
 
 {- Constants -}
 
 intMax = maxBound :: Int
-iO = 1 :: Int -- index origin
 
 {- Helpers -}
 
@@ -33,21 +59,22 @@ toIntVec = map (toInt) . arrToList
 
 alongAxis :: Array -> Int -> [Array]
 alongAxis a ax
-    | ax - iO >= (length . shape $ a) = undefined -- TODO throw rank error: invalid axis
+    | ax - _iO >= (length . shape $ a) = undefined -- TODO throw rank error: invalid axis
     | (length . shape $ a) == 0 = []
     | foldr (*) 1 (shape a) == 0 = []
     | otherwise = map (subarrayAt) [0..(n - 1)]
-    where n = (shape a) !! (ax - iO)
+    where n = (shape a) !! (ax - _iO)
           shape' = if (length . shape $ a) == 1
                    then [1]
-                   else take (ax - iO) (shape a) ++ drop (ax - iO + 1) (shape a)
+                   else take (ax - _iO) (shape a) ++ drop (ax - _iO + 1) (shape a)
           sz = foldr (*) 1 (shape a)
           subarrayAt i = case map (atl a) $ indicesAt i of
               ((ScalarArr a):[]) -> a
               l -> shapedArrFromList shape' l
-          indicesAt i =  map (\is -> take (ax - iO) is ++ [i] ++ drop (ax - iO) is) $ map (calcIndex) [0..(sz `div` n - 1)]
+          indicesAt i =  map (\is -> take (ax - _iO) is ++ [i] ++ drop (ax - _iO) is) $ map (calcIndex) [0..(sz `div` n - 1)]
           indexMod = tail . reverse $ scanl (*) 1 (reverse shape')
           calcIndex i = map (\(e, m) -> i `div` m `mod` e) $ zip shape' indexMod
+          _iO = 1 -- axis supplied is with respect to _iO = 1, not actual ⎕IO
 
 alongRank :: Array -> Int -> Array
 alongRank a r
@@ -110,6 +137,7 @@ implicitGroup = id
 
 {- Rng Functions -}
 
+{-
 roll :: forall g m. StatefulGen g m => Array -> g -> m Array
 roll a gen = shapedArrFromList (shape a) <$> mapM (_mapF) (arrToList a)
     where _mapF :: Scalar -> m Scalar
@@ -123,11 +151,12 @@ roll a gen = shapedArrFromList (shape a) <$> mapM (_mapF) (arrToList a)
               | n < 0 = undefined -- TODO domain error
               | n == 0 = uniformRM (0.0, 1.0) gen
               | otherwise = fromIntegral <$> uniformRM (iO, Prelude.floor n) gen
+-}
 
 {- ⎕IO Functions -}
 
-iota :: Array -> Array
-iota x = shapedArrFromList x' [toScalar . map (ScalarNum . fromIntegral . (+iO)) . calcIndex $ i | i <- [0..(sz - 1)]]
+iota :: Array -> IdxOriginM Array
+iota x = ask >>= \iO -> return $ shapedArrFromList x' [toScalar . map (ScalarNum . fromIntegral . (+iO)) . calcIndex $ i | i <- [0..(sz - 1)]]
     where x' = toIntVec x
           sz = foldr (*) 1 x'
           indexMod = reverse . init $ scanl (*) 1 (reverse x')
@@ -135,19 +164,21 @@ iota x = shapedArrFromList x' [toScalar . map (ScalarNum . fromIntegral . (+iO))
           toScalar (s:[]) = s
           toScalar (ss) = ScalarArr . arrFromList $ ss
 
-indexOf :: Array -> Array -> Array
+indexOf :: Array -> Array -> IdxOriginM Array
 indexOf x y
     | xRank > yRank = undefined -- TODO throw rank error
     | xRank == 1 && (head . shape $ x) <= 1 = undefined -- TODO throw rank error
     | (tail . shape $ x) /= (drop (1 + yRank - xRank) . shape $ y) = undefined -- TODO throw length error
-    | otherwise = arrMap (findIndexInXs) ys
+    | otherwise = do
+          iO <- ask
+          let findIndexInXs e = case elemIndex (toArray e) xs of
+                  Nothing -> ScalarNum . fromIntegral $ iO + (head . shape $ x)
+                  Just i -> ScalarNum . fromIntegral $ iO + i
+          return $ arrMap (findIndexInXs) ys
     where xRank = length . shape $ x
           yRank = length . shape $ y
           xs = alongAxis x 1
           ys = alongRank y (xRank - 1)
-          findIndexInXs e = case elemIndex (toArray e) xs of
-              Nothing -> ScalarNum . fromIntegral $ iO + (head . shape $ x)
-              Just i -> ScalarNum . fromIntegral $ iO + i
           toArray (ScalarArr a) = a
           toArray s = arrFromList [s]
 

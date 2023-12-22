@@ -8,6 +8,12 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
 
+{- Constants -}
+
+defaultIdMap = mapInsert "⎕IO" (IdArr . arrFromList $ [ScalarNum 1]) emptyIdMap
+
+{- Helpers -}
+
 evalArrTree' :: IdMap -> ArrTreeNode -> IO (IdMap, Array)
 evalArrTree' idm atn = (\(r, i) -> (i, r)) <$> runStateT (evalArrTree atn) idm
 
@@ -62,5 +68,5 @@ mainloop idMap carriedToks = do
                else (concat $ replicate nestingLevel "    ") ++ ">   "
 
 main :: IO ()
-main = runInputT settings (mainloop emptyIdMap [])
+main = runInputT settings (mainloop defaultIdMap [])
     where settings = setComplete completeGlyph defaultSettings
