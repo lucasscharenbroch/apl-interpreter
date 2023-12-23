@@ -38,8 +38,8 @@ expectArr eaf = case eaf of
     (Left a) -> a
     (Right _) -> undefined
 
-liftHomoEither :: Either a a -> a
-liftHomoEither eaa = case eaa of
+fromHomoEither :: Either a a -> a
+fromHomoEither eaa = case eaa of
     Left l -> l
     Right r -> r
 
@@ -228,15 +228,15 @@ mkDop toks True = DyadOp (showTokListAsDfn toks) (evalDopD toks)
 evalDopM :: [Token] -> OpM
 evalDopM toks arg = do
     idm <- get
-    let aa = Just $ liftHomoEither . bimap IdArr IdFn $ arg
+    let aa = Just $ fromHomoEither . bimap IdArr IdFn $ arg
     let ww = Nothing
     let dd = Just $ IdDop toks False
     return $ MonDyadFn (showTokListAsDfn toks) (evalDfnM toks aa ww dd) (evalDfnD toks aa ww dd)
 
 evalDopD :: [Token] -> OpD
 evalDopD toks arg1 arg2 = do
-    let aa = Just $ liftHomoEither . bimap IdArr IdFn $ arg1
-    let ww = Just $ liftHomoEither . bimap IdArr IdFn $ arg2
+    let aa = Just $ fromHomoEither . bimap IdArr IdFn $ arg1
+    let ww = Just $ fromHomoEither . bimap IdArr IdFn $ arg2
     let dd = Just $ IdDop toks True
     return $ MonDyadFn (showTokListAsDfn toks) (evalDfnM toks aa ww dd) (evalDfnD toks aa ww dd)
 

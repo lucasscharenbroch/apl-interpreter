@@ -1,5 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE DerivingVia #-}
 
 module Functions where
@@ -13,6 +11,7 @@ import System.Random.Stateful
 import Data.Functor.Identity
 import Control.Monad.State.Lazy
 import Control.Monad.Reader
+import qualified Control.Monad.Trans.State.Strict as StateTStrict
 
 {- SubEvalM (subset of EvalM): typeclass for wrapper monads -}
 -- (EvalM here refers to StateT IdMap IO)
@@ -24,8 +23,7 @@ instance SubEvalM Identity where
     toEvalM = return . runIdentity
 
 newtype IdxOriginM a = IdxOriginM { unIdxOriginM :: Reader Int a }
-    deriving (Functor, Applicative, Monad) via (Reader Int)
-    deriving (MonadReader Int) via (Reader Int)
+    deriving (Functor, Applicative, Monad, MonadReader Int) via (Reader Int)
 
 instance SubEvalM IdxOriginM where
     toEvalM iom = do
@@ -36,6 +34,14 @@ instance SubEvalM IdxOriginM where
                   Just _ -> undefined -- TODO error (internal): unexpected val for ⎕IO
                   _ -> undefined -- TODO error: no val for ⎕IO
         return . (flip runReader) iO . unIdxOriginM $ iom
+
+newtype RandAndIoM a = RandAndIoM { unRandomAndIoM :: StateTStrict.StateT StdGen (Reader Int) a }
+    deriving (Functor, Applicative, Monad, MonadReader Int, MonadState StdGen) via StateTStrict.StateT StdGen (Reader Int)
+
+instance SubEvalM RandAndIoM where
+    toEvalM rm = do
+        gen <- lift $ newStdGen
+        toEvalM . IdxOriginM . runStateGenT_ gen $ \_ -> unRandomAndIoM rm
 
 {- Constants -}
 
@@ -129,6 +135,18 @@ boolToScalar = ScalarNum . boolToDouble
 isIntegral :: Double -> Bool
 isIntegral n = n == (fromIntegral . Prelude.floor $ n)
 
+arrToDouble :: Array -> Double
+arrToDouble a
+    | shape a /= [1] = undefined -- TODO domain error: expected scalar
+    | otherwise = case a `at` 0 of
+                      ScalarNum n -> n
+                      _ -> undefined -- TODO domain error: expected number
+
+arrToInt :: Array -> Int
+arrToInt a
+    | not . isIntegral $ n = undefined -- TODO domain error: expected int
+    | otherwise = Prelude.floor $ n
+    where n = arrToDouble a
 
 {- Specialized Functions (non-primitive) -}
 
@@ -137,21 +155,43 @@ implicitGroup = id
 
 {- Rng Functions -}
 
-{-
-roll :: forall g m. StatefulGen g m => Array -> g -> m Array
-roll a gen = shapedArrFromList (shape a) <$> mapM (_mapF) (arrToList a)
-    where _mapF :: Scalar -> m Scalar
+roll :: Array -> RandAndIoM Array
+roll a = shapedArrFromList (shape a) <$> mapM (_mapF) (arrToList a)
+    where _mapF :: Scalar -> RandAndIoM Scalar
           _mapF s = case s of
-              ScalarArr a -> ScalarArr <$> roll a gen
+              ScalarArr a -> ScalarArr <$> roll a
               ScalarNum n -> ScalarNum <$> _roll n
               _ -> undefined -- TODO domain error: expected number
-          _roll :: Double -> m Double
+          _roll :: Double -> RandAndIoM Double
           _roll n
               | not . isIntegral $ n = undefined -- TODO domain error
               | n < 0 = undefined -- TODO domain error
-              | n == 0 = uniformRM (0.0, 1.0) gen
-              | otherwise = fromIntegral <$> uniformRM (iO, Prelude.floor n) gen
--}
+              | n == 0 = uniformRM (0.0, 1.0) StateGenM
+              | otherwise = ask >>= \iO -> fromIntegral <$> uniformRM (iO, Prelude.floor n) StateGenM
+
+deal :: Array -> Array -> RandAndIoM Array
+deal x y
+    | x' > y' = undefined -- TODO domain error: right arg must be >= the left
+    | otherwise = arrFromList . map (ScalarNum . fromIntegral) <$> _deal [(1, y')] y' x'
+    where x' = arrToInt x
+          y' = arrToInt y
+          _deal ranges netRange 0 = return []
+          _deal ranges netRange n = do
+              (ranges', x) <- dealOne ranges netRange
+              (x:) <$> _deal ranges' (netRange - 1) (n - 1)
+          dealOne ranges netRange = do
+              x <- uniformRM (1, netRange) StateGenM
+              return $ findAndRemove ranges x
+          findAndRemove [] _ = undefined -- this shouldn't happen
+          findAndRemove ((r@(start, len)):rs) x
+              | x == len = if len == 1
+                           then (rs, start + x - 1)
+                           else ((start, len - 1) : rs, start + x - 1)
+              | x < len = if x == 1
+                          then ((start + 1, len - 1) : rs, start + x - 1)
+                          else ((start, x - 1) : (start + x, len - x) : rs, start + x - 1)
+              | otherwise = let (rs', x') = findAndRemove rs (x - len)
+                            in (r:rs', x')
 
 {- ⎕IO Functions -}
 

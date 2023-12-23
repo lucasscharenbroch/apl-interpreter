@@ -41,11 +41,11 @@ mkDyadOp name o = DyadOp name opd
 
 mkMonOpOptA :: SubEvalM m => String -> ((Either Array Function) -> (String -> m Function)) -> Operator
 mkMonOpOptA name o = MonOp name opm
-  where opm arg = toEvalM $ o arg (hackShowTreeM (liftHomoEither . bimap show show $ arg) name)
+  where opm arg = toEvalM $ o arg (hackShowTreeM (fromHomoEither . bimap show show $ arg) name)
 
 mkDyadOpOptA :: SubEvalM m => String -> ((Either Array Function) -> (Either Array Function) -> (String -> m Function)) -> Operator
 mkDyadOpOptA name o = DyadOp name opd
-    where opd arg1 arg2 = let _showSubtree = liftHomoEither . bimap show show
+    where opd arg1 arg2 = let _showSubtree = fromHomoEither . bimap show show
                           in toEvalM $ o arg1 arg2 (_hackShowTreeD (_showSubtree arg1) (_showSubtree arg2) name)
 
 {- Pure Wrappers -}
@@ -126,6 +126,7 @@ fAnd = pureDyadFn "∧" F.lcm
 fOr = pureDyadFn "∨" F.gcd
 fCircle = pureMonDyadFn "○" F.piTimes F.circularFormulae
 fBang = pureMonDyadFn "!" F.factorial F.binomial
+fQuestion = mkMonDyadFn "?" F.roll F.deal
 
 functionGlyphs :: [(Char, Function)]
 functionGlyphs = [
@@ -154,7 +155,8 @@ functionGlyphs = [
         ('∧', fAnd),
         ('∨', fOr),
         ('○', fCircle),
-        ('!', fBang)
+        ('!', fBang),
+        ('?', fQuestion)
         -- TODO big list of functions
     ]
 
