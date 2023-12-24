@@ -7,6 +7,43 @@ import GrammarTree
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
+import System.Console.GetOpt
+import System.Environment (getArgs)
+import Data.List (intersperse)
+import System.Exit
+import Data.IORef
+
+{- Option Parsing -}
+
+usageHeader = "Usage: ai [options]"
+
+data CliOption = VerboseFlag | HelpFlag
+
+optDescriptions :: [OptDescr CliOption]
+optDescriptions = [
+        Option "v" ["verbose"] (NoArg VerboseFlag) "print array trees before evaluation",
+        Option "h" ["help"] (NoArg HelpFlag) "print help information"
+    ]
+
+parseArgv :: IO [CliOption]
+parseArgv = do
+    argv <- getArgs
+    case getOpt Permute optDescriptions argv of
+        (opts, [], []) -> return opts
+        (opts, nonOptions, []) -> ioError . userError $ errStr
+            where errStr = "\nUnexpected argument(s): " ++ (concat . intersperse "; ") nonOptions ++ "\n" ++ usageInfo usageHeader optDescriptions
+        (opts, _, errs) -> ioError . userError $ errStr
+            where errStr = "\nInvalid argument(s): " ++ concat errs ++ usageInfo usageHeader optDescriptions
+
+handleArgv :: [CliOption] -> IO ()
+handleArgv [] = return ()
+handleArgv (HelpFlag:opts) = do
+    putStr $ usageInfo usageHeader optDescriptions
+    handleArgv opts
+    exitWith ExitSuccess
+handleArgv (VerboseFlag:opts) = do
+    -- TODO ...
+    handleArgv opts
 
 {- Constants -}
 
@@ -56,7 +93,9 @@ mainloop idMap carriedToks = do
     input <- getInputLine $ if isInterractive then ps else ""
     case input of
         Nothing -> return ()
-        Just s -> do -- outputStrLn . show . tokenize $ s
+        Just s -> do if False
+                     then outputStrLn . show . tokenize $ s
+                     else return ()
                      let toks = carriedToks ++ tokenize s
                      let nestingLevel' = countBracketNesting toks
                      let (mIdMap', carriedToks')  = if nestingLevel' <= 0 then (execStatement idMap toks, [])
@@ -68,5 +107,7 @@ mainloop idMap carriedToks = do
                else (concat $ replicate nestingLevel "    ") ++ ">   "
 
 main :: IO ()
-main = runInputT settings (mainloop defaultIdMap [])
+main = do
+    parseArgv >>= handleArgv
+    runInputT settings (mainloop defaultIdMap [])
     where settings = setComplete completeGlyph defaultSettings
