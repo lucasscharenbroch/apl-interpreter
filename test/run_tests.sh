@@ -1,6 +1,7 @@
 #!/bin/bash
 
 test_files=(
+        "quad_gets"
         "modified_assignment"
         "numeric_fns"
         "simple_fns"

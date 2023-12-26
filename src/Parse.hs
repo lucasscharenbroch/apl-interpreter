@@ -430,9 +430,9 @@ parseScalar = matchOne [
             -- STR
             (toScalarStr . map ScalarCh) <$> matchStrLiteral,
             -- ID
-            matchIdWith (idEntryToArrTree),
+            implGroup <$> matchIdWith (idEntryToArrTree),
             -- ⎕ID
-            matchQuadIdWith (idEntryToArrTree),
+            implGroup <$> matchQuadIdWith (idEntryToArrTree),
             -- ⍺ | ⍵
             matchSpecialIdWith (ChTok '⍺') "⍺" (idEntryToArrTree),
             matchSpecialIdWith (ChTok '⍵') "⍵" (idEntryToArrTree),
@@ -440,11 +440,12 @@ parseScalar = matchOne [
             matchSpecialIdWith AATok "⍺⍺" (idEntryToArrTree),
             matchSpecialIdWith WWTok "⍵⍵" (idEntryToArrTree),
             -- ⍬
-            (\_ -> ArrInternalMonFn (FnLeafFn fImplicitGroup) $ (ArrLeaf . arrFromList) []) <$> matchCh '⍬',
+            (\_ -> implGroup $ (ArrLeaf . arrFromList) []) <$> matchCh '⍬',
             -- (der_arr)
-            ArrInternalMonFn (FnLeafFn fImplicitGroup) <$> (matchCh '(' *> parseDerArr <* matchCh ')')
+            implGroup <$> (matchCh '(' *> parseDerArr <* matchCh ')')
         ]
     where toScalarStr (c:[]) = ArrLeaf . arrFromList $ [c]
-          toScalarStr s = ArrInternalMonFn (FnLeafFn fImplicitGroup) (ArrLeaf . arrFromList $ s)
+          toScalarStr s = implGroup (ArrLeaf . arrFromList $ s)
           idEntryToArrTree (IdArr a) = Just $ ArrLeaf a
           idEntryToArrTree _ = Nothing
+          implGroup = ArrInternalMonFn (FnLeafFn fImplicitGroup)
