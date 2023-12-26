@@ -198,8 +198,8 @@ showFtnHelper (FnInternalFork f1 f2 f3) = showForkHelper h1 h2 h3
     where h1 = showFtnHelper f1
           h2 = showFtnHelper f2
           h3 = showFtnHelper f3
-showFtnHelper (FnInternalAssignment _ child) = showFtnHelper child
-showFtnHelper (FnInternalQuadAssignment child) = showFtnHelper child
+showFtnHelper (FnInternalAssignment id child) = showMonTreeHelper (showFtnHelper child) (id ++ " ←")
+showFtnHelper (FnInternalQuadAssignment child) = showMonTreeHelper (showFtnHelper child) "⎕ ←"
 showFtnHelper (FnInternalDummyNode child) = showFtnHelper child
 
 instance Show FnTreeNode where
@@ -219,8 +219,8 @@ showAtnHelper (ArrInternalDyadFn f a1 a2) = showDyadTreeHelper (showAtnHelper a1
     where boxedf = singleBoxify $ show f
 showAtnHelper (ArrInternalSubscript a is) = showDyadTreeHelper (showAtnHelper a) (showIs is, 0) "[]"
     where showIs = foldl (\s a -> fst . horizCat s $ (singleBoxify . show $ a)) ""
-showAtnHelper (ArrInternalAssignment name a) = showMonTreeHelper (showAtnHelper a) (name ++ " ←")
-showAtnHelper (ArrInternalModAssignment name f a) = showMonTreeHelper (showAtnHelper a) (name ++ " " ++ show f ++ "←")
+showAtnHelper (ArrInternalAssignment id a) = showMonTreeHelper (showAtnHelper a) (id ++ " ←")
+showAtnHelper (ArrInternalModAssignment id f a) = showMonTreeHelper (showAtnHelper a) (id ++ " " ++ show f ++ "←")
 showAtnHelper (ArrInternalQuadAssignment a) = showMonTreeHelper (showAtnHelper a) ("⎕ ←")
 showAtnHelper (ArrInternalQuadIdAssignment id a) = showMonTreeHelper (showAtnHelper a) ("⎕" ++ id ++ " ←")
 showAtnHelper (ArrInternalImplCat a1 a2) = showDyadTreeHelper (showAtnHelper a1) (showAtnHelper a2) name
@@ -229,5 +229,11 @@ showAtnHelper (ArrInternalImplCat a1 a2) = showDyadTreeHelper (showAtnHelper a1)
 instance Show ArrTreeNode where
     show = fst . showAtnHelper
 
+showOtnHelper :: OpTreeNode -> (String, Int)
+showOtnHelper (OpLeaf o) = (show o, 0)
+showOtnHelper (OpInternalAssignment id next) = showMonTreeHelper (showOtnHelper next) (id ++ " ←")
+showOtnHelper (OpInternalQuadAssignment next) = showMonTreeHelper (showOtnHelper next) ("⎕ ←")
+showOtnHelper (OpInternalDummyNode next) = showOtnHelper next
+
 instance Show OpTreeNode where
-    show otn = show . unwrapOpTree $ otn
+    show = fst . showOtnHelper
