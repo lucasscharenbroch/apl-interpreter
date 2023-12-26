@@ -80,6 +80,7 @@ import Control.Monad
  -
  - scalar => NUM
  -        => STR
+ -        => ⍞
  -        => ID                            (if ID is arr)
  -        => ⎕ID                           (if ⎕ID is arr)
  -        => (der_arr)
@@ -429,6 +430,8 @@ parseScalar = matchOne [
             (\n -> ArrLeaf . arrFromList . (:[]) . ScalarNum $ n) <$> matchNumLiteral,
             -- STR
             (toScalarStr . map ScalarCh) <$> matchStrLiteral,
+            -- ⍞
+            (\_ -> implGroup $ ArrNiladicFn "⍞" fGetString) <$> matchCh '⍞',
             -- ID
             implGroup <$> matchIdWith (idEntryToArrTree),
             -- ⎕ID

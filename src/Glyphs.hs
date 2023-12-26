@@ -87,11 +87,9 @@ dOPH name _ _ _ = pureDyadFn ("derived from dyadic op: " ++ name) (dFPH "_derive
 
 {- Functions -}
 
--- impure
--- fAssignToId id = MonFn (id ++ "←") (F.assignToId id)
-
 -- specialized
 fImplicitGroup = pureMonFn "()" F.implicitGroup
+fGetString = F.getString
 
 -- double-as-operators
 fReplicate = pureDyadFn "/" (dFPH "/")

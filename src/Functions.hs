@@ -153,6 +153,9 @@ arrToInt a
 implicitGroup :: Array -> Array
 implicitGroup = id
 
+getString :: StateT IdMap IO Array
+getString = arrFromList . map ScalarCh <$> (lift $ getLine)
+
 {- Rng Functions -}
 
 roll :: Array -> RandAndIoM Array

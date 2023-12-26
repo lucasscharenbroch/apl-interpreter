@@ -120,6 +120,7 @@ evalArrTree (ArrInternalMonFn ft at) = do
         MonFn _ f' -> f' a
         MonDyadFn _ f' _ -> f' a
         _ -> undefined -- TODO exception - function isn't monadic
+evalArrTree (ArrNiladicFn _ f) = f
 evalArrTree (ArrInternalDyadFn ft at1 at2) = do
     a2 <- evalArrTree at2
     a1 <- evalArrTree at1

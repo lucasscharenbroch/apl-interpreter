@@ -87,6 +87,8 @@ type OpD = (Either Array Function) -> OpM
 data Operator = MonOp String OpM
               | DyadOp String OpD
 
+type NiladicFn = StateT IdMap IO Array
+
 {- Tree Nodes -}
 
 -- "function tree": a tree that makes up a derived function:
@@ -103,6 +105,7 @@ data FnTreeNode = FnLeafFn Function
 
 -- "array tree": a tree that makes up a derived array
 data ArrTreeNode = ArrLeaf Array
+                 | ArrNiladicFn String NiladicFn
                  | ArrInternalSubscript ArrTreeNode [ArrTreeNode]
                  | ArrInternalAssignment String ArrTreeNode
                  | ArrInternalModAssignment String FnTreeNode ArrTreeNode

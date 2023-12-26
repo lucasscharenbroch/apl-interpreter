@@ -213,6 +213,7 @@ singleBoxify x = boxify [xheight] [xwidth] [[leftJustify xheight xwidth xlines]]
 
 showAtnHelper :: ArrTreeNode -> (String, Int)
 showAtnHelper (ArrLeaf a) = (show a, 0)
+showAtnHelper (ArrNiladicFn name _) = (name, 0)
 showAtnHelper (ArrInternalMonFn f a) = showMonTreeHelper (showAtnHelper a) boxedf
     where boxedf = singleBoxify $ show f
 showAtnHelper (ArrInternalDyadFn f a1 a2) = showDyadTreeHelper (showAtnHelper a1) (showAtnHelper a2) boxedf
