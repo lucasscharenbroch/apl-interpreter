@@ -30,6 +30,8 @@ import Control.Monad
  -
  - arr_ass => ID ← der_arr
  -         => ID der_fn ← der_arr
+ -         => ⎕ID ← der_arr
+ -         => ⎕ ← der_arr
  -
  - train => [df] {(arr|df) df} df            (where df = der_fn)
  -
@@ -52,6 +54,7 @@ import Control.Monad
  -    => (op)
  -
  - op_ass => ID ← op
+ -        => ⎕ ← op
  -
  - fn => = ≤ < > ≥ ∨ ∧ ⍲ ⍱ ⍷ ∩ ←             (dyadic)
  -    => + - × ÷ * ⍟ ⌹ ○ ! ? | ⌈ ⌊ ⊥ ⊤       (monadic or dyadic)
@@ -67,6 +70,7 @@ import Control.Monad
  -    => (train)
  -
  - fn_ass => ID ← train
+ -        => ⎕ ← train
  -
  - op_or_fn => / ⌿ \ ⍀                       (monadic operators / dyadic functions)
  -
@@ -240,10 +244,14 @@ parseExpr = matchOne [
     ]
     where mkResAtn a@(ArrInternalAssignment _ _) = ResAtn a False
           mkResAtn a@(ArrInternalModAssignment _ _ _) = ResAtn a False
+          mkResAtn a@(ArrInternalQuadAssignment _) = ResAtn a False
+          mkResAtn a@(ArrInternalQuadIdAssignment _ _) = ResAtn a False
           mkResAtn a = ResAtn a True
           mkResFtn f@(FnInternalAssignment _ _) = ResFtn f False
+          mkResFtn f@(FnInternalQuadAssignment _) = ResFtn f False
           mkResFtn f = ResFtn f True
           mkResOp o@(OpInternalAssignment _ _) = ResOp o False
+          mkResOp o@(OpInternalQuadAssignment _) = ResOp o False
           mkResOp o = ResOp o True
 
 parseDfnExpr :: MatchFn DfnExprResult
@@ -301,8 +309,10 @@ parseDerArr = matchOne [
 
 parseArrAss :: MatchFn ArrTreeNode
 parseArrAss = matchOne [
-        ArrInternalAssignment <$> matchId <*> (matchCh '←' *> parseDerArr),
-        ArrInternalModAssignment <$> matchId <*> parseDerFn <*> (matchCh '←' *> parseDerArr)
+        ArrInternalAssignment <$> matchId <*> (matchCh '←' *> parseDerArr), -- ID ← da
+        ArrInternalModAssignment <$> matchId <*> parseDerFn <*> (matchCh '←' *> parseDerArr), -- ID df ← da
+        ArrInternalQuadIdAssignment <$> (matchCh '⎕' *> matchId) <*> (matchCh '←' *> parseDerArr), -- ⎕ID ← der_arr
+        ArrInternalQuadAssignment <$> (matchCh '⎕' *> matchCh '←' *> parseDerArr) -- ⎕ ← der_arr
     ]
 
 parseTrain :: MatchFn FnTreeNode
@@ -359,7 +369,10 @@ parseOp = matchOne [
           dfnDeclToOp _ = mzero
 
 parseOpAss :: MatchFn OpTreeNode
-parseOpAss = OpInternalAssignment <$> matchId <*> (matchCh '←' *> parseOp)
+parseOpAss = matchOne [
+        OpInternalAssignment <$> matchId <*> (matchCh '←' *> parseOp), -- ID ← op
+        OpInternalQuadAssignment <$> (matchCh '⎕' *> matchCh '←' *> parseOp) -- ⎕ ← op
+    ]
 
 parseFn :: MatchFn FnTreeNode
 parseFn = matchOne [
@@ -389,7 +402,10 @@ parseFn = matchOne [
           dfnDeclToFn _ = mzero
 
 parseFnAss :: MatchFn FnTreeNode
-parseFnAss = FnInternalAssignment <$> matchId <*> (matchCh '←' *> parseTrain)
+parseFnAss = matchOne [
+        FnInternalAssignment <$> matchId <*> (matchCh '←' *> parseTrain), --  ID ← train
+        FnInternalQuadAssignment <$> (matchCh '⎕' *> matchCh '←' *> parseTrain) -- ⎕ ← train
+    ]
 
 parseOpOrFn :: MatchFn (Operator, Function)
 parseOpOrFn = matchOne $ map (\(c, o, f) -> (\_ -> (o, f)) <$> matchCh c) opOrFnGlyphs

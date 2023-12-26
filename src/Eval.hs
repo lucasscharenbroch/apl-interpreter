@@ -143,6 +143,10 @@ evalArrTree (ArrInternalModAssignment id f rhs) = do
     idm' <- get
     put $ mapInsert id (IdArr res) idm'
     return rhs'
+evalArrTree (ArrInternalQuadAssignment atn) = do
+    a <- evalArrTree atn
+    lift $ putStrLn $ show a
+    return a
 evalArrTree (ArrInternalSubscript a is) = undefined -- TODO implement
 evalArrTree (ArrInternalImplCat at1 at2) = do
     a2 <- evalArrTree at2
@@ -179,6 +183,10 @@ evalFnTree (FnInternalAssignment id next) = do
     idm <- get
     put $ mapInsert id (IdFn f) idm
     return . Right $ f
+evalFnTree (FnInternalQuadAssignment next) = do
+    efa <- evalFnTree next
+    lift $ putStrLn . fromHomoEither . bimap show show $ efa
+    return efa
 evalFnTree (FnInternalDummyNode next) = evalFnTree next
 
 evalOpTree :: OpTreeNode -> StateT IdMap IO Operator
@@ -187,6 +195,10 @@ evalOpTree (OpInternalAssignment id next) = do
     o <- evalOpTree next
     idm <- get
     put $ mapInsert id (IdOp o) idm
+    return o
+evalOpTree (OpInternalQuadAssignment next) = do
+    o <- evalOpTree next
+    lift $ putStrLn . show $ o
     return o
 evalOpTree (OpInternalDummyNode next) = evalOpTree next
 

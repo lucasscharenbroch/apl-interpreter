@@ -98,6 +98,7 @@ data FnTreeNode = FnLeafFn Function
                 | FnInternalAtop FnTreeNode FnTreeNode
                 | FnInternalFork FnTreeNode FnTreeNode FnTreeNode
                 | FnInternalAssignment String FnTreeNode
+                | FnInternalQuadAssignment FnTreeNode
                 | FnInternalDummyNode FnTreeNode
 
 -- "array tree": a tree that makes up a derived array
@@ -105,18 +106,22 @@ data ArrTreeNode = ArrLeaf Array
                  | ArrInternalSubscript ArrTreeNode [ArrTreeNode]
                  | ArrInternalAssignment String ArrTreeNode
                  | ArrInternalModAssignment String FnTreeNode ArrTreeNode
+                 | ArrInternalQuadAssignment ArrTreeNode
+                 | ArrInternalQuadIdAssignment String ArrTreeNode
                  | ArrInternalMonFn FnTreeNode ArrTreeNode
                  | ArrInternalDyadFn FnTreeNode ArrTreeNode ArrTreeNode
                  | ArrInternalImplCat ArrTreeNode ArrTreeNode
 
 data OpTreeNode = OpLeaf Operator -- not really a tree, more like a linked-list of assignments
                 | OpInternalAssignment String OpTreeNode
-                | OpInternalDummyNode OpTreeNode -- does nothing except prevent OpInternalAssignment
-                                                 -- from being matched
+                | OpInternalQuadAssignment OpTreeNode
+                | OpInternalDummyNode OpTreeNode -- does nothing except prevent an assignment
+                                                 -- from being matched (in order to allow printing)
 
 unwrapOpTree :: OpTreeNode -> Operator
 unwrapOpTree (OpLeaf o) = o
 unwrapOpTree (OpInternalAssignment _ otn) = unwrapOpTree otn
+unwrapOpTree (OpInternalQuadAssignment otn) = unwrapOpTree otn
 unwrapOpTree (OpInternalDummyNode otn) = unwrapOpTree otn
 
 {- Id Map -}
