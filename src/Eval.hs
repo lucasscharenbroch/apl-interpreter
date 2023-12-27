@@ -8,6 +8,7 @@ import Control.Monad.Trans.Maybe
 import Data.Bifunctor (bimap)
 import Data.Maybe (isJust, fromJust)
 import {-# SOURCE #-} Parse
+import QuadNames
 
 {- Helpers -}
 
@@ -148,6 +149,9 @@ evalArrTree (ArrInternalQuadAssignment atn) = do
     a <- evalArrTree atn
     lift $ putStrLn $ show a
     return a
+evalArrTree (ArrInternalQuadIdAssignment id atn) = do
+    a <- evalArrTree atn
+    (qset $ getQuadName id) a
 evalArrTree (ArrInternalSubscript a is) = undefined -- TODO implement
 evalArrTree (ArrInternalImplCat at1 at2) = do
     a2 <- evalArrTree at2

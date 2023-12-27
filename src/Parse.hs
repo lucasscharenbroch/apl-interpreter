@@ -8,6 +8,7 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
 import Control.Monad
+import QuadNames
 
 {-
  - statement => {expr}
@@ -59,7 +60,6 @@ import Control.Monad
  -    => + - × ÷ * ⍟ ⌹ ○ ! ? | ⌈ ⌊ ⊥ ⊤       (monadic or dyadic)
  -    => ⊣ ⊢ ≠ ≡ ≢ ↑ ↓ ⊂ ⊃ ⊆ ⌷ ⍋ ⍒ ⍳ ⍸       (monadic or dyadic)
  -    => ∊ ∪ ~ , ⍪ ⍴ ⌽ ⊖ ⍉ ⍎ ⍕               (monadic or dyadic)
- -    => ⎕ID                                 (if ⎕ID is a d_fn)
  -    => ⍺⍺ | ⍵⍵ | ∇                         (if dfn_decl state matches these)
  -    => dfn_decl                            (if dfn_decl is fn)
  -    => fn_ass
@@ -201,9 +201,6 @@ mapGetIf s f = do
 
 matchIdWith :: (IdEntry -> Maybe a) -> MatchFn a
 matchIdWith f = matchId >>= \s -> mapGetIf s f
-
-matchQuadIdWith :: (IdEntry -> Maybe a) -> MatchFn a
-matchQuadIdWith f = matchCh '⎕' *> matchId >>= \s -> mapGetIf ('⎕':s) f
 
 matchSpecialIdWith :: Token -> String -> (IdEntry -> Maybe a) -> MatchFn a
 matchSpecialIdWith specTok s f = do
@@ -403,7 +400,6 @@ parseOpAss = matchOne [
 parseFn :: MatchFn FnTreeNode
 parseFn = matchOne [
         matchOne $ map (\(c, f) -> (\_ -> FnLeafFn f) <$> matchCh c) functionGlyphs,
-        matchQuadIdWith (idEntryToFnTree),
         -- ⍺⍺ | ⍵⍵
         matchSpecialIdWith (AATok) "⍺⍺" (idEntryToFnTree),
         matchSpecialIdWith (WWTok) "⍵⍵" (idEntryToFnTree),
@@ -460,7 +456,7 @@ parseScalar = matchOne [
             -- ID
             implGroup <$> matchIdWith (idEntryToArrTree),
             -- ⎕ID
-            implGroup <$> matchQuadIdWith (idEntryToArrTree),
+            (matchCh '⎕' *> matchId) >>= \id -> return . implGroup $ ArrNiladicFn ("⎕" ++ id) (qget . getQuadName $ id),
             -- ⍺ | ⍵
             matchSpecialIdWith (ChTok '⍺') "⍺" (idEntryToArrTree),
             matchSpecialIdWith (ChTok '⍵') "⍵" (idEntryToArrTree),
