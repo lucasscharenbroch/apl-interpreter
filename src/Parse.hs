@@ -306,7 +306,7 @@ parseDfnDecl = do
             ]
         ]
     matchCh '}'
-    return (toks, AATok `elem` toks, WWTok `elem` toks)
+    return (toks, AATok `elem` toks || WWTok `elem` toks, WWTok `elem` toks)
 
 parseIdxList :: MatchFn [ArrTreeNode]
 parseIdxList = (foldIdxList . concat) <$> matchMax [

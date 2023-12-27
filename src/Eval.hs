@@ -210,7 +210,16 @@ evalOpTree (OpInternalDummyNode next) = evalOpTree next
 {- Eval Dfns -}
 
 mkDfn :: [Token] -> (Maybe IdEntry) -> (Maybe IdEntry) -> (Maybe IdEntry) -> Function
-mkDfn toks aa ww dd = MonDyadFn (showTokListAsDfn toks) (evalDfnM toks aa ww dd) (evalDfnD toks aa ww dd)
+mkDfn toks aa ww dd = MonDyadFn name (evalDfnM toks aa ww dd) (evalDfnD toks aa ww dd)
+    where name = case (aa, ww) of
+                      (Nothing, Nothing) -> rootStr
+                      (Just ide, Nothing) -> fst $ showMonTreeHelper (_showIde ide) rootStr
+                      (Just ide1, Just ide2) -> fst $ showDyadTreeHelper (_showIde ide1) (_showIde ide2) rootStr
+          rootStr = showTokListAsDfn toks
+          _showIde ide = case ide of
+              (IdArr a) -> (show a, 0)
+              (IdFn f) -> showAndCountPad f
+              _ -> undefined
 
 evalDfnM :: [Token] -> (Maybe IdEntry) -> (Maybe IdEntry) -> (Maybe IdEntry) -> FuncM
 evalDfnM toks aa ww dd arg = do
@@ -248,14 +257,14 @@ evalDopM toks arg = do
     let aa = Just $ fromHomoEither . bimap IdArr IdFn $ arg
     let ww = Nothing
     let dd = Just $ IdDop toks False
-    return $ MonDyadFn (showTokListAsDfn toks) (evalDfnM toks aa ww dd) (evalDfnD toks aa ww dd)
+    return $ mkDfn toks aa ww dd
 
 evalDopD :: [Token] -> OpD
 evalDopD toks arg1 arg2 = do
     let aa = Just $ fromHomoEither . bimap IdArr IdFn $ arg1
     let ww = Just $ fromHomoEither . bimap IdArr IdFn $ arg2
     let dd = Just $ IdDop toks True
-    return $ MonDyadFn (showTokListAsDfn toks) (evalDfnM toks aa ww dd) (evalDfnD toks aa ww dd)
+    return $ mkDfn toks aa ww dd
 
 execDfnStatement :: [Token] -> StateT IdMap IO Array
 execDfnStatement [] = undefined -- TODO expected return val (or make mechanism for no value)
