@@ -23,7 +23,6 @@ import Control.Monad
  - index_list => (der_arr|;)*
  -
  - der_arr => arr_ass
- -         => ⎕ ← der_arr
  -         => der_fn der_arr
  -         => arr der_fn der_arr
  -         => arr
@@ -64,7 +63,6 @@ import Control.Monad
  -    => ⍺⍺ | ⍵⍵ | ∇                         (if dfn_decl state matches these)
  -    => dfn_decl                            (if dfn_decl is fn)
  -    => fn_ass
- -    => ⎕ ← train
  -    => ID                                  (if ID is fn)
  -    => op_or_fn
  -    => (train)
@@ -234,6 +232,10 @@ data DfnExprResult = DResAtn ArrTreeNode Bool -- Bool = should return?
                    | DResOtn OpTreeNode -- nor operator                   (should be an assignment)
                    | DResNull
 
+data ParentheticalResult = ParenFtn FnTreeNode
+                         | ParenAtn ArrTreeNode
+                         | ParenOtn OpTreeNode
+
 {- Parsing Functions -}
 
 parseExpr :: MatchFn ExprResult
@@ -254,6 +256,29 @@ parseExpr = matchOne [
           mkResOp o@(OpInternalAssignment _ _) = ResOp o False
           mkResOp o@(OpInternalQuadAssignment _) = ResOp o False
           mkResOp o = ResOp o True
+
+parseParenthetical :: MatchFn ParentheticalResult
+parseParenthetical = matchCh '(' *> matchOne [
+        parseParenthetical <* matchCh ')',
+        ParenAtn <$> parseDerArr <* matchCh ')',
+        ParenFtn <$> parseTrain <* matchCh ')',
+        ParenOtn <$> parseOp <* matchCh ')'
+    ]
+
+parseParentheticalAtn :: MatchFn ArrTreeNode
+parseParentheticalAtn = parseParenthetical >>= \res -> case res of
+    ParenAtn atn -> return atn
+    _ -> mzero
+
+parseParentheticalFtn :: MatchFn FnTreeNode
+parseParentheticalFtn = parseParenthetical >>= \res -> case res of
+    ParenFtn ftn -> return ftn
+    _ -> mzero
+
+parseParentheticalOtn :: MatchFn OpTreeNode
+parseParentheticalOtn = parseParenthetical >>= \res -> case res of
+    ParenOtn otn -> return otn
+    _ -> mzero
 
 parseDfnExpr :: MatchFn DfnExprResult
 parseDfnExpr = matchOne [
@@ -361,7 +386,7 @@ parseOp = matchOne [
         parseOpAss,
         matchIdWith (idEntryToOtn),
         (OpLeaf . fst) <$> parseOpOrFn,
-        OpInternalDummyNode <$> (matchCh '(' *> parseOp <* matchCh ')')
+        OpInternalDummyNode <$> parseParentheticalOtn
     ]
     where idEntryToOtn (IdOp o) = Just (OpLeaf o)
           idEntryToOtn (IdDop toks is_dy) = Just . OpLeaf $ mkDop toks is_dy
@@ -393,7 +418,7 @@ parseFn = matchOne [
         -- op_or_fn
         (FnLeafFn . snd) <$> parseOpOrFn,
         -- (train)
-        FnInternalDummyNode <$> (matchCh '(' *> parseTrain <* matchCh ')')
+        FnInternalDummyNode <$> parseParentheticalFtn
     ]
     where idEntryToFnTree (IdFn f) = Just $ FnLeafFn f
           idEntryToFnTree (IdDfn toks) = Just . FnLeafFn $ mkDfn toks Nothing Nothing Nothing
@@ -445,7 +470,7 @@ parseScalar = matchOne [
             -- ⍬
             (\_ -> implGroup $ (ArrLeaf . arrFromList) []) <$> matchCh '⍬',
             -- (der_arr)
-            implGroup <$> (matchCh '(' *> parseDerArr <* matchCh ')')
+            implGroup <$> parseParentheticalAtn
         ]
     where toScalarStr (c:[]) = ArrLeaf . arrFromList $ [c]
           toScalarStr s = implGroup (ArrLeaf . arrFromList $ s)

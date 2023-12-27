@@ -1,6 +1,7 @@
 #!/bin/bash
 
 test_files=(
+        "deeply_nested_parens"
         "quad_gets"
         "modified_assignment"
         "numeric_fns"
