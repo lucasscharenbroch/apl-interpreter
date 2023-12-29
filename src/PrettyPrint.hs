@@ -125,9 +125,9 @@ instance Show Array where
 {- Functions -}
 
 instance Show Function where
-    show (MonFn name _) = name
-    show (DyadFn name _)  = name
-    show (MonDyadFn name _ _) = name
+    show (MonFn info _) = fnNameM info
+    show (DyadFn info _)  = fnNameD info
+    show (MonDyadFn info _ _) = fnNameA info
 
 {- Operators -}
 

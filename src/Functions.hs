@@ -46,6 +46,8 @@ instance SubEvalM RandAndIoM where
 {- Constants -}
 
 intMax = maxBound :: Int
+floatMax = read "Infinity" :: Double
+floatMin = read "-Infinity" :: Double
 
 {- Helpers -}
 

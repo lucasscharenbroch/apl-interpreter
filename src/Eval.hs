@@ -9,6 +9,7 @@ import Data.Bifunctor (bimap)
 import Data.Maybe (isJust, fromJust)
 import {-# SOURCE #-} Parse
 import QuadNames
+import Control.Applicative (liftA2)
 
 {- Helpers -}
 
@@ -28,6 +29,22 @@ hackShowTreeM x headStr = fst $ showMonTreeHelper (countPad x) headStr
 
 hackShowTreeD :: String -> String -> String -> String
 hackShowTreeD x y headStr = fst $ showDyadTreeHelper (countPad x) (countPad y) headStr
+
+fnToNameAndPad :: Function -> (String, Int)
+fnToNameAndPad f = case f of
+    MonFn i _ ->  infoToNamePad i
+    DyadFn i _ -> infoToNamePad i
+    MonDyadFn i _ _ -> infoToNamePad i
+    where infoToNamePad :: FnInfoT t => t -> (String, Int)
+          infoToNamePad = liftA2 (,) fnInfoName fnInfoNamePad
+
+namePadToFnInfoA :: (String, Int) -> FnInfoA
+namePadToFnInfoA (name, pad) = defFnInfoA {fnNameA = name, fnNamePadA = pad}
+
+namePadToFnInfoMDA :: (String, Int) -> (FnInfoM, FnInfoD, FnInfoA)
+namePadToFnInfoMDA (name, pad) = (defFnInfoM {fnNameM = name, fnNamePadM = pad},
+                                  defFnInfoD {fnNameD = name, fnNamePadD = pad},
+                                  defFnInfoA {fnNameA = name, fnNamePadA = pad})
 
 expectFunc :: (Either Array Function) -> Function
 expectFunc eaf = case eaf of
@@ -68,14 +85,14 @@ atop :: FnTreeNode -> FnTreeNode -> StateT IdMap IO Function
 atop f g = do
     f' <- expectFunc <$> evalFnTree f
     g' <- expectFunc <$> evalFnTree g
-    let dName = fst $ showAtopHelper (showAndCountPad f') (showAndCountPad g')
+    let (infoM, infoD, infoA) = namePadToFnInfoMDA $ showAtopHelper (fnToNameAndPad f') (fnToNameAndPad g')
     return $ case (f', g') of
-        (MonFn _ fF, MonFn _ gF) -> MonFn dName (atopMM fF gF)
-        (MonFn _ fF, DyadFn _ gF) -> DyadFn dName (atopMD fF gF)
-        (MonFn _ fF, MonDyadFn _ gMF gDF) -> MonDyadFn dName (atopMM fF gMF) (atopMD fF gDF)
-        (MonDyadFn _ fF _, MonFn _ gF) -> MonFn dName (atopMM fF gF)
-        (MonDyadFn _ fF _, DyadFn _ gF) -> DyadFn dName (atopMD fF gF)
-        (MonDyadFn _ fF _, MonDyadFn _ gMF gDF) -> MonDyadFn dName (atopMM fF gMF) (atopMD fF gDF)
+        (MonFn _ fF, MonFn _ gF) -> MonFn infoM (atopMM fF gF)
+        (MonFn _ fF, DyadFn _ gF) -> DyadFn infoD (atopMD fF gF)
+        (MonFn _ fF, MonDyadFn _ gMF gDF) -> MonDyadFn infoA (atopMM fF gMF) (atopMD fF gDF)
+        (MonDyadFn _ fF _, MonFn _ gF) -> MonFn infoM (atopMM fF gF)
+        (MonDyadFn _ fF _, DyadFn _ gF) -> DyadFn infoD (atopMD fF gF)
+        (MonDyadFn _ fF _, MonDyadFn _ gMF gDF) -> MonDyadFn infoA (atopMM fF gMF) (atopMD fF gDF)
         _ -> undefined -- TODO exception (internal)
 
 fork :: FnTreeNode -> FnTreeNode -> FnTreeNode -> StateT IdMap IO Function
@@ -85,30 +102,30 @@ fork f g h = do
     _f' <- evalFnTree f
     case _f' of
         Left fA -> do
-            let dName = fst $ showForkHelper (showAndCountPad fA) (showAndCountPad g') (showAndCountPad h')
+            let (infoM, infoD, infoA) = namePadToFnInfoMDA $ showForkHelper (show fA, 0) (fnToNameAndPad g') (fnToNameAndPad h')
             return $ case (g', h') of
-                (DyadFn _ gF, DyadFn _ hF) -> DyadFn dName (forkADD fA gF hF)
-                (DyadFn _ gF, MonFn _ hF) -> MonFn dName (forkADM fA gF hF)
-                (MonDyadFn _ _ gF, DyadFn _ hF) -> DyadFn dName (forkADD fA gF hF)
-                (MonDyadFn _ _ gF, MonFn _ hF) -> MonFn dName (forkADM fA gF hF)
-                (MonDyadFn _ _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn dName (forkADM fA gF hMF) (forkADD fA gF hDF)
+                (DyadFn _ gF, DyadFn _ hF) -> DyadFn infoD (forkADD fA gF hF)
+                (DyadFn _ gF, MonFn _ hF) -> MonFn infoM (forkADM fA gF hF)
+                (MonDyadFn _ _ gF, DyadFn _ hF) -> DyadFn infoD (forkADD fA gF hF)
+                (MonDyadFn _ _ gF, MonFn _ hF) -> MonFn infoM (forkADM fA gF hF)
+                (MonDyadFn _ _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn infoA (forkADM fA gF hMF) (forkADD fA gF hDF)
         Right f' -> do
-            let dName = fst $ showForkHelper (showAndCountPad f') (showAndCountPad g') (showAndCountPad h')
+            let (infoM, infoD, infoA) = namePadToFnInfoMDA $ showForkHelper (fnToNameAndPad f') (fnToNameAndPad g') (fnToNameAndPad h')
             return $ case (f', g', h') of
-                (DyadFn _ fF, DyadFn _ gF, DyadFn _ hF) -> DyadFn dName (forkDDD fF gF hF)
-                (DyadFn _ fF, MonDyadFn _ _ gF, DyadFn _ hF) -> DyadFn dName (forkDDD fF gF hF)
-                (MonFn _ fF, DyadFn _ gF, MonFn _ hF) -> MonFn dName (forkMDM fF gF hF)
-                (MonFn _ fF, MonDyadFn _ _ gF, MonFn _ hF) -> MonFn dName (forkMDM fF gF hF)
-                (MonDyadFn _ fMF fDF, DyadFn _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn dName (forkMDM fMF gF hMF) (forkDDD fDF gF hDF)
-                (MonDyadFn _ fMF fDF, MonDyadFn _ _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn dName (forkMDM fMF gF hMF) (forkDDD fDF gF hDF)
-                (MonDyadFn _ _ fF, DyadFn _ gF, DyadFn _ hF) -> DyadFn dName (forkDDD fF gF hF)
-                (MonDyadFn _ _ fF, MonDyadFn _ _ gF, DyadFn _ hF) -> DyadFn dName (forkDDD fF gF hF)
-                (MonDyadFn _ fF _, DyadFn _ gF, MonFn _ hF) -> MonFn dName (forkMDM fF gF hF)
-                (MonDyadFn _ fF _, MonDyadFn _ _ gF, MonFn _ hF) -> MonFn dName (forkMDM fF gF hF)
-                (DyadFn _ fF, DyadFn _ gF, MonDyadFn _ _ hF) -> DyadFn dName (forkDDD fF gF hF)
-                (DyadFn _ fF, MonDyadFn _ _ gF, MonDyadFn _ _ hF) -> DyadFn dName (forkDDD fF gF hF)
-                (MonFn _ fF, DyadFn _ gF, MonDyadFn _ hF _) -> MonFn dName (forkMDM fF gF hF)
-                (MonFn _ fF, MonDyadFn _ _ gF, MonDyadFn _ hF _) -> MonFn dName (forkMDM fF gF hF)
+                (DyadFn _ fF, DyadFn _ gF, DyadFn _ hF) -> DyadFn infoD (forkDDD fF gF hF)
+                (DyadFn _ fF, MonDyadFn _ _ gF, DyadFn _ hF) -> DyadFn infoD (forkDDD fF gF hF)
+                (MonFn _ fF, DyadFn _ gF, MonFn _ hF) -> MonFn infoM (forkMDM fF gF hF)
+                (MonFn _ fF, MonDyadFn _ _ gF, MonFn _ hF) -> MonFn infoM (forkMDM fF gF hF)
+                (MonDyadFn _ fMF fDF, DyadFn _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn infoA (forkMDM fMF gF hMF) (forkDDD fDF gF hDF)
+                (MonDyadFn _ fMF fDF, MonDyadFn _ _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn infoA (forkMDM fMF gF hMF) (forkDDD fDF gF hDF)
+                (MonDyadFn _ _ fF, DyadFn _ gF, DyadFn _ hF) -> DyadFn infoD (forkDDD fF gF hF)
+                (MonDyadFn _ _ fF, MonDyadFn _ _ gF, DyadFn _ hF) -> DyadFn infoD (forkDDD fF gF hF)
+                (MonDyadFn _ fF _, DyadFn _ gF, MonFn _ hF) -> MonFn infoM (forkMDM fF gF hF)
+                (MonDyadFn _ fF _, MonDyadFn _ _ gF, MonFn _ hF) -> MonFn infoM (forkMDM fF gF hF)
+                (DyadFn _ fF, DyadFn _ gF, MonDyadFn _ _ hF) -> DyadFn infoD (forkDDD fF gF hF)
+                (DyadFn _ fF, MonDyadFn _ _ gF, MonDyadFn _ _ hF) -> DyadFn infoD (forkDDD fF gF hF)
+                (MonFn _ fF, DyadFn _ gF, MonDyadFn _ hF _) -> MonFn infoM (forkMDM fF gF hF)
+                (MonFn _ fF, MonDyadFn _ _ gF, MonDyadFn _ hF _) -> MonFn infoM (forkMDM fF gF hF)
 
 {- Eval Tree Fns -}
 
@@ -210,15 +227,15 @@ evalOpTree (OpInternalDummyNode next) = evalOpTree next
 {- Eval Dfns -}
 
 mkDfn :: [Token] -> (Maybe IdEntry) -> (Maybe IdEntry) -> (Maybe IdEntry) -> Function
-mkDfn toks aa ww dd = MonDyadFn name (evalDfnM toks aa ww dd) (evalDfnD toks aa ww dd)
-    where name = case (aa, ww) of
-                      (Nothing, Nothing) -> rootStr
-                      (Just ide, Nothing) -> fst $ showMonTreeHelper (_showIde ide) rootStr
-                      (Just ide1, Just ide2) -> fst $ showDyadTreeHelper (_showIde ide1) (_showIde ide2) rootStr
+mkDfn toks aa ww dd = MonDyadFn (namePadToFnInfoA namePad) (evalDfnM toks aa ww dd) (evalDfnD toks aa ww dd)
+    where namePad = case (aa, ww) of
+                        (Nothing, Nothing) -> (rootStr, 0)
+                        (Just ide, Nothing) -> showMonTreeHelper (_showIde ide) rootStr
+                        (Just ide1, Just ide2) -> showDyadTreeHelper (_showIde ide1) (_showIde ide2) rootStr
           rootStr = showTokListAsDfn toks
           _showIde ide = case ide of
               (IdArr a) -> (show a, 0)
-              (IdFn f) -> showAndCountPad f
+              (IdFn f) -> fnToNameAndPad f
               _ -> undefined
 
 evalDfnM :: [Token] -> (Maybe IdEntry) -> (Maybe IdEntry) -> (Maybe IdEntry) -> FuncM

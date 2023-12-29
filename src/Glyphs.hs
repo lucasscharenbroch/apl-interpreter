@@ -8,6 +8,29 @@ import Data.Bifunctor (bimap)
 import Data.Functor.Identity
 import Control.Monad.State.Lazy
 import Control.Monad.Reader
+import Data.Function (on)
+
+{- Composition Operators -}
+
+infixr 8 .:
+infixr 8 .:.
+
+(.:) :: (c -> d) -> (a -> b -> c) -> a -> b -> d
+(.:) = (.) . (.)
+
+(.:.) :: (d -> e) -> (a -> b -> c -> d) -> a -> b -> c -> e
+(.:.) = (.) . (.) . (.)
+
+{- Function Info Helpers -}
+
+mkFnInfoM :: String -> FnInfoM
+mkFnInfoM s = defFnInfoM {fnNameM = s}
+
+mkFnInfoD :: String -> FnInfoD
+mkFnInfoD s = defFnInfoD {fnNameD = s}
+
+mkFnInfoA :: String -> FnInfoA
+mkFnInfoA s = defFnInfoA {fnNameA = s}
 
 {- Show Helpers -}
 
@@ -19,112 +42,92 @@ _hackShowTreeD x y hs = hackShowTreeD (show x) (show y) hs
 
 {- Monad Wrappers -}
 
-mkMonFn :: SubEvalM m => String -> (Array -> m Array) -> Function
-mkMonFn name f = MonFn name (\a -> toEvalM $ f a)
+mkMonFn :: SubEvalM m => FnInfoM -> (Array -> m Array) -> Function
+mkMonFn i f = MonFn i (\a -> toEvalM $ f a)
 
-mkDyadFn :: SubEvalM m => String -> (Array -> Array -> m Array) -> Function
-mkDyadFn name f = DyadFn name (\a b -> toEvalM $ f a b)
+mkDyadFn :: SubEvalM m => FnInfoD -> (Array -> Array -> m Array) -> Function
+mkDyadFn i f = DyadFn i (\a b -> toEvalM $ f a b)
 
-mkMonDyadFn :: (SubEvalM m0, SubEvalM m1) => String -> (Array -> m0 Array) -> (Array -> Array -> m1 Array) -> Function
-mkMonDyadFn name fm fd = MonDyadFn name (\a -> toEvalM $ fm a) (\a b -> toEvalM $ fd a b)
+mkMonDyadFn :: (SubEvalM m0, SubEvalM m1) => FnInfoA -> (Array -> m0 Array) -> (Array -> Array -> m1 Array) -> Function
+mkMonDyadFn ia fm fd = MonDyadFn ia (\a -> toEvalM $ fm a) (\a b -> toEvalM $ fd a b)
 
-mkMonOp :: SubEvalM m => String -> (Function -> String -> m Function) -> Operator
-mkMonOp name o = MonOp name opm
-  where opm arg = let arg' = expectFunc arg
-                  in toEvalM $ o arg' (_hackShowTreeM arg' name)
+mkMonOp :: SubEvalM m => String -> (Function -> m Function) -> Operator
+mkMonOp name o = MonOp name (toEvalM . o . expectFunc)
 
-mkDyadOp :: SubEvalM m => String -> (Function -> Function -> String -> m Function) -> Operator
-mkDyadOp name o = DyadOp name opd
-  where opd arg1 arg2 = let arg1' = expectFunc arg1
-                            arg2' = expectFunc arg2
-                        in toEvalM $ o arg1' arg2' (_hackShowTreeD arg1' arg2' name)
+mkDyadOp :: SubEvalM m => String -> (Function -> Function -> m Function) -> Operator
+mkDyadOp name o = DyadOp name (toEvalM .: o `on` expectFunc)
 
-mkMonOpOptA :: SubEvalM m => String -> ((Either Array Function) -> (String -> m Function)) -> Operator
-mkMonOpOptA name o = MonOp name opm
-  where opm arg = toEvalM $ o arg (hackShowTreeM (fromHomoEither . bimap show show $ arg) name)
+mkMonOpOptA :: SubEvalM m => String -> ((Either Array Function) -> m Function) -> Operator
+mkMonOpOptA name o = MonOp name (toEvalM . o)
 
-mkDyadOpOptA :: SubEvalM m => String -> ((Either Array Function) -> (Either Array Function) -> (String -> m Function)) -> Operator
-mkDyadOpOptA name o = DyadOp name opd
-    where opd arg1 arg2 = let _showSubtree = fromHomoEither . bimap show show
-                          in toEvalM $ o arg1 arg2 (_hackShowTreeD (_showSubtree arg1) (_showSubtree arg2) name)
+mkDyadOpOptA :: SubEvalM m => String -> ((Either Array Function) -> (Either Array Function) -> m Function) -> Operator
+mkDyadOpOptA name o = DyadOp name (toEvalM .: o)
 
 {- Pure Wrappers -}
 
-pureMonFn :: String -> (Array -> Array) -> Function
-pureMonFn name f = mkMonFn name (Identity . f)
+pureMonFn :: FnInfoM -> (Array -> Array) -> Function
+pureMonFn i f = mkMonFn i (Identity . f)
 
-pureDyadFn :: String -> (Array -> Array -> Array) -> Function
-pureDyadFn name f = mkDyadFn name (curry $ Identity . uncurry f)
+pureDyadFn :: FnInfoD -> (Array -> Array -> Array) -> Function
+pureDyadFn i f = mkDyadFn i (Identity .: f)
 
-pureMonDyadFn :: String -> (Array -> Array) -> (Array -> Array -> Array) -> Function
-pureMonDyadFn name fm fd = mkMonDyadFn name (Identity . fm) (curry $ Identity . uncurry fd)
+pureMonDyadFn :: FnInfoA -> (Array -> Array) -> (Array -> Array -> Array) -> Function
+pureMonDyadFn ia fm fd = mkMonDyadFn ia (Identity . fm) (Identity .: fd)
 
-pureMonOp :: String -> (Function -> String -> Function) -> Operator
-pureMonOp name o = mkMonOp name (curry $ Identity . uncurry o)
+pureMonOp :: String -> (Function -> Function) -> Operator
+pureMonOp name o = mkMonOp name (Identity . o)
 
-pureDyadOp :: String -> (Function -> Function -> String -> Function) -> Operator
-pureDyadOp name o = mkDyadOp name (curry . curry $ Identity . uncurry (uncurry o))
+pureDyadOp :: String -> (Function -> Function -> Function) -> Operator
+pureDyadOp name o = mkDyadOp name (Identity .: o)
 
-pureMonOpOptA :: String -> ((Either Array Function) -> (String -> Function)) -> Operator
-pureMonOpOptA name o = mkMonOpOptA name (curry $ Identity . uncurry o)
+pureMonOpOptA :: String -> ((Either Array Function) -> Function) -> Operator
+pureMonOpOptA name o = mkMonOpOptA name (Identity . o)
 
-pureDyadOpOptA :: String -> ((Either Array Function) -> (Either Array Function) -> (String -> Function)) -> Operator
-pureDyadOpOptA name o = mkDyadOpOptA name (curry . curry $ Identity . uncurry (uncurry o))
-
-{- placeholders (TODO remove) -}
-
-mFPH :: String -> Array -> Array
-mFPH name _ = arrFromList . map (ScalarCh) $ "result of monadic fn: " ++ name
-
-dFPH :: String -> Array -> Array -> Array
-dFPH name _ _ = arrFromList . map (ScalarCh) $ "result of dyadic fn: " ++ name
-
-mOPH :: String -> Function -> (String -> Function)
-mOPH name _ _ = pureDyadFn ("derived from monadic op: " ++ name) (dFPH "_derived_")
-
-dOPH :: String -> Function -> Function -> (String -> Function)
-dOPH name _ _ _ = pureDyadFn ("derived from dyadic op: " ++ name) (dFPH "_derived_")
+pureDyadOpOptA :: String -> ((Either Array Function) -> (Either Array Function) -> Function) -> Operator
+pureDyadOpOptA name o = mkDyadOpOptA name (Identity .: o)
 
 {- Functions -}
 
 -- specialized
-fImplicitGroup = pureMonFn "()" F.implicitGroup
+fImplicitGroup = pureMonFn (mkFnInfoM ")(") F.implicitGroup
 fGetString = F.getString
 
 -- double-as-operators
+{-
 fReplicate = pureDyadFn "/" (dFPH "/")
 fExpand = pureDyadFn "\\" (dFPH "\\")
 fReplicateFirst = pureDyadFn "⌿" (dFPH "⌿")
 fExpandFirst = pureDyadFn "⍀" (dFPH "⍀")
+-}
 
 -- primitive
-fPlus = pureMonDyadFn "+" F.conjugate F.add
-fMinus = pureMonDyadFn "-" F.negate F.subtract
-fTimes = pureMonDyadFn "×" F.direction F.multiply
-fDivide = pureMonDyadFn "÷" F.reciprocal F.divide
-fIota = mkMonDyadFn "⍳" F.iota F.indexOf
-fShape = pureMonDyadFn "⍴" F.shapeOf F.reshape
-fLss = pureDyadFn "<" F.lss
-fLeq = pureDyadFn "≤" F.leq
-fGtr = pureDyadFn ">" F.gtr
-fGeq = pureDyadFn "≥" F.geq
-fEqu = pureDyadFn "=" F.equ
-fAsterisk = pureMonDyadFn "*" F.exponential F.power
-fAsteriskCircle = pureMonDyadFn "⍟" F.naturalLog F.logBase
-fFloor = pureMonDyadFn "⌊" F.floor F.minimum
-fCeil = pureMonDyadFn "⌈" F.ceiling F.maximum
-fRightTack = pureMonDyadFn "⊢" F.identity F.right
-fLeftTack = pureMonDyadFn "⊣" F.identity F.left
-fPipe = pureMonDyadFn "|" F.absoluteValue F.residue
-fTripleEqu = pureMonDyadFn "≡" F.depth F.match
-fTripleNeq = pureMonDyadFn "≢" F.tally F.notMatch
-fNand = pureDyadFn "⍲" F.nand
-fNor = pureDyadFn "⍱" F.nor
-fAnd = pureDyadFn "∧" F.lcm
-fOr = pureDyadFn "∨" F.gcd
-fCircle = pureMonDyadFn "○" F.piTimes F.circularFormulae
-fBang = pureMonDyadFn "!" F.factorial F.binomial
-fQuestion = mkMonDyadFn "?" F.roll F.deal
+fPlus = pureMonDyadFn (mkFnInfoA "+") {fnIdAD = Just $ ScalarNum 0} F.conjugate F.add
+fMinus = pureMonDyadFn (mkFnInfoA "-") {fnIdAD = Just $ ScalarNum 0} F.negate F.subtract
+fTimes = pureMonDyadFn (mkFnInfoA "×") {fnIdAD = Just $ ScalarNum 1} F.direction F.multiply
+fDivide = pureMonDyadFn (mkFnInfoA "÷") {fnIdAD = Just $ ScalarNum 1} F.reciprocal F.divide
+fIota = mkMonDyadFn (mkFnInfoA "⍳") F.iota F.indexOf
+fShape = pureMonDyadFn (mkFnInfoA "⍴") F.shapeOf F.reshape
+fLss = pureDyadFn (mkFnInfoD "<") {fnIdD = Just $ ScalarNum 0} F.lss
+fLeq = pureDyadFn (mkFnInfoD "≤") {fnIdD = Just $ ScalarNum 1} F.leq
+fGtr = pureDyadFn (mkFnInfoD ">") {fnIdD = Just $ ScalarNum 0} F.gtr
+fGeq = pureDyadFn (mkFnInfoD "≥") {fnIdD = Just $ ScalarNum 1} F.geq
+fEqu = pureDyadFn (mkFnInfoD "=") {fnIdD = Just $ ScalarNum 1} F.equ
+fAsterisk = pureMonDyadFn (mkFnInfoA "*") {fnIdAD = Just $ ScalarNum 1} F.exponential F.power
+fAsteriskCircle = pureMonDyadFn (mkFnInfoA "⍟") F.naturalLog F.logBase
+fFloor = pureMonDyadFn (mkFnInfoA "⌊") {fnIdAD = Just $ ScalarNum F.floatMax} F.floor F.minimum
+fCeil = pureMonDyadFn (mkFnInfoA "⌈") {fnIdAD = Just $ ScalarNum F.floatMin} F.ceiling F.maximum
+fRightTack = pureMonDyadFn (mkFnInfoA "⊢") F.identity F.right
+fLeftTack = pureMonDyadFn (mkFnInfoA "⊣") F.identity F.left
+fPipe = pureMonDyadFn (mkFnInfoA "|") {fnIdAD = Just $ ScalarNum 0} F.absoluteValue F.residue
+fTripleEqu = pureMonDyadFn (mkFnInfoA "≡") F.depth F.match
+fTripleNeq = pureMonDyadFn (mkFnInfoA "≢") F.tally F.notMatch
+fNand = pureDyadFn (mkFnInfoD "⍲") F.nand
+fNor = pureDyadFn (mkFnInfoD "⍱") F.nor
+fAnd = pureDyadFn (mkFnInfoD "∧") {fnIdD = Just $ ScalarNum 1} F.lcm
+fOr = pureDyadFn (mkFnInfoD "∨") {fnIdD = Just $ ScalarNum 0} F.gcd
+fCircle = pureMonDyadFn (mkFnInfoA "○") F.piTimes F.circularFormulae
+fBang = pureMonDyadFn (mkFnInfoA "!") {fnIdAD = Just $ ScalarNum 1} F.factorial F.binomial
+fQuestion = mkMonDyadFn (mkFnInfoA "?") F.roll F.deal
 
 functionGlyphs :: [(Char, Function)]
 functionGlyphs = [
@@ -160,27 +163,31 @@ functionGlyphs = [
 
 {- Operators -}
 
+{-
 oReduce = pureMonOp "/" (mOPH "/")
 oScan = pureMonOp "\\" (mOPH "\\")
 oReduceFirst = pureMonOp "⌿" (mOPH "⌿")
 oScanFirst = pureMonOp "⍀" (mOPH "⍀")
+-}
 
 oSelfie = pureMonOpOptA "⍨" O.selfie
-oAtop = pureDyadOp "⍤" (dOPH "⍤")
+-- oAtop = pureDyadOp "⍤" (dOPH "⍤")
 
-oAxisSpec axis = pureMonOp ("[" ++ (show axis) ++ "]") (mOPH "[]") -- TODO remove `axis' arg and add arg to called fn
+-- oAxisSpec axis = pureMonOp ("[" ++ (show axis) ++ "]") (mOPH "[]") -- TODO remove `axis' arg and add arg to called fn
 
 operatorGlyphs :: [(Char, Operator)]
 operatorGlyphs = [
-        ('⍨', oSelfie),
-        ('⍤', oAtop)
+        ('⍨', oSelfie)
+        -- ('⍤', oAtop)
         -- TODO big list of operators
     ]
 
 opOrFnGlyphs :: [(Char, Operator, Function)]
 opOrFnGlyphs = [
+{-
         ('/', oReduce, fReplicate),
         ('⌿', oReduceFirst, fReplicateFirst),
         ('\\', oScan, fExpand),
         ('⍀', oScanFirst, fExpandFirst)
+-}
     ]

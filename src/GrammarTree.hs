@@ -77,9 +77,87 @@ arrMap f a = shapedArrFromList (shape a) . map (f) . arrToList $ a
 type FuncM = Array -> StateT IdMap IO Array
 type FuncD = Array -> FuncM
 
-data Function = MonFn String FuncM
-              | DyadFn String FuncD
-              | MonDyadFn String FuncM FuncD
+class FnInfoT t where
+    fnInfoName :: t -> String
+    fnInfoNamePad :: t -> Int
+
+data FnInfoM = FnInfoM {
+                         fnNameM :: String
+                       , fnNamePadM :: Int
+                       , fnIdM :: Maybe Scalar
+                       , fnOnAxisM :: Maybe (Int -> FuncM)
+                       , fnInverseM :: Maybe (Int -> FuncM)
+                       , fnCanSelectM :: Bool
+                       }
+
+instance FnInfoT FnInfoM where
+    fnInfoName = fnNameM
+    fnInfoNamePad = fnNamePadM
+
+data FnInfoD = FnInfoD {
+                         fnNameD :: String
+                       , fnNamePadD :: Int
+                       , fnIdD :: Maybe Scalar
+                       , fnOnAxisD :: Maybe (Int -> FuncD)
+                       , fnInverseD :: Maybe (Int -> FuncD)
+                       , fnCanSelectD :: Bool
+                       }
+
+instance FnInfoT FnInfoD where
+    fnInfoName = fnNameD
+    fnInfoNamePad = fnNamePadD
+
+data FnInfoA = FnInfoA {
+                         fnNameA :: String
+                       , fnNamePadA :: Int
+                       , fnIdAM :: Maybe Scalar
+                       , fnIdAD :: Maybe Scalar
+                       , fnOnAxisAM :: Maybe (Int -> FuncM)
+                       , fnOnAxisAD :: Maybe (Int -> FuncD)
+                       , fnInverseAM :: Maybe (Int -> FuncD)
+                       , fnInverseAD :: Maybe (Int -> FuncD)
+                       , fnCanSelectAM :: Bool
+                       , fnCanSelectAD :: Bool
+                       }
+
+instance FnInfoT FnInfoA where
+    fnInfoName = fnNameA
+    fnInfoNamePad = fnNamePadA
+
+defFnInfoM = FnInfoM { -- default function info (monadic)
+                       fnNameM = "(default function name)"
+                     , fnNamePadM = 0
+                     , fnIdM = Nothing
+                     , fnOnAxisM = Nothing
+                     , fnInverseM = Nothing
+                     , fnCanSelectM = False
+                     }
+
+defFnInfoD = FnInfoD { -- default function info (dyadic)
+                       fnNameD = "(default function name)"
+                     , fnNamePadD = 0
+                     , fnIdD = Nothing
+                     , fnOnAxisD = Nothing
+                     , fnInverseD = Nothing
+                     , fnCanSelectD = False
+                     }
+
+defFnInfoA = FnInfoA { -- default function info (ambivalent)
+                       fnNameA = "(default function name)"
+                     , fnNamePadA = 0
+                     , fnIdAM = Nothing
+                     , fnIdAD = Nothing
+                     , fnOnAxisAM = Nothing
+                     , fnOnAxisAD = Nothing
+                     , fnInverseAM = Nothing
+                     , fnInverseAD = Nothing
+                     , fnCanSelectAM = False
+                     , fnCanSelectAD = False
+                     }
+
+data Function = MonFn FnInfoM FuncM
+              | DyadFn FnInfoD FuncD
+              | MonDyadFn FnInfoA FuncM FuncD
 
 type OpM = (Either Array Function) -> StateT IdMap IO Function
 type OpD = (Either Array Function) -> OpM

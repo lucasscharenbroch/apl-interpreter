@@ -375,7 +375,7 @@ parseDerFn = matchOne [_parseOpExpr, parseFn]
 parseOp :: MatchFn OpTreeNode
 parseOp = matchOne [
         matchOne $ map (\(c, o) -> (\_ -> OpLeaf o) <$> matchCh c) operatorGlyphs,
-        OpLeaf . oAxisSpec <$> (matchCh '[' *> parseDerArr <* matchCh ']'),
+        -- OpLeaf . oAxisSpec <$> (matchCh '[' *> parseDerArr <* matchCh ']'), -- TODO
         -- dfn_decl
         dfnDeclToOp =<< parseDfnDecl,
         -- ∇∇

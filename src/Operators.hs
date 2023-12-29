@@ -1,17 +1,8 @@
 module Operators where
 import Eval
 import GrammarTree
-
-{- Reordered-Argument Function-Tree-Node Constructors -}
-
-_MonFn :: FuncM -> String -> Function
-_MonFn f n = MonFn n f
-
-_DyadFn :: FuncD -> String -> Function
-_DyadFn f n = DyadFn n f
-
-_MonDyadFn :: FuncM -> FuncD -> String -> Function
-_MonDyadFn m d n = MonDyadFn n m d
+import PrettyPrint
+import qualified Functions as F
 
 {- Helpers -}
 
@@ -27,17 +18,25 @@ getMonFn f = case f of
     (MonDyadFn _ x _) -> x
     _ -> undefined -- TODO throw exception (expected monadic function)
 
+deriveAmbivInfo :: (Either Array Function) -> (Either Array Function) -> String -> FnInfoA
+deriveAmbivInfo arg1 arg2 name = namePadToFnInfoA $ showDyadTreeHelper (_show arg1) (_show arg2) name
+    where _show arg = case arg of
+              Left a -> (show a, 0)
+              Right f -> fnToNameAndPad f
+
+
 {- Special Operators -}
 
 {- General Operators -}
 
 {- Operators that sometimes take Arrays -}
 
-selfie :: Either Array Function -> (String -> Function)
+selfie :: Either Array Function -> Function
 selfie arg = case arg of
-    (Left a) -> _MonDyadFn (\_ -> return a) (\_ _ -> return a)
-    (Right f) -> _MonDyadFn (\a -> dyFn a a) (\l r -> dyFn r l)
+    (Left a) -> MonDyadFn infoA (\_ -> return a) (\_ _ -> return a)
+    (Right f) -> MonDyadFn infoA (\a -> dyFn a a) (\l r -> dyFn r l)
         where dyFn = getDyadFn f
+    where infoA = deriveAmbivInfo arg arg "⍨"
 
 {-
 reduce :: FnTreeNode -> Function
