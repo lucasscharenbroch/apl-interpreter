@@ -32,14 +32,6 @@ mkFnInfoD s = defFnInfoD {fnNameD = s}
 mkFnInfoA :: String -> FnInfoA
 mkFnInfoA s = defFnInfoA {fnNameA = s}
 
-{- Show Helpers -}
-
-_hackShowTreeM :: (Show a) => a -> String -> String
-_hackShowTreeM x hs = hackShowTreeM (show x) hs
-
-_hackShowTreeD :: (Show a, Show b) => a -> b -> String -> String
-_hackShowTreeD x y hs = hackShowTreeD (show x) (show y) hs
-
 {- Monad Wrappers -}
 
 mkMonFn :: SubEvalM m => FnInfoM -> (Array -> m Array) -> Function

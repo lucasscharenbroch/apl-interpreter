@@ -13,30 +13,28 @@ import Control.Applicative (liftA2)
 
 {- Helpers -}
 
-countPad :: String -> (String, Int)
-countPad s = (s, _countPad s)
-    where _countPad (' ':cs) = 1 + _countPad cs -- counts leading spaces/ left branches
-          _countPad ('┌':cs) = 1 + _countPad cs
-          _countPad ('─':cs) = 1 + _countPad cs
-          _countPad _ = 0
+infoToNamePad :: FnInfoT t => t -> (String, Int)
+infoToNamePad = liftA2 (,) fnInfoName fnInfoNamePad
 
-showAndCountPad :: Show a => a -> (String, Int)
-showAndCountPad x = countPad . show $ x
-    where s = show x
+class ShowAndPad a where
+    showAndPad :: a -> (String, Int)
 
-hackShowTreeM :: String -> String -> String
-hackShowTreeM x headStr = fst $ showMonTreeHelper (countPad x) headStr
+instance ShowAndPad Function where
+    showAndPad (MonFn i _) = infoToNamePad i
+    showAndPad (DyadFn i _) = infoToNamePad i
+    showAndPad (MonDyadFn i _ _) = infoToNamePad i
 
-hackShowTreeD :: String -> String -> String -> String
-hackShowTreeD x y headStr = fst $ showDyadTreeHelper (countPad x) (countPad y) headStr
+instance ShowAndPad Array where
+    showAndPad a = (show a, 0)
 
-fnToNameAndPad :: Function -> (String, Int)
-fnToNameAndPad f = case f of
-    MonFn i _ ->  infoToNamePad i
-    DyadFn i _ -> infoToNamePad i
-    MonDyadFn i _ _ -> infoToNamePad i
-    where infoToNamePad :: FnInfoT t => t -> (String, Int)
-          infoToNamePad = liftA2 (,) fnInfoName fnInfoNamePad
+instance (ShowAndPad a, ShowAndPad b) => ShowAndPad (Either a b) where
+    showAndPad = fromHomoEither . bimap showAndPad showAndPad
+
+namePadToFnInfoM :: (String, Int) -> FnInfoM
+namePadToFnInfoM (name, pad) = defFnInfoM {fnNameM = name, fnNamePadM = pad}
+
+namePadToFnInfoD :: (String, Int) -> FnInfoD
+namePadToFnInfoD (name, pad) = defFnInfoD {fnNameD = name, fnNamePadD = pad}
 
 namePadToFnInfoA :: (String, Int) -> FnInfoA
 namePadToFnInfoA (name, pad) = defFnInfoA {fnNameA = name, fnNamePadA = pad}
@@ -85,7 +83,7 @@ atop :: FnTreeNode -> FnTreeNode -> StateT IdMap IO Function
 atop f g = do
     f' <- expectFunc <$> evalFnTree f
     g' <- expectFunc <$> evalFnTree g
-    let (infoM, infoD, infoA) = namePadToFnInfoMDA $ showAtopHelper (fnToNameAndPad f') (fnToNameAndPad g')
+    let (infoM, infoD, infoA) = namePadToFnInfoMDA $ showAtopHelper (showAndPad f') (showAndPad g')
     return $ case (f', g') of
         (MonFn _ fF, MonFn _ gF) -> MonFn infoM (atopMM fF gF)
         (MonFn _ fF, DyadFn _ gF) -> DyadFn infoD (atopMD fF gF)
@@ -102,7 +100,7 @@ fork f g h = do
     _f' <- evalFnTree f
     case _f' of
         Left fA -> do
-            let (infoM, infoD, infoA) = namePadToFnInfoMDA $ showForkHelper (show fA, 0) (fnToNameAndPad g') (fnToNameAndPad h')
+            let (infoM, infoD, infoA) = namePadToFnInfoMDA $ showForkHelper (show fA, 0) (showAndPad g') (showAndPad h')
             return $ case (g', h') of
                 (DyadFn _ gF, DyadFn _ hF) -> DyadFn infoD (forkADD fA gF hF)
                 (DyadFn _ gF, MonFn _ hF) -> MonFn infoM (forkADM fA gF hF)
@@ -110,7 +108,7 @@ fork f g h = do
                 (MonDyadFn _ _ gF, MonFn _ hF) -> MonFn infoM (forkADM fA gF hF)
                 (MonDyadFn _ _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn infoA (forkADM fA gF hMF) (forkADD fA gF hDF)
         Right f' -> do
-            let (infoM, infoD, infoA) = namePadToFnInfoMDA $ showForkHelper (fnToNameAndPad f') (fnToNameAndPad g') (fnToNameAndPad h')
+            let (infoM, infoD, infoA) = namePadToFnInfoMDA $ showForkHelper (showAndPad f') (showAndPad g') (showAndPad h')
             return $ case (f', g', h') of
                 (DyadFn _ fF, DyadFn _ gF, DyadFn _ hF) -> DyadFn infoD (forkDDD fF gF hF)
                 (DyadFn _ fF, MonDyadFn _ _ gF, DyadFn _ hF) -> DyadFn infoD (forkDDD fF gF hF)
@@ -235,7 +233,7 @@ mkDfn toks aa ww dd = MonDyadFn (namePadToFnInfoA namePad) (evalDfnM toks aa ww 
           rootStr = showTokListAsDfn toks
           _showIde ide = case ide of
               (IdArr a) -> (show a, 0)
-              (IdFn f) -> fnToNameAndPad f
+              (IdFn f) -> showAndPad f
               _ -> undefined
 
 evalDfnM :: [Token] -> (Maybe IdEntry) -> (Maybe IdEntry) -> (Maybe IdEntry) -> FuncM
