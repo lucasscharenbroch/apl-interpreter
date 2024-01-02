@@ -6,6 +6,8 @@ data ExecErr = RankError String
              | IndexError String
              | DomainError String
              | LengthError String
+             | SyntaxError String
+             | NameError String
              | WipError String -- TODO remove
 
 instance Show ExecErr where
@@ -13,6 +15,8 @@ instance Show ExecErr where
     show (IndexError s) = "Index Error: " ++ s
     show (DomainError s) = "Domain Error: " ++ s
     show (LengthError s) = "Length Error: " ++ s
+    show (SyntaxError s) = "Syntax Error: " ++ s
+    show (NameError s) = "Name Error: " ++ s
     show (WipError s) = "Not Yet Implemented: " ++ s -- TODO remove
 
 instance Exception ExecErr

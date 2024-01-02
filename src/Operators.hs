@@ -3,6 +3,8 @@ import Eval
 import GrammarTree
 import PrettyPrint
 import qualified Functions as F
+import Control.Exception (throw)
+import Exceptions
 
 {- Helpers -}
 
@@ -28,13 +30,13 @@ getDyadFn :: Function -> FuncD
 getDyadFn f = case f of
    (DyadFn _ x) -> x
    (MonDyadFn _ _ x) -> x
-   _ -> undefined -- TODO throw exception (expected dyadic function)
+   _ -> throw $ DomainError "expected dyadic function"
 
 getMonFn :: Function -> FuncM
 getMonFn f = case f of
     (MonFn _ x) -> x
     (MonDyadFn _ x _) -> x
-    _ -> undefined -- TODO throw exception (expected monadic function)
+    _ -> throw $ DomainError "expected monadic function"
 
 {- Special Operators -}
 

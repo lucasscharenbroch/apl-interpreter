@@ -62,7 +62,7 @@ defaultIdMap = mapInsert "⎕IO" (IdArr . arrFromList $ [ScalarNum 1]) emptyIdMa
 lift2 = lift . lift
 
 evalArrTree' :: IdMap -> ArrTreeNode -> IO (IdMap, Array)
-evalArrTree' idm atn = (\(r, i) -> (i, r)) <$> runStateT (evalArrTree atn) idm
+evalArrTree' idm atn = force . (\(r, i) -> (i, r)) <$> runStateT (evalArrTree atn) idm
 
 evalFnTree' :: IdMap -> FnTreeNode -> IO (IdMap, Function)
 evalFnTree' idm ftn = (\(r, i) -> (i, expectFunc r)) <$> runStateT (evalFnTree ftn) idm
@@ -87,21 +87,21 @@ handleRes idMap x = do
         (ResAtn a shouldShow) -> (lift2 . catchExecErr $ evalArrTree' idMap a) >>= \x -> case x of
             Just (i, a') -> showIf a' shouldShow >> return i
             Nothing -> return idMap
-        (ResFtn f shouldShow) -> (lift2 $ catchExecErr $ evalFnTree' idMap f) >>= \x -> case x of
-            Just (i, f') -> showIf f' shouldShow  >> return i
+        (ResFtn f shouldShow) -> (lift2 . catchExecErr $ evalFnTree' idMap f) >>= \x -> case x of
+            Just (i, f') -> showIf f' shouldShow >> return i
             Nothing -> return idMap
-        (ResOp o shouldShow) -> (lift2 $ catchExecErr $ evalOpTree' idMap o) >>= \x -> case x of
+        (ResOp o shouldShow) -> (lift2 . catchExecErr $ evalOpTree' idMap o) >>= \x -> case x of
             Just (i, o') -> showIf o' shouldShow >> return i
         (ResNull) -> return idMap
     where showIf :: Show a => a -> Bool -> ReaderT GlobalState (InputT IO) ()
           showIf a p = if p
-                       then lift . outputStrLn $ show p
+                       then lift . outputStrLn $ show a
                        else return ()
 
 execStatement :: IdMap -> [Token] -> ReaderT GlobalState (InputT IO) IdMap
 execStatement idm [] = return idm
 execStatement idm ts = case evalMatchFn idm ts parseExpr of
-    Nothing -> do lift $ outputStrLn "parse error" -- TODO syntax error
+    Nothing -> do lift $ outputStrLn "Parse Error"
                   return idm
     Just (res, ts') -> do idm' <- handleRes idm res
                           execStatement idm' ts'

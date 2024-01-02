@@ -48,7 +48,7 @@ namePadToFnInfoMDA (name, pad) = (defFnInfoM {fnNameM = name, fnNamePadM = pad},
 
 expectFunc :: (Either Array Function) -> Function
 expectFunc eaf = case eaf of
-    (Left  _) -> undefined -- TODO exception: expected function
+    (Left  _) -> undefined
     (Right f) -> f
 
 expectArr :: (Either Array Function) -> Array
@@ -93,7 +93,7 @@ atop f g = do
         (MonDyadFn _ fF _, MonFn _ gF) -> MonFn infoM (atopMM fF gF)
         (MonDyadFn _ fF _, DyadFn _ gF) -> DyadFn infoD (atopMD fF gF)
         (MonDyadFn _ fF _, MonDyadFn _ gMF gDF) -> MonDyadFn infoA (atopMM fF gMF) (atopMD fF gDF)
-        _ -> undefined -- TODO exception (internal)
+        _ -> undefined
 
 fork :: FnTreeNode -> FnTreeNode -> FnTreeNode -> StateT IdMap IO Function
 fork f g h = do
@@ -137,7 +137,7 @@ evalArrTree (ArrInternalMonFn ft at) = do
     case f of
         MonFn _ f' -> f' a
         MonDyadFn _ f' _ -> f' a
-        _ -> undefined -- TODO exception - function isn't monadic
+        _ -> undefined -- function should be monadic
 evalArrTree (ArrNiladicFn _ f) = f
 evalArrTree (ArrInternalDyadFn ft at1 at2) = do
     a2 <- evalArrTree at2
@@ -146,7 +146,7 @@ evalArrTree (ArrInternalDyadFn ft at1 at2) = do
     case f of
         DyadFn _ f' -> f' a1 a2
         MonDyadFn _ _ f' -> f' a1 a2
-        _ -> undefined -- TODO exception - function isn't dyadic
+        _ -> undefined -- function should be dyadic
 evalArrTree (ArrInternalAssignment id at) = do
     a <- evalArrTree at
     idm <- get
@@ -157,7 +157,7 @@ evalArrTree (ArrInternalModAssignment id f rhs) = do
     idm <- get
     let lhs = ArrLeaf $ case mapLookup id idm of
           Just (IdArr a) -> a
-          _ -> undefined -- TODO error: undefined name
+          _ -> throw . NameError $ "undefined name: `" ++ id ++ "`"
     res <- evalArrTree $ ArrInternalDyadFn f lhs (ArrLeaf rhs')
     idm' <- get
     put $ mapInsert id (IdArr res) idm'
@@ -284,11 +284,11 @@ evalDopD toks arg1 arg2 = do
     return $ mkDfn toks aa ww dd
 
 execDfnStatement :: [Token] -> StateT IdMap IO Array
-execDfnStatement [] = undefined -- TODO expected return val (or make mechanism for no value)
+execDfnStatement [] = throw $ SyntaxError "expected return value from dfn/dop"
 execDfnStatement toks = do
     idm <- get
     case evalMatchFn idm toks parseDfnExpr of
-        Nothing -> undefined -- TODO syntax error
+        Nothing -> throw $ SyntaxError "parse error in dfn/dop"
         (Just (res, toks')) -> case res of
             (DResAtn atn True) -> evalArrTree atn
             (DResAtn atn False) -> evalArrTree atn *> execDfnStatement toks'
@@ -302,4 +302,4 @@ execDfnStatement toks = do
                 a
                     | a == arrFromList [ScalarNum 1.0] -> evalArrTree res
                     | a == arrFromList [ScalarNum 0.0] -> execDfnStatement toks'
-                _ -> undefined -- TODO lhs of guard must be boolean singleton
+                _ -> throw $ DomainError "expected boolean singleton as lhs of gaurd"

@@ -1,6 +1,8 @@
 module QuadNames where
 import GrammarTree
 import Control.Monad.State.Lazy
+import Exceptions
+import Control.Exception (throw)
 
 {- Data Structures -}
 
@@ -13,20 +15,20 @@ data QuadName = QuadName {
 
 getQIo :: StateT IdMap IO Array
 getQIo = get >>= \idm -> case mapLookup "⎕IO" idm of
-    Nothing -> undefined
+    Nothing -> undefined -- no value for ⎕IO (shouldn't happen)
     (Just (IdArr a)) -> return a
 
 setQIo :: Array -> StateT IdMap IO Array
 setQIo a
-    | shape a  /= [1] = undefined -- TODO domain error
+    | shape a  /= [1] = throw $ DomainError "(⎕IO←): expected numeric singleton"
     | otherwise = case a `at` 0 of
           ScalarNum n
-              | n /= (fromIntegral . floor $ n) -> undefined -- TODO domain error
+              | n /= (fromIntegral . floor $ n) -> throw $ DomainError "(⎕IO←): expected integral"
               | otherwise -> do
                     idm <- get
                     put $ mapInsert "⎕IO" (IdArr a) idm
                     return a
-          _ -> undefined -- TODO domain error
+          _ -> throw $ DomainError "(⎕IO←): expected number"
 
 {- QuadName's -}
 
@@ -40,5 +42,5 @@ quadNameList = [
 
 getQuadName :: String -> QuadName
 getQuadName id = case lookup id quadNameList of
-    Nothing -> undefined -- TODO undefined quad name
+    Nothing -> throw . SyntaxError $ "no such quad-name: `" ++ id ++ "`"
     (Just qn) -> qn

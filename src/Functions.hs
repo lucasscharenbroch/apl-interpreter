@@ -12,6 +12,8 @@ import Data.Functor.Identity
 import Control.Monad.State.Lazy
 import Control.Monad.Reader
 import qualified Control.Monad.Trans.State.Strict as StateTStrict
+import Exceptions
+import Control.Exception (throw)
 
 {- SubEvalM (subset of EvalM): typeclass for wrapper monads -}
 -- (EvalM here refers to StateT IdMap IO)
@@ -31,8 +33,8 @@ instance SubEvalM IdxOriginM where
         let iO = case mapLookup "⎕IO" idm of
                   Just (IdArr a)
                       | ScalarNum n <- a `at` 0 -> Prelude.floor $ n
-                  Just _ -> undefined -- TODO error (internal): unexpected val for ⎕IO
-                  _ -> undefined -- TODO error: no val for ⎕IO
+                  Just _ -> undefined -- unexpected val for ⎕IO
+                  _ -> undefined -- no val for ⎕IO
         return . (flip runReader) iO . unIdxOriginM $ iom
 
 newtype RandAndIoM a = RandAndIoM { unRandomAndIoM :: StateTStrict.StateT StdGen (Reader Int) a }
@@ -56,18 +58,18 @@ rankMorph (x, y)
     | shape x == shape y = (x, y)
     | shape x == [1] = (shapedArrFromList (shape y) xs, y)
     | shape y == [1] = (x, shapedArrFromList (shape x) ys)
-    | otherwise = undefined -- TODO throw rank/length error
+    | otherwise = throw $ RankError "mismatched ranks (rank morph)"
         where xs = replicate (foldr (*) 1 (shape y)) (at x 0)
               ys = replicate (foldr (*) 1 (shape x)) (at y 0)
 
 toIntVec :: Array -> [Int]
 toIntVec = map (toInt) . arrToList
     where toInt (ScalarNum n) | (fromIntegral . Prelude.floor $ n) - n == 0 = Prelude.floor n
-          toInt _ = undefined -- TODO exception (domain error)
+          toInt _ = throw $ DomainError "expected int singleton"
 
 alongAxis :: Array -> Int -> [Array]
 alongAxis a ax
-    | ax - _iO >= (length . shape $ a) = undefined -- TODO throw rank error: invalid axis
+    | ax - _iO >= (length . shape $ a) = throw $ RankError "invalid axis"
     | (length . shape $ a) == 0 = []
     | foldr (*) 1 (shape a) == 0 = []
     | otherwise = map (subarrayAt) [0..(n - 1)]
@@ -103,14 +105,14 @@ arithFnD f x' y' = arrZipWith (f') x y
           f' n@(ScalarNum _) (ScalarArr arr) = ScalarArr $ rec (arrFromList [n]) arr
           f' (ScalarArr a) (ScalarArr b) = ScalarArr $ rec a b
           f' (ScalarArr arr) n@(ScalarNum _) = ScalarArr $ rec arr (arrFromList [n])
-          f' _ _ = undefined -- TODO domain error
+          f' _ _ = throw $ DomainError "expected number"
           rec = arithFnD f
 
 arithFnM :: (Double -> Double) -> Array -> Array
 arithFnM f = arrMap (f')
     where f' (ScalarNum n) = ScalarNum $ f n
           f' (ScalarArr a) = ScalarArr . arithFnM f $ a
-          f' _ = undefined -- TODO domain error
+          f' _ = throw $ DomainError "expected number"
 
 intToScalarArr :: Int -> Array
 intToScalarArr = arrFromList . (:[]) . ScalarNum . fromIntegral
@@ -121,7 +123,7 @@ doubleToScalarArr = arrFromList . (:[]) . ScalarNum
 doubleToBool :: Double -> Bool
 doubleToBool 1.0 = True
 doubleToBool 0.0 = False
-doubleToBool _ = undefined -- TODO domain error: expected boolean singleton
+doubleToBool _ = throw $ DomainError "expected boolean singleton"
 
 boolToDouble :: Bool -> Double
 boolToDouble True = 1.0
@@ -129,7 +131,7 @@ boolToDouble False = 0.0
 
 scalarToBool :: Scalar -> Bool
 scalarToBool (ScalarNum n) = doubleToBool n
-scalarToBool _ = undefined -- TODO domain error: expected number
+scalarToBool _ = throw $ DomainError "expected boolean singleton"
 
 boolToScalar :: Bool -> Scalar
 boolToScalar = ScalarNum . boolToDouble
@@ -139,14 +141,14 @@ isIntegral n = n == (fromIntegral . Prelude.floor $ n)
 
 arrToDouble :: Array -> Double
 arrToDouble a
-    | shape a /= [1] = undefined -- TODO domain error: expected scalar
+    | shape a /= [1] = throw $ DomainError "expected numeric singleton"
     | otherwise = case a `at` 0 of
                       ScalarNum n -> n
-                      _ -> undefined -- TODO domain error: expected number
+                      _ -> throw $ DomainError "expected numeric scalar"
 
 arrToInt :: Array -> Int
 arrToInt a
-    | not . isIntegral $ n = undefined -- TODO domain error: expected int
+    | not . isIntegral $ n = throw $ DomainError "expected intergral singleton"
     | otherwise = Prelude.floor $ n
     where n = arrToDouble a
 
@@ -166,17 +168,17 @@ roll a = shapedArrFromList (shape a) <$> mapM (_mapF) (arrToList a)
           _mapF s = case s of
               ScalarArr a -> ScalarArr <$> roll a
               ScalarNum n -> ScalarNum <$> _roll n
-              _ -> undefined -- TODO domain error: expected number
+              _ -> throw $ DomainError "expected number"
           _roll :: Double -> RandAndIoM Double
           _roll n
-              | not . isIntegral $ n = undefined -- TODO domain error
-              | n < 0 = undefined -- TODO domain error
+              | not . isIntegral $ n = throw $ DomainError "expected integral number"
+              | n < 0 = throw $ DomainError "(?): arguments to must be nonnegative"
               | n == 0 = uniformRM (0.0, 1.0) StateGenM
               | otherwise = ask >>= \iO -> fromIntegral <$> uniformRM (iO, Prelude.floor n) StateGenM
 
 deal :: Array -> Array -> RandAndIoM Array
 deal x y
-    | x' > y' = undefined -- TODO domain error: right arg must be >= the left
+    | x' > y' = throw $ DomainError "(?): right argument to must be greater than or equal to the right"
     | otherwise = arrFromList . map (ScalarNum . fromIntegral) <$> _deal [(1, y')] y' x'
     where x' = arrToInt x
           y' = arrToInt y
@@ -201,7 +203,9 @@ deal x y
 {- ⎕IO Functions -}
 
 iota :: Array -> IdxOriginM Array
-iota x = ask >>= \iO -> return $ shapedArrFromList x' [toScalar . map (ScalarNum . fromIntegral . (+iO)) . calcIndex $ i | i <- [0..(sz - 1)]]
+iota x = if any (<0) x'
+         then throw $ DomainError "(⍳): expected nonnegative arguments"
+         else ask >>= \iO -> return $ shapedArrFromList x' [toScalar . map (ScalarNum . fromIntegral . (+iO)) . calcIndex $ i | i <- [0..(sz - 1)]]
     where x' = toIntVec x
           sz = foldr (*) 1 x'
           indexMod = reverse . init $ scanl (*) 1 (reverse x')
@@ -211,9 +215,9 @@ iota x = ask >>= \iO -> return $ shapedArrFromList x' [toScalar . map (ScalarNum
 
 indexOf :: Array -> Array -> IdxOriginM Array
 indexOf x y
-    | xRank > yRank = undefined -- TODO throw rank error
-    | xRank == 1 && (head . shape $ x) <= 1 = undefined -- TODO throw rank error
-    | (tail . shape $ x) /= (drop (1 + yRank - xRank) . shape $ y) = undefined -- TODO throw length error
+    | xRank > yRank = throw $ RankError "(⍳): mismatched ranks"
+    | xRank == 1 && (head . shape $ x) <= 1 = throw $ RankError "(⍳): left argument to cannot be a scalar"
+    | (tail . shape $ x) /= (drop (1 + yRank - xRank) . shape $ y) = throw $ LengthError "(⍳): mismatched argument lengths"
     | otherwise = do
           iO <- ask
           let findIndexInXs e = case elemIndex (toArray e) xs of
@@ -238,10 +242,10 @@ add = arithFnD (+)
 binomial :: Array -> Array -> Array
 binomial = arithFnD _binomial
     where _binomial x y
-              | x /= (fromIntegral . Prelude.floor $ x) = undefined -- TODO domain error
-              | y /= (fromIntegral . Prelude.floor $ y) = undefined -- TODO domain error
-              | x < 0 = undefined -- TODO domain error
-              | y < 0 = undefined -- TODO domain error
+              | x /= (fromIntegral . Prelude.floor $ x) = throw $ DomainError "(!): arguments should be integral"
+              | y /= (fromIntegral . Prelude.floor $ y) = throw $ DomainError "(!): arguments should be integral"
+              | x < 0 = throw $ DomainError "(!): arguments should be positive"
+              | y < 0 = throw $ DomainError "(!): arguments should be positive"
               | otherwise = (flip _binomialRec) (Prelude.floor x) (Prelude.floor y)
           _binomialRec x y
               | y > x = 0
@@ -259,11 +263,11 @@ circularFormulae = arithFnD _cf
               | x == 2 = cos y
               | x == 3 = tan y
               | x == -1 && y >= -1 && y <= 1 = asin y
-              | x == -1 = undefined -- TODO domain error: asin out of range
+              | x == -1 = throw $ DomainError "(¯1○): asin out of range"
               | x == -2 && y >= -1 && y <= 1 = acos y
-              | x == -2 = undefined -- TODO domain error: asin out of range
+              | x == -2 = throw $ DomainError "(¯2○): acos out of range"
               | x == -3 = atan y
-              | otherwise = undefined -- domain error
+              | otherwise = throw $ DomainError "(○): lhs not in {¯3, ¯2, ¯1, 1, 2, 3}"
 
 conjugate :: Array -> Array
 conjugate = id
@@ -289,7 +293,7 @@ direction = arithFnM _direction
 
 divide :: Array -> Array -> Array
 divide = arithFnD _divide
-    where _divide _ 0 = undefined -- TODO domain error
+    where _divide _ 0 = throw $ DomainError "division by zero"
           _divide n m = n / m
 
 equ :: Array -> Array -> Array
@@ -302,8 +306,8 @@ factorial :: Array -> Array
 factorial = arithFnM (_factorial)
     where _factorial :: Double -> Double
           _factorial n
-              | n /= (fromIntegral . Prelude.floor $ n) = undefined -- TODO domain error
-              | n < 0 = undefined -- TODO domain error
+              | n /= (fromIntegral . Prelude.floor $ n) = throw $ DomainError "(!): arguments should be integral"
+              | n < 0 = throw $ DomainError "(!): arguments should be nonnegative"
               | otherwise = fromIntegral . foldr (*) 1 $ [1..(Prelude.floor n)]
 
 floor :: Array -> Array
@@ -312,8 +316,8 @@ floor = arithFnM (fromIntegral . Prelude.floor)
 gcd :: Array -> Array -> Array
 gcd = arithFnD (_gcd)
     where _gcd x y
-              | x /= (fromIntegral . Prelude.floor $ x) = undefined
-              | y /= (fromIntegral . Prelude.floor $ y) = undefined
+              | x /= (fromIntegral . Prelude.floor $ x) = throw $ DomainError "(∨): arguments should be integral"
+              | y /= (fromIntegral . Prelude.floor $ y) = throw $ DomainError "(∨): arguments should be integral"
               | otherwise = fromIntegral $ Prelude.gcd (Prelude.floor x) (Prelude.floor y)
 
 geq :: Array -> Array -> Array
@@ -328,8 +332,8 @@ identity = id
 lcm :: Array -> Array -> Array
 lcm = arithFnD (_lcm)
     where _lcm x y
-              | x /= (fromIntegral . Prelude.floor $ x) = undefined
-              | y /= (fromIntegral . Prelude.floor $ y) = undefined
+              | x /= (fromIntegral . Prelude.floor $ x) = throw $ DomainError "(∧): arguments should be integral"
+              | y /= (fromIntegral . Prelude.floor $ y) = throw $ DomainError "(∧): arguments should be integral"
               | x < 0 && y >= 0 = -1 * _lcm (-1 * x) y
               | y < 0 && x >= 0 = -1 * _lcm x (-1 * y)
               | otherwise = fromIntegral $ Prelude.lcm (Prelude.floor x) (Prelude.floor y)
@@ -342,7 +346,7 @@ leq = arithFnD (\n m -> fromIntegral . fromEnum $ n <= m)
 
 logBase :: Array -> Array -> Array
 logBase = arithFnD (_logBase)
-    where _logBase b n | b <= 0 || b == 1 || n <= 0 = undefined -- TODO domain error
+    where _logBase b n | b <= 0 || b == 1 || n <= 0 = throw $ DomainError "(⍟)"
           _logBase b n = Prelude.logBase b n
 
 lss :: Array -> Array -> Array
@@ -365,7 +369,7 @@ nand = arithFnD (\x y -> boolToDouble $ not (doubleToBool x && doubleToBool y))
 
 naturalLog :: Array -> Array
 naturalLog = arithFnM (_log)
-    where _log n | n <= 0 = undefined -- TODO domain error
+    where _log n | n <= 0 = throw $ DomainError "(⍟)"
           _log n = log n
 
 negate :: Array -> Array
@@ -385,7 +389,7 @@ power = arithFnD (**)
 
 reciprocal :: Array -> Array
 reciprocal = arithFnM (_reciprocal)
-    where _reciprocal 0 = undefined -- TODO domain error: divide by zero
+    where _reciprocal 0 = throw $ DomainError "division by zero"
           _reciprocal n = 1 / n
 
 reshape :: Array -> Array -> Array

@@ -1,7 +1,7 @@
 module GrammarTree where
 import qualified Data.Array as A
 import Lex
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
