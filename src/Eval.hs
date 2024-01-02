@@ -10,6 +10,8 @@ import Data.Maybe (isJust, fromJust)
 import {-# SOURCE #-} Parse
 import QuadNames
 import Control.Applicative (liftA2)
+import Exceptions
+import Control.Exception
 
 {- Helpers -}
 
@@ -167,7 +169,7 @@ evalArrTree (ArrInternalQuadAssignment atn) = do
 evalArrTree (ArrInternalQuadIdAssignment id atn) = do
     a <- evalArrTree atn
     (qset $ getQuadName id) a
-evalArrTree (ArrInternalSubscript a is) = undefined -- TODO implement
+evalArrTree (ArrInternalSubscript a is) = throw $ WipError "array subscripting"
 evalArrTree (ArrInternalImplCat at1 at2) = do
     a2 <- evalArrTree at2
     a1 <- evalArrTree at1

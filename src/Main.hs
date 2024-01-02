@@ -11,6 +11,8 @@ import System.Console.GetOpt
 import System.Environment (getArgs)
 import Data.List (intersperse)
 import System.Exit
+import Exceptions
+import Control.Exception
 
 {- Global State -}
 
@@ -68,34 +70,33 @@ evalFnTree' idm ftn = (\(r, i) -> (i, expectFunc r)) <$> runStateT (evalFnTree f
 evalOpTree' :: IdMap -> OpTreeNode -> IO (IdMap, Operator)
 evalOpTree' idm otn = (\(r, i) -> (i, r)) <$> runStateT (evalOpTree otn) idm
 
+showResIfVerbose :: ExprResult -> ReaderT GlobalState (InputT IO) ()
+showResIfVerbose x = do
+    ask >>= \state -> case verbosity state of
+        False -> return ()
+        True -> case x of
+            ResNull -> return ()
+            (ResAtn a _) -> lift $ outputStrLn . show $ a
+            (ResFtn f _) -> lift $ outputStrLn . show $ f
+            (ResOp o _) -> lift $ outputStrLn . show $ o
+
 handleRes :: IdMap -> ExprResult -> ReaderT GlobalState (InputT IO) IdMap
-handleRes idMap x = case x of
-    (ResAtn a True) -> do (i, a') <- lift2 $ evalArrTree' idMap a
-                          showIfVerbose a
-                          lift $ outputStrLn . show $ a'
-                          return i
-    (ResAtn a False) -> do (i, _) <- lift2 $ evalArrTree' idMap a
-                           showIfVerbose a
-                           return i
-    (ResFtn f True) -> do (i, f') <- lift2 $ evalFnTree' idMap f
-                          showIfVerbose f
-                          lift $ outputStrLn . show $ f'
-                          return i
-    (ResFtn f False) -> do (i, _) <- lift2 $ evalFnTree' idMap f
-                           showIfVerbose f
-                           return i
-    (ResOp o True) -> do (i, o') <- lift2 $ evalOpTree' idMap o
-                         showIfVerbose o
-                         lift $ outputStrLn . show $ o'
-                         return i
-    (ResOp o False) -> do (i, o') <- lift2 $ evalOpTree' idMap o
-                          showIfVerbose o
-                          return i
-    (ResNull) -> return idMap
-    where showIfVerbose :: (Show a) => a -> ReaderT GlobalState (InputT IO) ()
-          showIfVerbose x = ask >>= \state -> case verbosity state of
-              True -> lift $ outputStrLn . show $ x
-              False -> return ()
+handleRes idMap x = do
+    showResIfVerbose x
+    case x of
+        (ResAtn a shouldShow) -> (lift2 . catchExecErr $ evalArrTree' idMap a) >>= \x -> case x of
+            Just (i, a') -> showIf a' shouldShow >> return i
+            Nothing -> return idMap
+        (ResFtn f shouldShow) -> (lift2 $ catchExecErr $ evalFnTree' idMap f) >>= \x -> case x of
+            Just (i, f') -> showIf f' shouldShow  >> return i
+            Nothing -> return idMap
+        (ResOp o shouldShow) -> (lift2 $ catchExecErr $ evalOpTree' idMap o) >>= \x -> case x of
+            Just (i, o') -> showIf o' shouldShow >> return i
+        (ResNull) -> return idMap
+    where showIf :: Show a => a -> Bool -> ReaderT GlobalState (InputT IO) ()
+          showIf a p = if p
+                       then lift . outputStrLn $ show p
+                       else return ()
 
 execStatement :: IdMap -> [Token] -> ReaderT GlobalState (InputT IO) IdMap
 execStatement idm [] = return idm
