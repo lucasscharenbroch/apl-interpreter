@@ -62,7 +62,7 @@ defaultIdMap = mapInsert "⎕IO" (IdArr . arrFromList $ [ScalarNum 1]) emptyIdMa
 lift2 = lift . lift
 
 evalArrTree' :: IdMap -> ArrTreeNode -> IO (IdMap, Array)
-evalArrTree' idm atn = force . (\(r, i) -> (i, r)) <$> runStateT (evalArrTree atn) idm
+evalArrTree' idm atn = (\(r, i) -> (i, r)) <$> runStateT (evalArrTree atn) idm
 
 evalFnTree' :: IdMap -> FnTreeNode -> IO (IdMap, Function)
 evalFnTree' idm ftn = (\(r, i) -> (i, expectFunc r)) <$> runStateT (evalFnTree ftn) idm
@@ -80,23 +80,30 @@ showResIfVerbose x = do
             (ResFtn f _) -> lift $ outputStrLn . show $ f
             (ResOp o _) -> lift $ outputStrLn . show $ o
 
+evalAndShowRes :: IdMap -> ExprResult -> IO IdMap
+evalAndShowRes idm x = case x of
+    ResAtn a shouldShow -> do (i', a') <- evalArrTree' idm a
+                              showIf a' shouldShow
+                              return i'
+    ResFtn f shouldShow -> do (i', f') <- evalFnTree' idm f
+                              showIf f' shouldShow
+                              return i'
+    ResOp o shouldShow -> do (i', o') <- evalOpTree' idm o
+                             showIf o' shouldShow
+                             return i'
+    ResNull -> return idm
+    where showIf :: Show a => a -> Bool -> IO ()
+          showIf a p = if p
+                       then putStrLn . show $ a
+                       else return ()
+
 handleRes :: IdMap -> ExprResult -> ReaderT GlobalState (InputT IO) IdMap
 handleRes idMap x = do
     showResIfVerbose x
-    case x of
-        (ResAtn a shouldShow) -> (lift2 . catchExecErr $ evalArrTree' idMap a) >>= \x -> case x of
-            Just (i, a') -> showIf a' shouldShow >> return i
-            Nothing -> return idMap
-        (ResFtn f shouldShow) -> (lift2 . catchExecErr $ evalFnTree' idMap f) >>= \x -> case x of
-            Just (i, f') -> showIf f' shouldShow >> return i
-            Nothing -> return idMap
-        (ResOp o shouldShow) -> (lift2 . catchExecErr $ evalOpTree' idMap o) >>= \x -> case x of
-            Just (i, o') -> showIf o' shouldShow >> return i
-        (ResNull) -> return idMap
-    where showIf :: Show a => a -> Bool -> ReaderT GlobalState (InputT IO) ()
-          showIf a p = if p
-                       then lift . outputStrLn $ show a
-                       else return ()
+    mb <- lift2 . catchExecErr $ evalAndShowRes idMap x
+    case mb of
+        Nothing -> return idMap
+        Just i' -> return i'
 
 execStatement :: IdMap -> [Token] -> ReaderT GlobalState (InputT IO) IdMap
 execStatement idm [] = return idm
