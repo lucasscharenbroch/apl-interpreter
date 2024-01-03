@@ -249,7 +249,9 @@ evalDfnM toks aa ww dd arg = do
             mapDelete "⍺",
             mapInsert "∇" (IdDerDfn toks aa ww dd)
         ]
-    execDfnStatement toks
+    res <- execDfnStatement toks
+    put idm
+    return res
 
 evalDfnD :: [Token] -> (Maybe IdEntry) -> (Maybe IdEntry) -> (Maybe IdEntry) -> FuncD
 evalDfnD toks aa ww dd arg1 arg2 = do
@@ -262,7 +264,9 @@ evalDfnD toks aa ww dd arg1 arg2 = do
             mapInsert "⍵" (IdArr arg2),
             mapInsert "∇" (IdDfn toks)
         ]
-    execDfnStatement toks
+    res <- execDfnStatement toks
+    put idm
+    return res
 
 mkDop :: [Token] -> Bool -> Operator -- Bool: isDyadic
 mkDop toks False = MonOp (showTokListAsDfn toks) (evalDopM toks)
