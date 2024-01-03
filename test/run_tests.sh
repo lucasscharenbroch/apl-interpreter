@@ -1,6 +1,35 @@
 #!/bin/bash
 
-test_files=(
+RED=$'\033[0;31m'
+GREEN=$'\033[0;32m'
+NO_COLOR=$'\033[0;0m'
+
+arg=${1:--w}
+
+usage() {
+    echo "USAGE: $0 [OPTIONS]"
+    echo "-v  vimdiff"
+    echo "-Z  ignore spaces at end of lines"
+    echo "-w  ignore all whitespace"
+}
+
+if [ $arg = "-v" ]; then
+    DIFF_CMD="vimdiff"
+elif [ $arg = "-Z" ]; then
+    DIFF_CMD="diff -Z"
+elif [ $arg = "-w" ]; then
+    DIFF_CMD="diff -w"
+else
+    echo "Invalid argument: $arg"
+    usage
+    exit 1
+fi
+
+COL1=71
+
+echo "# ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ Dyalog As Oracle ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ #"
+
+dyalog_test_files=(
         "deeply_nested_parens"
         "quad_gets"
         "modified_assignment"
@@ -18,23 +47,50 @@ test_files=(
         "array_literal"
     )
 
-for file in ${test_files[*]}; do
-    echo "Running ${file}..."
+time {
+    for file in ${dyalog_test_files[*]}; do
+        S="Running ${file}... "
+        echo -n "$S"
 
-    box_prefix=$']box on -trains=tree\n'
+        box_prefix=$']box on -trains=tree\n'
 
-    ai_out=$(../bin/ai <$file)
-    dyalog_out=$( (dyalog <<<"${box_prefix}$(cat $file)" 2>/dev/null | tail +2 ) )
+        ai_out=$(../bin/ai <$file)
+        dyalog_out=$( (dyalog <<<"${box_prefix}$(cat $file)" 2>/dev/null | tail +2 ) )
 
-    arg=${1:--w}
+        $DIFF_CMD <(echo "$ai_out") <(echo "$dyalog_out")
 
-    if [ $arg = "-v" ]; then
-        vimdiff <(echo "$ai_out") <(echo "$dyalog_out")
-    elif [ $arg = "-Z" ]; then
-        diff -Z <(echo "$ai_out") <(echo "$dyalog_out")
-    elif [ $arg = "-w" ]; then
-        diff -w <(echo "$ai_out") <(echo "$dyalog_out")
-    else
-        echo "invalid argument: $arg"
-    fi;
-done
+        if [ $? -eq 0 ]; then
+            RES=${GREEN}PASS${NO_COLOR}
+            printf "%*s\n" $((COL1 - ${#S})) $RES
+        else
+            RES=${RED}FAIL${NO_COLOR}
+            printf "\n%*s\n" $((COL1)) $RES
+        fi
+    done
+}
+
+echo "# ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ Manual Oracle ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ #"
+
+manual_test_files=(
+        "misc_err"
+    )
+
+time {
+    for file in ${manual_test_files[*]}; do
+        S="Running ${file}... "
+        echo -n "$S"
+
+        ai_out=$(../bin/ai <$file 2>&1)
+        oracle_file="${file}_oracle"
+
+        $DIFF_CMD <(echo "$ai_out") <(cat $oracle_file)
+
+        if [ $? -eq 0 ]; then
+            RES=${GREEN}PASS${NO_COLOR}
+            printf "%*s\n" $((COL1 - ${#S})) $RES
+        else
+            RES=${RED}FAIL${NO_COLOR}
+            printf "\n%*s\n" $((COL1)) $RES
+        fi
+    done
+}
