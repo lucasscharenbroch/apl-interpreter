@@ -150,7 +150,7 @@ evalArrTree (ArrInternalDyadFn ft at1 at2) = do
 evalArrTree (ArrInternalAssignment id at) = do
     a <- evalArrTree at
     idm <- get
-    put $ mapInsert id (IdArr a) idm
+    put $! mapInsert id (IdArr $! a) idm
     return a
 evalArrTree (ArrInternalModAssignment id f rhs) = do
     rhs' <- evalArrTree rhs
@@ -160,7 +160,7 @@ evalArrTree (ArrInternalModAssignment id f rhs) = do
           _ -> throw . NameError $ "undefined name: `" ++ id ++ "`"
     res <- evalArrTree $ ArrInternalDyadFn f lhs (ArrLeaf rhs')
     idm' <- get
-    put $ mapInsert id (IdArr res) idm'
+    put $! mapInsert id (IdArr $! res) idm'
     return rhs'
 evalArrTree (ArrInternalQuadAssignment atn) = do
     a <- evalArrTree atn

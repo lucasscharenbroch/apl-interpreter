@@ -78,7 +78,7 @@ showResIfVerbose x = do
             ResNull -> return ()
             (ResAtn a _) -> lift $ outputStrLn . show $ a
             (ResFtn f _) -> lift $ outputStrLn . show $ f
-            (ResOp o _) -> lift $ outputStrLn . show $ o
+            (ResOtn o _) -> lift $ outputStrLn . show $ o
 
 evalAndShowRes :: IdMap -> ExprResult -> IO IdMap
 evalAndShowRes idm x = case x of
@@ -88,9 +88,9 @@ evalAndShowRes idm x = case x of
     ResFtn f shouldShow -> do (i', f') <- evalFnTree' idm f
                               showIf f' shouldShow
                               return i'
-    ResOp o shouldShow -> do (i', o') <- evalOpTree' idm o
-                             showIf o' shouldShow
-                             return i'
+    ResOtn o shouldShow -> do (i', o') <- evalOpTree' idm o
+                              showIf o' shouldShow
+                              return i'
     ResNull -> return idm
     where showIf :: Show a => a -> Bool -> IO ()
           showIf a p = if p

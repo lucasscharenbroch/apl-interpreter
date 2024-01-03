@@ -214,13 +214,13 @@ matchAnyTokenExcept blacklist = matchA $ \t -> if t `elem` blacklist then Nothin
 
 data ExprResult = ResAtn ArrTreeNode Bool -- Bool = should print?
                 | ResFtn FnTreeNode Bool
-                | ResOp OpTreeNode Bool
+                | ResOtn OpTreeNode Bool
                 | ResNull
 
 instance Show ExprResult where
     show (ResAtn a _) = show a
     show (ResFtn f _) = show f
-    show (ResOp o _) = show o
+    show (ResOtn o _) = show o
 
 data DfnExprResult = DResAtn ArrTreeNode Bool -- Bool = should return?
                    | DResCond ArrTreeNode ArrTreeNode
@@ -239,7 +239,7 @@ parseExpr :: MatchFn ExprResult
 parseExpr = matchOne [
         mkResAtn <$> parseDerArr <* matchCommentOrEoe,
         mkResFtn <$> parseTrain <* matchCommentOrEoe,
-        mkResOp <$> parseOp <* matchCommentOrEoe,
+        mkResOtn <$> parseOp <* matchCommentOrEoe,
         (\_ -> ResNull) <$> matchCommentOrEoe
     ]
     where mkResAtn a@(ArrInternalAssignment _ _) = ResAtn a False
@@ -250,9 +250,9 @@ parseExpr = matchOne [
           mkResFtn f@(FnInternalAssignment _ _) = ResFtn f False
           mkResFtn f@(FnInternalQuadAssignment _) = ResFtn f False
           mkResFtn f = ResFtn f True
-          mkResOp o@(OpInternalAssignment _ _) = ResOp o False
-          mkResOp o@(OpInternalQuadAssignment _) = ResOp o False
-          mkResOp o = ResOp o True
+          mkResOtn o@(OpInternalAssignment _ _) = ResOtn o False
+          mkResOtn o@(OpInternalQuadAssignment _) = ResOtn o False
+          mkResOtn o = ResOtn o True
 
 parseParenthetical :: MatchFn ParentheticalResult
 parseParenthetical = matchCh '(' *> matchOne [
