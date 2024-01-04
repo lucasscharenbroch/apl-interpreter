@@ -72,6 +72,13 @@ arrZipWith f x y
 arrMap :: (Scalar -> Scalar) -> Array -> Array
 arrMap f a = shapedArrFromList (shape a) . map (f) . arrToList $ a
 
+arrRank :: Array -> Int
+arrRank a = length . shape $ a
+
+arrIndex :: Array -> [Int] -> Scalar
+arrIndex a is = a `at` sum (zipWith (*) is indexMod)
+    where indexMod = reverse . init . scanl (*) 1 . reverse . shape $ a
+
 {- Functions and Operators -}
 
 type FuncM = Array -> StateT IdMap IO Array

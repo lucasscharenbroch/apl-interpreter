@@ -2,6 +2,7 @@ module Eval where
 import Lex
 import GrammarTree
 import PrettyPrint
+import Control.Monad (mapM)
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
@@ -127,6 +128,38 @@ fork f g h = do
                 (MonFn _ fF, DyadFn _ gF, MonDyadFn _ hF _) -> MonFn infoM (forkMDM fF gF hF)
                 (MonFn _ fF, MonDyadFn _ _ gF, MonDyadFn _ hF _) -> MonFn infoM (forkMDM fF gF hF)
 
+{- Subscripting -}
+
+isIntegral :: Double -> Bool
+isIntegral n = n == (fromIntegral . Prelude.floor $ n)
+
+arrToDouble :: Array -> Double
+arrToDouble a
+    | shape a /= [1] = throw $ DomainError "expected numeric singleton"
+    | otherwise = case a `at` 0 of
+                      ScalarNum n -> n
+                      _ -> throw $ DomainError "expected numeric scalar"
+
+evalArrSubscript :: Double -> Array -> [Array] -> Array
+evalArrSubscript iO lhs is
+    | length is == 1 = arrMap elemAt (head is)
+    | otherwise = undefined -- TODO
+    where elemAt s = case s of
+              ScalarNum n
+                  | validIndex [n] -> lhs `arrIndex` [floor $ n - iO]
+              ScalarArr a
+                  | all isScalarNum al && validIndex (map fromScalarNum al) -> lhs `arrIndex` (map (floor . (+(-1*iO)) . fromScalarNum) $ al)
+                    where al = arrToList a
+              _ -> throw . RankError $ "([]): invalid index: " ++ (show s)
+          validIndex ns = (length ns == rank) && (all isIntegral ns) && (all (>=iO) ns) && (all id (zipWith (<) ns shape'))
+          rank = arrRank lhs
+          shape' = map (+iO) . map (fromIntegral) $ shape lhs
+          isScalarNum s =  case s of
+              ScalarNum _ -> True
+              _ -> False
+          fromScalarNum s =  case s of
+              ScalarNum n -> n
+
 {- Eval Tree Fns -}
 
 evalArrTree :: ArrTreeNode -> StateT IdMap IO Array
@@ -169,7 +202,11 @@ evalArrTree (ArrInternalQuadAssignment atn) = do
 evalArrTree (ArrInternalQuadIdAssignment id atn) = do
     a <- evalArrTree atn
     (qset $ getQuadName id) a
-evalArrTree (ArrInternalSubscript a is) = throw $ WipError "array subscripting"
+evalArrTree (ArrInternalSubscript at its) = do
+    a <- evalArrTree at
+    is <- mapM evalArrTree its
+    iO <- arrToDouble <$> getQIo
+    return $ evalArrSubscript iO a is
 evalArrTree (ArrInternalImplCat at1 at2) = do
     a2 <- evalArrTree at2
     a1 <- evalArrTree at1

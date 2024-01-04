@@ -30,6 +30,7 @@ COL1=71
 echo "# ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ Dyalog As Oracle ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ #"
 
 dyalog_test_files=(
+        "subscript"
         "deeply_nested_parens"
         "quad_gets"
         "modified_assignment"

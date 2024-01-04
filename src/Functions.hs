@@ -136,16 +136,6 @@ scalarToBool _ = throw $ DomainError "expected boolean singleton"
 boolToScalar :: Bool -> Scalar
 boolToScalar = ScalarNum . boolToDouble
 
-isIntegral :: Double -> Bool
-isIntegral n = n == (fromIntegral . Prelude.floor $ n)
-
-arrToDouble :: Array -> Double
-arrToDouble a
-    | shape a /= [1] = throw $ DomainError "expected numeric singleton"
-    | otherwise = case a `at` 0 of
-                      ScalarNum n -> n
-                      _ -> throw $ DomainError "expected numeric scalar"
-
 arrToInt :: Array -> Int
 arrToInt a
     | not . isIntegral $ n = throw $ DomainError "expected intergral singleton"
