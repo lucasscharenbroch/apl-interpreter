@@ -14,6 +14,7 @@ import Control.Monad.Reader
 import qualified Control.Monad.Trans.State.Strict as StateTStrict
 import Exceptions
 import Control.Exception (throw)
+import Util
 
 {- SubEvalM (subset of EvalM): typeclass for wrapper monads -}
 -- (EvalM here refers to StateT IdMap IO)
@@ -44,98 +45,6 @@ instance SubEvalM RandAndIoM where
     toEvalM rm = do
         gen <- lift $ newStdGen
         toEvalM . IdxOriginM . runStateGenT_ gen $ \_ -> unRandomAndIoM rm
-
-{- Constants -}
-
-intMax = maxBound :: Int
-floatMax = read "Infinity" :: Double
-floatMin = read "-Infinity" :: Double
-
-{- Helpers -}
-
-rankMorph :: (Array, Array) -> (Array, Array)
-rankMorph (x, y) -- a.k.a. "scalar extension"
-    | shape x == shape y = (x, y)
-    | shape x == [1] = (shapedArrFromList (shape y) xs, y)
-    | shape y == [1] = (x, shapedArrFromList (shape x) ys)
-    | otherwise = throw $ RankError "mismatched ranks (rank morph)"
-        where xs = replicate (foldr (*) 1 (shape y)) (at x 0)
-              ys = replicate (foldr (*) 1 (shape x)) (at y 0)
-
-alongAxis :: Array -> Int -> [Array]
-alongAxis a ax
-    | ax - _iO >= (length . shape $ a) = throw $ RankError "invalid axis"
-    | (length . shape $ a) == 0 = []
-    | foldr (*) 1 (shape a) == 0 = []
-    | otherwise = map (subarrayAt) [0..(n - 1)]
-    where n = (shape a) !! (ax - _iO)
-          shape' = if (length . shape $ a) == 1
-                   then [1]
-                   else take (ax - _iO) (shape a) ++ drop (ax - _iO + 1) (shape a)
-          sz = foldr (*) 1 (shape a)
-          subarrayAt i = case map (atl a) $ indicesAt i of
-              ((ScalarArr a):[]) -> a
-              l -> shapedArrFromList shape' l
-          indicesAt i =  map (\is -> take (ax - _iO) is ++ [i] ++ drop (ax - _iO) is) $ map (calcIndex) [0..(sz `div` n - 1)]
-          indexMod = tail . reverse $ scanl (*) 1 (reverse shape')
-          calcIndex i = map (\(e, m) -> i `div` m `mod` e) $ zip shape' indexMod
-          _iO = 1 -- axis supplied is with respect to _iO = 1, not actual ⎕IO
-
-alongRank :: Array -> Int -> Array
-alongRank a r
-    | foldr (*) 1 (shape a) == 0 = arrFromList []
-    | n <= 0 = arrFromList [ScalarArr a]
-    | n >= (length $ shape a) = a
-    | otherwise = shapedArrFromList outerShape . map (ScalarArr . shapedArrFromList innerShape) . groupBy groupSz . arrToList $ a
-    where outerShape = take n $ shape a
-          innerShape = drop n $ shape a
-          n = (length $ shape a) - r
-          groupSz = foldr (*) 1 innerShape
-
-arithFnD :: (Double -> Double -> Double) -> Array -> Array -> Array
-arithFnD f x' y' = arrZipWith (f') x y
-    where (x, y) = rankMorph (x', y')
-          f' :: Scalar -> Scalar -> Scalar
-          f' (ScalarNum n) (ScalarNum m) = ScalarNum $ f n m
-          f' n@(ScalarNum _) (ScalarArr arr) = ScalarArr $ rec (arrFromList [n]) arr
-          f' (ScalarArr a) (ScalarArr b) = ScalarArr $ rec a b
-          f' (ScalarArr arr) n@(ScalarNum _) = ScalarArr $ rec arr (arrFromList [n])
-          f' _ _ = throw $ DomainError "expected number"
-          rec = arithFnD f
-
-arithFnM :: (Double -> Double) -> Array -> Array
-arithFnM f = arrMap (f')
-    where f' (ScalarNum n) = ScalarNum $ f n
-          f' (ScalarArr a) = ScalarArr . arithFnM f $ a
-          f' _ = throw $ DomainError "expected number"
-
-intToScalarArr :: Int -> Array
-intToScalarArr = arrFromList . (:[]) . ScalarNum . fromIntegral
-
-doubleToScalarArr :: Double -> Array
-doubleToScalarArr = arrFromList . (:[]) . ScalarNum
-
-doubleToBool :: Double -> Bool
-doubleToBool 1.0 = True
-doubleToBool 0.0 = False
-doubleToBool _ = throw $ DomainError "expected boolean singleton"
-
-boolToDouble :: Bool -> Double
-boolToDouble True = 1.0
-boolToDouble False = 0.0
-
-scalarToBool :: Scalar -> Bool
-scalarToBool (ScalarNum n) = doubleToBool n
-scalarToBool _ = throw $ DomainError "expected boolean singleton"
-
-boolToScalar :: Bool -> Scalar
-boolToScalar = ScalarNum . boolToDouble
-
-arrToBool :: Array -> Bool
-arrToBool a = case arrToInt a of
-    1 -> True
-    0 -> False
-    _ -> throw . DomainError $ "expected boolean singleton"
 
 {- Specialized Functions (non-primitive) -}
 

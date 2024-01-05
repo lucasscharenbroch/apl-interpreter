@@ -13,6 +13,7 @@ import QuadNames
 import Control.Applicative (liftA2)
 import Exceptions
 import Control.Exception
+import Util
 
 {- Helpers -}
 
@@ -129,35 +130,6 @@ fork f g h = do
                 (MonFn _ fF, MonDyadFn _ _ gF, MonDyadFn _ hF _) -> MonFn infoM (forkMDM fF gF hF)
 
 {- Subscripting -}
-
-isIntegral :: Double -> Bool
-isIntegral n = n == (fromIntegral . Prelude.floor $ n)
-
-arrToDouble :: Array -> Double
-arrToDouble a
-    | shape a /= [1] = throw $ DomainError "expected numeric singleton"
-    | otherwise = case a `at` 0 of
-                      ScalarNum n -> n
-                      _ -> throw $ DomainError "expected numeric scalar"
-
-arrToInt :: Array -> Int
-arrToInt a
-    | not . isIntegral $ n = throw $ DomainError "expected intergral singleton"
-    | otherwise = Prelude.floor $ n
-    where n = arrToDouble a
-
-arrToIntVec :: Array -> [Int]
-arrToIntVec = map (toInt) . arrToList
-    where toInt (ScalarNum n) | (fromIntegral . Prelude.floor $ n) - n == 0 = Prelude.floor n
-          toInt _ = throw $ DomainError "expected int singleton"
-
--- remove redundant `1`s from shape.
-partialFlatten :: Array -> Array
-partialFlatten a = a { shape = _flatten (shape a) }
-    where _flatten [] = []
-          _flatten (1:x:xs) = _flatten (x : xs)
-          _flatten (x:1:xs) = _flatten (x : xs)
-          _flatten (x:xs) = x : _flatten xs
 
 evalArrSubscript :: Int -> Array -> [Maybe Array] -> Array
 evalArrSubscript iO lhs [Just arr] = arrMap elemAt arr

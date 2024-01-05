@@ -38,10 +38,6 @@ isScalarCh _ = False
 at :: Array -> Int -> Scalar
 at a i = (cells a) A.! i
 
-atl :: Array -> [Int] -> Scalar
-atl a is = (cells a) A.! i
-    where i = sum $ zipWith (*) (tail . scanr (*) 1 . shape $ a) is
-
 shapedArrFromList :: [Int] -> [Scalar] -> Array
 shapedArrFromList shape cells = Array {
                                   shape = shape
@@ -55,42 +51,6 @@ arrFromList l = shapedArrFromList [length l] l
 arrToList :: Array -> [Scalar]
 arrToList (Array shape cells) = [cells A.! i | i <- [0..(sz - 1)]]
     where sz = foldr (*) 1 shape
-
-arrCat :: Array -> Array -> Array
-arrCat x y = arrFromList $ (arrToList x) ++ (arrToList y)
-
-arrCons :: Scalar -> Array -> Array
-arrCons x y = arrFromList $ x : (arrToList y)
-
-arrZipWith :: (Scalar -> Scalar -> Scalar) -> Array -> Array -> Array
-arrZipWith f x y
-    | xsz /= ysz = undefined
-    | otherwise = shapedArrFromList (shape x) [(x `at` i) `f` (y `at` i) | i <- [0..xsz]]
-    where xsz = foldr (*) 1 $ shape x
-          ysz = foldr (*) 1 $ shape y
-
-arrZipWithM :: Monad m => (Scalar -> Scalar -> m Scalar) -> Array -> Array -> m Array
-arrZipWithM f x y
-    | xsz /= ysz = undefined
-    | otherwise = shapedArrFromList (shape x) <$> sequence [(x `at` i) `f` (y `at` i) | i <- [0..xsz]]
-    where xsz = foldr (*) 1 $ shape x
-          ysz = foldr (*) 1 $ shape y
-
-arrMap :: (Scalar -> Scalar) -> Array -> Array
-arrMap f a = shapedArrFromList (shape a) . map (f) . arrToList $ a
-
-arrMapM :: Monad m => (Scalar -> m Scalar) -> Array -> m Array
-arrMapM f a = shapedArrFromList (shape a) <$> mapM f (arrToList a)
-
-arrRank :: Array -> Int
-arrRank a = length . shape $ a
-
-arrNetSize :: Array -> Int
-arrNetSize = foldr (*) 1 . shape
-
-arrIndex :: Array -> [Int] -> Scalar
-arrIndex a is = a `at` sum (zipWith (*) is indexMod)
-    where indexMod = reverse . init . scanl (*) 1 . reverse . shape $ a
 
 {- Functions and Operators -}
 

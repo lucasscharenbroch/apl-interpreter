@@ -67,7 +67,7 @@ each f = case f of
           _eachM m x = arrMapM ((arrToScalar<$>) . m . scalarToArr) $ x
           _eachD :: FuncD -> FuncD
           _eachD d x y = arrZipWithM ((arrToScalar<$>) .: on d scalarToArr) x' y'
-              where (x', y') = F.rankMorph (x, y)
+              where (x', y') = rankMorph (x, y)
           scalarToArr (ScalarArr a) = a
           scalarToArr s = arrFromList [s]
           arrToScalar a
@@ -135,11 +135,11 @@ power l r = case (l, r) of
         MonDyadFn _ fM fD -> autoInfoMonDyadFnD "⍣" l r (_powM fM) (_powD fD)
         where _powM :: FuncM -> FuncM
               _powM m y = do y' <- m y
-                             stop <- F.arrToBool <$> g' y' y
+                             stop <- arrToBool <$> g' y' y
                              if stop then return y' else _powM m y'
               _powD :: FuncD -> FuncD
               _powD d x y = do y' <- d x y
-                               stop <- F.arrToBool <$> g' y' y
+                               stop <- arrToBool <$> g' y' y
                                if stop then return y' else _powD d x y'
               g' = getDyadFn g
     _ -> throw . SyntaxError $ "(⍣): invalid argument types"
