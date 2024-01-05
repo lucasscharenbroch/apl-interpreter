@@ -140,23 +140,49 @@ arrToDouble a
                       ScalarNum n -> n
                       _ -> throw $ DomainError "expected numeric scalar"
 
-evalArrSubscript :: Double -> Array -> [Maybe Array] -> Array
+arrToInt :: Array -> Int
+arrToInt a
+    | not . isIntegral $ n = throw $ DomainError "expected intergral singleton"
+    | otherwise = Prelude.floor $ n
+    where n = arrToDouble a
+
+arrToIntVec :: Array -> [Int]
+arrToIntVec = map (toInt) . arrToList
+    where toInt (ScalarNum n) | (fromIntegral . Prelude.floor $ n) - n == 0 = Prelude.floor n
+          toInt _ = throw $ DomainError "expected int singleton"
+
+-- remove redundant `1`s from shape.
+partialFlatten :: Array -> Array
+partialFlatten a = a { shape = _flatten (shape a) }
+    where _flatten [] = []
+          _flatten (1:x:xs) = _flatten (x : xs)
+          _flatten (x:1:xs) = _flatten (x : xs)
+          _flatten (x:xs) = x : _flatten xs
+
+evalArrSubscript :: Int -> Array -> [Maybe Array] -> Array
 evalArrSubscript iO lhs [Just arr] = arrMap elemAt arr
     where elemAt s = case s of
               ScalarNum n
-                  | validIndex [n] -> lhs `arrIndex` [floor $ n - iO]
+                  | isIntegral n && validIndex [n'] -> lhs `arrIndex` [n']
+                    where n' = (floor n) - iO
               ScalarArr a
-                  | all isScalarNum al && validIndex (map fromScalarNum al) -> lhs `arrIndex` (map (floor . (+(-1*iO)) . fromScalarNum) $ al)
-                    where al = arrToList a
+                  | all isScalarInt (arrToList a) && validIndex (map (+(-1*iO)) $ arrToIntVec a) -> lhs `arrIndex` map (+(-1*iO)) (arrToIntVec a)
               _ -> throw . RankError $ "([]): invalid index: " ++ (show s)
-          validIndex ns = (length ns == rank) && (all isIntegral ns) && (all (>=iO) ns) && (all id (zipWith (<) ns shape'))
-          rank = arrRank lhs
-          shape' = map (+iO) . map (fromIntegral) $ shape lhs
-          isScalarNum s =  case s of
-              ScalarNum _ -> True
+          validIndex ns = (length ns == _rank) && (all (>=0) ns) && (all id (zipWith (<) ns _shape))
+          _rank = arrRank lhs
+          _shape = shape lhs
+          isScalarInt s =  case s of
+              ScalarNum n -> isIntegral n
               _ -> False
-          fromScalarNum s =  case s of
-              ScalarNum n -> n
+evalArrSubscript iO lhs ixs = partialFlatten $ shapedArrFromList shape' cells'
+    where shape' = map length $ intVecs
+          cells' = if all id $ zipWith (\x iv -> all (>=0) iv && all (<x) iv) (shape lhs) intVecs
+                   then map (lhs`arrIndex`) . sequence $ intVecs -- sequence is n-wise cartesian product for lists
+                   else throw $ LengthError "([]): index out of range"
+          intVecs = zipWith toIv ixs (shape lhs)
+          toIv mbA i = case mbA of
+                   Nothing -> [0..(i - 1)]
+                   Just a -> map (+(-1*iO)) $ arrToIntVec a
 
 {- Eval Tree Fns -}
 
@@ -202,12 +228,9 @@ evalArrTree (ArrInternalQuadIdAssignment id atn) = do
     (qset $ getQuadName id) a
 evalArrTree (ArrInternalSubscript at its) = do
     a <- evalArrTree at
-    is <- mapM (_unwrap . (evalArrTree<$>)) its
-    iO <- arrToDouble <$> getQIo
+    is <- mapM (sequence . (evalArrTree<$>)) its
+    iO <- arrToInt <$> getQIo
     return $ evalArrSubscript iO a is
-    where _unwrap mbMArr = case mbMArr of
-              Nothing -> return Nothing
-              Just x -> Just <$> x
 evalArrTree (ArrInternalImplCat at1 at2) = do
     a2 <- evalArrTree at2
     a1 <- evalArrTree at1

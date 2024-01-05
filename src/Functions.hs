@@ -62,11 +62,6 @@ rankMorph (x, y)
         where xs = replicate (foldr (*) 1 (shape y)) (at x 0)
               ys = replicate (foldr (*) 1 (shape x)) (at y 0)
 
-toIntVec :: Array -> [Int]
-toIntVec = map (toInt) . arrToList
-    where toInt (ScalarNum n) | (fromIntegral . Prelude.floor $ n) - n == 0 = Prelude.floor n
-          toInt _ = throw $ DomainError "expected int singleton"
-
 alongAxis :: Array -> Int -> [Array]
 alongAxis a ax
     | ax - _iO >= (length . shape $ a) = throw $ RankError "invalid axis"
@@ -136,12 +131,6 @@ scalarToBool _ = throw $ DomainError "expected boolean singleton"
 boolToScalar :: Bool -> Scalar
 boolToScalar = ScalarNum . boolToDouble
 
-arrToInt :: Array -> Int
-arrToInt a
-    | not . isIntegral $ n = throw $ DomainError "expected intergral singleton"
-    | otherwise = Prelude.floor $ n
-    where n = arrToDouble a
-
 {- Specialized Functions (non-primitive) -}
 
 implicitGroup :: Array -> Array
@@ -196,7 +185,7 @@ iota :: Array -> IdxOriginM Array
 iota x = if any (<0) x'
          then throw $ DomainError "(⍳): expected nonnegative arguments"
          else ask >>= \iO -> return $ shapedArrFromList x' [toScalar . map (ScalarNum . fromIntegral . (+iO)) . calcIndex $ i | i <- [0..(sz - 1)]]
-    where x' = toIntVec x
+    where x' = arrToIntVec x
           sz = foldr (*) 1 x'
           indexMod = reverse . init $ scanl (*) 1 (reverse x')
           calcIndex i = map (\(e, m) -> i `div` m `mod` e) $ zip x' indexMod
@@ -384,7 +373,7 @@ reciprocal = arithFnM (_reciprocal)
 
 reshape :: Array -> Array -> Array
 reshape x y = shapedArrFromList newShape . take newSize . concat . replicate intMax $ baseList
-    where newShape = toIntVec x
+    where newShape = arrToIntVec x
           newSize = foldr (*) 1 newShape
           baseList = case arrToList y of
                      [] -> [ScalarNum 0]

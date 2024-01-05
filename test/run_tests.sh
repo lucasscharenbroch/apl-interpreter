@@ -48,6 +48,7 @@ dyalog_test_files=(
 
 manual_test_files=(
         "misc_err"
+        "index_err"
     )
 
 total_passed=0
@@ -85,7 +86,7 @@ time {
         ai_out=$(../bin/ai <$file 2>&1)
         oracle_file="${file}_oracle"
 
-        $DIFF_CMD <(echo "$ai_out") <(cat $oracle_file)
+        $DIFF_CMD <(echo "$ai_out") $oracle_file
 
         if [ $? -eq 0 ]; then
             ((++total_passed))
@@ -98,4 +99,4 @@ time {
     done
 }
 
-echo "Total passed: ( $total_passed / $(( ${#dyalog_test_files} + ${#manual_test_files})) )"
+echo "Total passed: ( $total_passed / $(( ${#dyalog_test_files[*]} + ${#manual_test_files[*]})) )"
