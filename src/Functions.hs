@@ -84,8 +84,8 @@ alongAxis a ax
 alongRank :: Array -> Int -> Array
 alongRank a r
     | foldr (*) 1 (shape a) == 0 = arrFromList []
-    | r <= 0 = a
-    | r >= length (shape a) = arrFromList [ScalarArr a]
+    | n <= 0 = arrFromList [ScalarArr a]
+    | n >= (length $ shape a) = a
     | otherwise = shapedArrFromList outerShape . map (ScalarArr . shapedArrFromList innerShape) . groupBy groupSz . arrToList $ a
     where outerShape = take n $ shape a
           innerShape = drop n $ shape a

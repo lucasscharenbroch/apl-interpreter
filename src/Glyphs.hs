@@ -98,7 +98,7 @@ fMinus = pureMonDyadFn (mkFnInfoA "-") {fnIdAD = Just $ ScalarNum 0} F.negate F.
 fTimes = pureMonDyadFn (mkFnInfoA "×") {fnIdAD = Just $ ScalarNum 1} F.direction F.multiply
 fDivide = pureMonDyadFn (mkFnInfoA "÷") {fnIdAD = Just $ ScalarNum 1} F.reciprocal F.divide
 fIota = mkMonDyadFn (mkFnInfoA "⍳") F.iota F.indexOf
-fShape = pureMonDyadFn (mkFnInfoA "⍴") F.shapeOf F.reshape
+fRho = pureMonDyadFn (mkFnInfoA "⍴") F.shapeOf F.reshape
 fLss = pureDyadFn (mkFnInfoD "<") {fnIdD = Just $ ScalarNum 0} F.lss
 fLeq = pureDyadFn (mkFnInfoD "≤") {fnIdD = Just $ ScalarNum 1} F.leq
 fGtr = pureDyadFn (mkFnInfoD ">") {fnIdD = Just $ ScalarNum 0} F.gtr
@@ -128,7 +128,7 @@ functionGlyphs = [
         ('×', fTimes),
         ('÷', fDivide),
         ('⍳', fIota),
-        ('⍴', fShape),
+        ('⍴', fRho),
         ('<', fLss),
         ('≤', fLeq),
         ('>', fGtr),
@@ -163,14 +163,18 @@ oScanFirst = pureMonOp "⍀" (mOPH "⍀")
 -}
 
 oSelfie = pureMonOpOptA "⍨" O.selfie
--- oAtop = pureDyadOp "⍤" (dOPH "⍤")
+oAtop = pureDyadOpOptA "⍤" O.atop
+oOver = pureDyadOp "⍥" O.over
+oJot = pureDyadOpOptA "∘" O.jot
 
 -- oAxisSpec axis = pureMonOp ("[" ++ (show axis) ++ "]") (mOPH "[]") -- TODO remove `axis' arg and add arg to called fn
 
 operatorGlyphs :: [(Char, Operator)]
 operatorGlyphs = [
-        ('⍨', oSelfie)
-        -- ('⍤', oAtop)
+        ('⍨', oSelfie),
+        ('⍤', oAtop),
+        ('⍥', oOver),
+        ('∘', oJot)
         -- TODO big list of operators
     ]
 
