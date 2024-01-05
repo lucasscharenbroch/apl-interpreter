@@ -219,7 +219,10 @@ showAtnHelper (ArrInternalMonFn f a) = showMonTreeHelper (showAtnHelper a) boxed
 showAtnHelper (ArrInternalDyadFn f a1 a2) = showDyadTreeHelper (showAtnHelper a1) (showAtnHelper a2) boxedf
     where boxedf = singleBoxify $ show f
 showAtnHelper (ArrInternalSubscript a is) = showDyadTreeHelper (showAtnHelper a) (showIs is, 0) "[]"
-    where showIs = foldl (\s a -> fst . horizCat s $ (singleBoxify . show $ a)) ""
+    where showIs = foldl (\s mba -> fst . horizCat s $ (singleBoxify . showMb $ mba)) ""
+          showMb mb = case mb of
+              Nothing -> "/"
+              Just x -> show x
 showAtnHelper (ArrInternalAssignment id a) = showMonTreeHelper (showAtnHelper a) (id ++ " ←")
 showAtnHelper (ArrInternalModAssignment id f a) = showMonTreeHelper (showAtnHelper a) (id ++ " " ++ show f ++ "←")
 showAtnHelper (ArrInternalQuadAssignment a) = showMonTreeHelper (showAtnHelper a) ("⎕ ←")

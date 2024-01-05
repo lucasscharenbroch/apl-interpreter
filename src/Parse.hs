@@ -308,19 +308,18 @@ parseDfnDecl = do
     matchCh '}'
     return (toks, AATok `elem` toks || WWTok `elem` toks, WWTok `elem` toks)
 
-parseIdxList :: MatchFn [ArrTreeNode]
+parseIdxList :: MatchFn [Maybe ArrTreeNode]
 parseIdxList = (foldIdxList . concat) <$> matchMax [
         matchOne [
-            (Right) <$> matchCh ';',
-            (Left) <$> parseDerArr
+            (Left) <$> matchCh ';',
+            (Right) <$> parseDerArr
         ]
     ]
     where emptyArr = ArrLeaf . arrFromList $ []
-          foldIdxList [] = [emptyArr]
-          foldIdxList (Left arr:[]) = [arr]
-          foldIdxList (Right _:rest) = emptyArr : foldIdxList rest
-          foldIdxList (Left arr:Right _:rest) = arr : foldIdxList rest
-
+          foldIdxList [] = [Nothing]
+          foldIdxList (Right arr:[]) = [Just arr]
+          foldIdxList (Left _:rest) = Nothing : foldIdxList rest
+          foldIdxList (Right arr:Left _:rest) = (Just arr) : foldIdxList rest
 
 parseDerArr :: MatchFn ArrTreeNode
 parseDerArr = matchOne [

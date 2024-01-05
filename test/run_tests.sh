@@ -27,8 +27,6 @@ fi
 
 COL1=71
 
-echo "# ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ Dyalog As Oracle ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ #"
-
 dyalog_test_files=(
         "subscript"
         "deeply_nested_parens"
@@ -48,7 +46,15 @@ dyalog_test_files=(
         "array_literal"
     )
 
+manual_test_files=(
+        "misc_err"
+    )
+
+total_passed=0
+
 time {
+    echo "# ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ Dyalog As Oracle ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ #"
+
     for file in ${dyalog_test_files[*]}; do
         S="Running ${file}... "
         echo -n "$S"
@@ -61,6 +67,7 @@ time {
         $DIFF_CMD <(echo "$ai_out") <(echo "$dyalog_out")
 
         if [ $? -eq 0 ]; then
+            ((++total_passed))
             RES=${GREEN}PASS${NO_COLOR}
             printf "%*s\n" $((COL1 - ${#S})) $RES
         else
@@ -68,15 +75,9 @@ time {
             printf "\n%*s\n" $((COL1)) $RES
         fi
     done
-}
 
-echo "# ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ Manual Oracle ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ #"
+    echo "# ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ Manual Oracle ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ #"
 
-manual_test_files=(
-        "misc_err"
-    )
-
-time {
     for file in ${manual_test_files[*]}; do
         S="Running ${file}... "
         echo -n "$S"
@@ -87,6 +88,7 @@ time {
         $DIFF_CMD <(echo "$ai_out") <(cat $oracle_file)
 
         if [ $? -eq 0 ]; then
+            ((++total_passed))
             RES=${GREEN}PASS${NO_COLOR}
             printf "%*s\n" $((COL1 - ${#S})) $RES
         else
@@ -95,3 +97,5 @@ time {
         fi
     done
 }
+
+echo "Total passed: ( $total_passed / $(( ${#dyalog_test_files} + ${#manual_test_files})) )"

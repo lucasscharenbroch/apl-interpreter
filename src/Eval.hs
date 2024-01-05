@@ -140,10 +140,8 @@ arrToDouble a
                       ScalarNum n -> n
                       _ -> throw $ DomainError "expected numeric scalar"
 
-evalArrSubscript :: Double -> Array -> [Array] -> Array
-evalArrSubscript iO lhs is
-    | length is == 1 = arrMap elemAt (head is)
-    | otherwise = undefined -- TODO
+evalArrSubscript :: Double -> Array -> [Maybe Array] -> Array
+evalArrSubscript iO lhs [Just arr] = arrMap elemAt arr
     where elemAt s = case s of
               ScalarNum n
                   | validIndex [n] -> lhs `arrIndex` [floor $ n - iO]
@@ -204,9 +202,12 @@ evalArrTree (ArrInternalQuadIdAssignment id atn) = do
     (qset $ getQuadName id) a
 evalArrTree (ArrInternalSubscript at its) = do
     a <- evalArrTree at
-    is <- mapM evalArrTree its
+    is <- mapM (_unwrap . (evalArrTree<$>)) its
     iO <- arrToDouble <$> getQIo
     return $ evalArrSubscript iO a is
+    where _unwrap mbMArr = case mbMArr of
+              Nothing -> return Nothing
+              Just x -> Just <$> x
 evalArrTree (ArrInternalImplCat at1 at2) = do
     a2 <- evalArrTree at2
     a1 <- evalArrTree at1
