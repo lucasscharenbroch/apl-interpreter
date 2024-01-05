@@ -69,11 +69,24 @@ arrZipWith f x y
     where xsz = foldr (*) 1 $ shape x
           ysz = foldr (*) 1 $ shape y
 
+arrZipWithM :: Monad m => (Scalar -> Scalar -> m Scalar) -> Array -> Array -> m Array
+arrZipWithM f x y
+    | xsz /= ysz = undefined
+    | otherwise = shapedArrFromList (shape x) <$> sequence [(x `at` i) `f` (y `at` i) | i <- [0..xsz]]
+    where xsz = foldr (*) 1 $ shape x
+          ysz = foldr (*) 1 $ shape y
+
 arrMap :: (Scalar -> Scalar) -> Array -> Array
 arrMap f a = shapedArrFromList (shape a) . map (f) . arrToList $ a
 
+arrMapM :: Monad m => (Scalar -> m Scalar) -> Array -> m Array
+arrMapM f a = shapedArrFromList (shape a) <$> mapM f (arrToList a)
+
 arrRank :: Array -> Int
 arrRank a = length . shape $ a
+
+arrNetSize :: Array -> Int
+arrNetSize = foldr (*) 1 . shape
 
 arrIndex :: Array -> [Int] -> Scalar
 arrIndex a is = a `at` sum (zipWith (*) is indexMod)
@@ -93,7 +106,7 @@ data FnInfoM = FnInfoM {
                        , fnNamePadM :: Int
                        , fnIdM :: Maybe Scalar
                        , fnOnAxisM :: Maybe (Int -> FuncM)
-                       , fnInverseM :: Maybe (Int -> FuncM)
+                       , fnInverseM :: Maybe (FuncM)
                        , fnCanSelectM :: Bool
                        }
 
@@ -106,7 +119,7 @@ data FnInfoD = FnInfoD {
                        , fnNamePadD :: Int
                        , fnIdD :: Maybe Scalar
                        , fnOnAxisD :: Maybe (Int -> FuncD)
-                       , fnInverseD :: Maybe (Int -> FuncD)
+                       , fnInverseD :: Maybe (FuncD)
                        , fnCanSelectD :: Bool
                        }
 
@@ -121,8 +134,8 @@ data FnInfoA = FnInfoA {
                        , fnIdAD :: Maybe Scalar
                        , fnOnAxisAM :: Maybe (Int -> FuncM)
                        , fnOnAxisAD :: Maybe (Int -> FuncD)
-                       , fnInverseAM :: Maybe (Int -> FuncD)
-                       , fnInverseAD :: Maybe (Int -> FuncD)
+                       , fnInverseAM :: Maybe (FuncM)
+                       , fnInverseAD :: Maybe (FuncD)
                        , fnCanSelectAM :: Bool
                        , fnCanSelectAD :: Bool
                        }

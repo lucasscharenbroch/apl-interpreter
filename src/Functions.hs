@@ -54,7 +54,7 @@ floatMin = read "-Infinity" :: Double
 {- Helpers -}
 
 rankMorph :: (Array, Array) -> (Array, Array)
-rankMorph (x, y)
+rankMorph (x, y) -- a.k.a. "scalar extension"
     | shape x == shape y = (x, y)
     | shape x == [1] = (shapedArrFromList (shape y) xs, y)
     | shape y == [1] = (x, shapedArrFromList (shape x) ys)
@@ -130,6 +130,12 @@ scalarToBool _ = throw $ DomainError "expected boolean singleton"
 
 boolToScalar :: Bool -> Scalar
 boolToScalar = ScalarNum . boolToDouble
+
+arrToBool :: Array -> Bool
+arrToBool a = case arrToInt a of
+    1 -> True
+    0 -> False
+    _ -> throw . DomainError $ "expected boolean singleton"
 
 {- Specialized Functions (non-primitive) -}
 

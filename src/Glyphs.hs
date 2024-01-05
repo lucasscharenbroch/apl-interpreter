@@ -9,17 +9,7 @@ import Data.Functor.Identity
 import Control.Monad.State.Lazy
 import Control.Monad.Reader
 import Data.Function (on)
-
-{- Composition Operators -}
-
-infixr 8 .:
-infixr 8 .:.
-
-(.:) :: (c -> d) -> (a -> b -> c) -> a -> b -> d
-(.:) = (.) . (.)
-
-(.:.) :: (d -> e) -> (a -> b -> c -> d) -> a -> b -> c -> e
-(.:.) = (.) . (.) . (.)
+import Util
 
 {- Function Info Helpers -}
 
@@ -33,6 +23,12 @@ mkFnInfoA :: String -> FnInfoA
 mkFnInfoA s = defFnInfoA {fnNameA = s}
 
 {- Monad Wrappers -}
+
+mkFuncM :: SubEvalM m => (Array -> m Array) -> FuncM
+mkFuncM f a = toEvalM $ f a
+
+mkFuncD :: SubEvalM m => (Array -> Array -> m Array) -> FuncD
+mkFuncD f a b = toEvalM $ f a b
 
 mkMonFn :: SubEvalM m => FnInfoM -> (Array -> m Array) -> Function
 mkMonFn i f = MonFn i (\a -> toEvalM $ f a)
@@ -56,6 +52,10 @@ mkDyadOpOptA :: SubEvalM m => String -> ((Either Array Function) -> (Either Arra
 mkDyadOpOptA name o = DyadOp name (toEvalM .: o)
 
 {- Pure Wrappers -}
+
+pureFuncM f = mkFuncM (Identity . f)
+
+pureFuncD f = mkFuncD (Identity .: f)
 
 pureMonFn :: FnInfoM -> (Array -> Array) -> Function
 pureMonFn i f = mkMonFn i (Identity . f)
@@ -92,6 +92,10 @@ fReplicateFirst = pureDyadFn "⌿" (dFPH "⌿")
 fExpandFirst = pureDyadFn "⍀" (dFPH "⍀")
 -}
 
+-- inverses
+iAsteriskM = Just $ pureFuncM F.naturalLog
+iAsteriskD = Just $ pureFuncD F.logBase
+
 -- primitive
 fPlus = pureMonDyadFn (mkFnInfoA "+") {fnIdAD = Just $ ScalarNum 0} F.conjugate F.add
 fMinus = pureMonDyadFn (mkFnInfoA "-") {fnIdAD = Just $ ScalarNum 0} F.negate F.subtract
@@ -104,7 +108,7 @@ fLeq = pureDyadFn (mkFnInfoD "≤") {fnIdD = Just $ ScalarNum 1} F.leq
 fGtr = pureDyadFn (mkFnInfoD ">") {fnIdD = Just $ ScalarNum 0} F.gtr
 fGeq = pureDyadFn (mkFnInfoD "≥") {fnIdD = Just $ ScalarNum 1} F.geq
 fEqu = pureDyadFn (mkFnInfoD "=") {fnIdD = Just $ ScalarNum 1} F.equ
-fAsterisk = pureMonDyadFn (mkFnInfoA "*") {fnIdAD = Just $ ScalarNum 1} F.exponential F.power
+fAsterisk = pureMonDyadFn (mkFnInfoA "*") {fnIdAD = Just $ ScalarNum 1, fnInverseAM = iAsteriskM, fnInverseAD = iAsteriskD} F.exponential F.power
 fAsteriskCircle = pureMonDyadFn (mkFnInfoA "⍟") F.naturalLog F.logBase
 fFloor = pureMonDyadFn (mkFnInfoA "⌊") {fnIdAD = Just $ ScalarNum F.floatMax} F.floor F.minimum
 fCeil = pureMonDyadFn (mkFnInfoA "⌈") {fnIdAD = Just $ ScalarNum F.floatMin} F.ceiling F.maximum
@@ -166,6 +170,8 @@ oSelfie = pureMonOpOptA "⍨" O.selfie
 oAtop = pureDyadOpOptA "⍤" O.atop
 oOver = pureDyadOp "⍥" O.over
 oJot = pureDyadOpOptA "∘" O.jot
+oEach = pureMonOp "¨" O.each
+oPower = pureDyadOpOptA "⍣" O.power
 
 -- oAxisSpec axis = pureMonOp ("[" ++ (show axis) ++ "]") (mOPH "[]") -- TODO remove `axis' arg and add arg to called fn
 
@@ -174,7 +180,9 @@ operatorGlyphs = [
         ('⍨', oSelfie),
         ('⍤', oAtop),
         ('⍥', oOver),
-        ('∘', oJot)
+        ('∘', oJot),
+        ('¨', oEach),
+        ('⍣', oPower)
         -- TODO big list of operators
     ]
 

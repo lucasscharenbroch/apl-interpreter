@@ -28,6 +28,7 @@ fi
 COL1=71
 
 dyalog_test_files=(
+        "general_ops"
         "combinators"
         "subscript"
         "deeply_nested_parens"

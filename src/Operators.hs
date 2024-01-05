@@ -6,6 +6,9 @@ import qualified Functions as F
 import Control.Exception (throw)
 import Exceptions
 import Control.Monad
+import Data.Function
+import Util
+import Data.Maybe
 
 {- Helpers -}
 
@@ -39,9 +42,37 @@ getMonFn f = case f of
     (MonDyadFn _ x _) -> x
     _ -> throw $ SyntaxError "expected monadic function"
 
+getInverseM :: Function -> FuncM
+getInverseM f = case f of
+    MonFn i _ -> fromMaybe err (fnInverseM i)
+    MonDyadFn i _ _ -> fromMaybe err (fnInverseAM i)
+    where err = throw . DomainError $ "function has no inverse: {" ++ (show f) ++ "}"
+
+getInverseD :: Function -> FuncD
+getInverseD f = case f of
+    DyadFn i _ -> fromMaybe err (fnInverseD i)
+    MonDyadFn i _ _ -> fromMaybe err (fnInverseAD i)
+    where err = throw . DomainError $ "function has no inverse: {" ++ (show f) ++ "}"
+
 {- Special Operators -}
 
 {- General Operators -}
+
+each :: Function -> Function
+each f = case f of
+    MonFn _ fM -> autoInfoMonFnM "¨" f (_eachM fM)
+    DyadFn _ fD -> autoInfoDyadFnM "¨" f (_eachD fD)
+    MonDyadFn _ fM fD -> autoInfoMonDyadFnM "¨" f (_eachM fM) (_eachD fD)
+    where _eachM :: FuncM -> FuncM
+          _eachM m x = arrMapM ((arrToScalar<$>) . m . scalarToArr) $ x
+          _eachD :: FuncD -> FuncD
+          _eachD d x y = arrZipWithM ((arrToScalar<$>) .: on d scalarToArr) x' y'
+              where (x', y') = F.rankMorph (x, y)
+          scalarToArr (ScalarArr a) = a
+          scalarToArr s = arrFromList [s]
+          arrToScalar a
+              | arrNetSize a == 1 = head $ arrToList a
+              | otherwise = ScalarArr a
 
 over :: Function -> Function -> Function
 over f g = case (f, g) of
@@ -85,6 +116,33 @@ jot l r = case (l, r) of
     where besideDM d m l r = join $ d <$> return l <*> m r
           curryRight f a x = f x a
           curryLeft a f x = f a x
+
+power :: (Either Array Function) -> (Either Array Function) -> Function
+power l r = case (l, r) of
+    (Right f, Left a) -> case f of
+        (MonFn _ fM) -> autoInfoMonFnD "⍣" l r (_powM f')
+                        where f' = if n < 0 then getInverseM f else fM
+        (DyadFn _ fD) -> autoInfoDyadFnD "⍣" l r (_powD f')
+                         where f' = if n < 0 then getInverseD f else fD
+        (MonDyadFn _ fM fD) -> autoInfoMonDyadFnD "⍣" l r (_powM f'm) (_powD f'd)
+                               where (f'm, f'd) = if n < 0 then (getInverseM f, getInverseD f) else (fM, fD)
+        where n = arrToInt a
+              _powM m x = foldM (flip ($)) x (replicate (abs n) m)
+              _powD d x y = foldM (flip ($)) y (replicate (abs n) (d x))
+    (Right f, Right g) -> case f of
+        MonFn _ fM -> autoInfoMonFnD "⍣" l r (_powM fM)
+        DyadFn _ fD -> autoInfoDyadFnD "⍣" l r (_powD fD)
+        MonDyadFn _ fM fD -> autoInfoMonDyadFnD "⍣" l r (_powM fM) (_powD fD)
+        where _powM :: FuncM -> FuncM
+              _powM m y = do y' <- m y
+                             stop <- F.arrToBool <$> g' y' y
+                             if stop then return y' else _powM m y'
+              _powD :: FuncD -> FuncD
+              _powD d x y = do y' <- d x y
+                               stop <- F.arrToBool <$> g' y' y
+                               if stop then return y' else _powD d x y'
+              g' = getDyadFn g
+    _ -> throw . SyntaxError $ "(⍣): invalid argument types"
 
 selfie :: Either Array Function -> Function
 selfie arg = case arg of
