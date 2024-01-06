@@ -193,7 +193,7 @@ divide = arithFnD _divide
 encode :: Array -> Array -> Array
 encode x y = arrReorderAxes reorderedAxes . shapedArrFromList shape' . concat . map arrToList $ encodings
     where y' = arrToIntVec y
-          shape' = (shape y) ++ (shape x)
+          shape' = (shape_ y) ++ (shape x)
           encodings = map (\i -> mapVecsAlongAxis 1 (_encode i) x) y'
           _encode :: Int -> [Scalar] -> [Scalar]
           _encode i scs = map (ScalarNum . fromIntegral) $ zipWith (\r d -> i `_div` d `_mod` r) radixes divisors
@@ -205,7 +205,7 @@ encode x y = arrReorderAxes reorderedAxes . shapedArrFromList shape' . concat . 
                     _mod x y
                         | y == 0 = x
                         | otherwise = mod x y
-          reorderedAxes = ([i + (length $ shape x) | i <- [1..(length $ shape y)]] ++ [1..(length $ shape x)])
+          reorderedAxes = ([i + (length $ shape x) | i <- [1..(length $ shape_ y)]] ++ [1..(length $ shape x)])
 
 equ :: Array -> Array -> Array
 equ = arithFnD (\n m -> fromIntegral . fromEnum $ n == m)

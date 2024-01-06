@@ -97,10 +97,10 @@ partialFlatten a = a { shape = _flatten (shape a) }
           _flatten (x:1:xs) = _flatten (x : xs)
           _flatten (x:xs) = x : _flatten xs
 
-shape_ :: Array -> Int
+shape_ :: Array -> [Int]
 shape_ a
-    | shape x == [1] = []
-    | otherwise = 
+    | shape a == [1] = []
+    | otherwise = shape a
 
 {- Array-Related Helpers (high-level) -}
 
