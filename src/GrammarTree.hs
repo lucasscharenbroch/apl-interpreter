@@ -21,19 +21,7 @@ data Array = Array {
              }
     deriving (Eq)
 
-groupBy :: Int -> [a] -> [[a]]
-groupBy _ [] = []
-groupBy n x = [take n x] ++ groupBy n (drop n x)
-
-isScalarArr :: Scalar -> Bool
-isScalarArr (ScalarArr _) = True
-isScalarArr _ = False
-
-isScalarCh :: Scalar -> Bool
-isScalarCh (ScalarCh _) = True
-isScalarCh _ = False
-
-{- Array Helpers -}
+{- Array Helpers (low-level) -}
 
 at :: Array -> Int -> Scalar
 at a i = (cells a) A.! i

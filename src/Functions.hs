@@ -120,8 +120,8 @@ indexOf x y
           return $ arrMap (findIndexInXs) ys
     where xRank = length . shape $ x
           yRank = length . shape $ y
-          xs = alongAxis x 1
-          ys = alongRank y (xRank - 1)
+          xs = alongAxis 1 x
+          ys = alongRank (xRank - 1) y
           toArray (ScalarArr a) = a
           toArray s = arrFromList [s]
 
@@ -189,6 +189,23 @@ divide :: Array -> Array -> Array
 divide = arithFnD _divide
     where _divide _ 0 = throw $ DomainError "division by zero"
           _divide n m = n / m
+
+encode :: Array -> Array -> Array
+encode x y = arrReorderAxes reorderedAxes . shapedArrFromList shape' . concat . map arrToList $ encodings
+    where y' = arrToIntVec y
+          shape' = (shape y) ++ (shape x)
+          encodings = map (\i -> mapVecsAlongAxis 1 (_encode i) x) y'
+          _encode :: Int -> [Scalar] -> [Scalar]
+          _encode i scs = map (ScalarNum . fromIntegral) $ zipWith (\r d -> i `_div` d `_mod` r) radixes divisors
+              where radixes = map scalarToInt scs
+                    divisors = tail $ scanr (*) 1 radixes
+                    _div x y
+                        | y == 0 = 0
+                        | otherwise = div x y
+                    _mod x y
+                        | y == 0 = x
+                        | otherwise = mod x y
+          reorderedAxes = ([i + (length $ shape x) | i <- [1..(length $ shape y)]] ++ [1..(length $ shape x)])
 
 equ :: Array -> Array -> Array
 equ = arithFnD (\n m -> fromIntegral . fromEnum $ n == m)

@@ -4,6 +4,7 @@ import Lex
 import GrammarTree
 import Data.List (intersperse, zip4, elemIndex)
 import Data.Char (toUpper)
+import Util
 
 {- Misc Helpers -}
 
@@ -95,7 +96,7 @@ instance Show Array where
         | foldr (*) 1 shape == 0 = ""
         | shape == [] = singleBoxify "\n" -- not the same as zilde
     show (Array shape cells) = concat . map (\(h, w, r, n) -> replicate n '\n' ++ showFn h w r) $ tups
-        where tups = zip4 (groupBy subgNumRows heights) (replicate (length newlineCnts) widths) (groupBy subgNumRows justifiedCells) newlineCnts
+        where tups = zip4 (groupsOf subgNumRows heights) (replicate (length newlineCnts) widths) (groupsOf subgNumRows justifiedCells) newlineCnts
               newlineCnts = 0 : map (\i -> (newlineInc) . sum . map (fromEnum) . map (\p -> i `mod` p == 0) $ shapeProducts) indicesExcept0
               indicesExcept0 = tail [0,subgSz..(sz - 1)]
               shapeProducts = scanl (*) subgSz (drop 2 shape')

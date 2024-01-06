@@ -28,6 +28,7 @@ fi
 COL1=71
 
 dyalog_test_files=(
+        "general_fns"
         "general_ops"
         "combinators"
         "subscript"

@@ -2,6 +2,8 @@ module Util where
 import GrammarTree
 import Control.Exception
 import Exceptions
+import Data.List
+import Data.Function
 
 {- Composition Operators -}
 -- there are libraies for this, but these are too easy to write to bother downloading them
@@ -26,6 +28,9 @@ floatMin = read "-Infinity" :: Double
 isIntegral :: Double -> Bool
 isIntegral n = n == (fromIntegral . Prelude.floor $ n)
 
+groupsOf :: Int -> [a] -> [[a]]
+groupsOf _ [] = []
+groupsOf n x = [take n x] ++ groupsOf n (drop n x)
 
 {- Array Helpers (low-level) -}
 
@@ -92,6 +97,10 @@ partialFlatten a = a { shape = _flatten (shape a) }
           _flatten (x:1:xs) = _flatten (x : xs)
           _flatten (x:xs) = x : _flatten xs
 
+shape_ :: Array -> Int
+shape_ a
+    | shape x == [1] = []
+    | otherwise = 
 
 {- Array-Related Helpers (high-level) -}
 
@@ -104,35 +113,79 @@ rankMorph (x, y) -- a.k.a. "scalar extension"
         where xs = replicate (foldr (*) 1 (shape y)) (at x 0)
               ys = replicate (foldr (*) 1 (shape x)) (at y 0)
 
-alongAxis :: Array -> Int -> [Array]
-alongAxis a ax
+alongAxis :: Int -> Array -> [Array]
+alongAxis ax a
     | ax - _iO >= (length . shape $ a) = throw $ RankError "invalid axis"
     | (length . shape $ a) == 0 = []
-    | foldr (*) 1 (shape a) == 0 = []
+    | arrNetSize a == 0 = []
     | otherwise = map (subarrayAt) [0..(n - 1)]
-    where n = (shape a) !! (ax - _iO)
-          shape' = if (length . shape $ a) == 1
-                   then [1]
-                   else take (ax - _iO) (shape a) ++ drop (ax - _iO + 1) (shape a)
-          sz = foldr (*) 1 (shape a)
-          subarrayAt i = case map (arrIndex a) $ indicesAt i of
-              ((ScalarArr a):[]) -> a
-              l -> shapedArrFromList shape' l
-          indicesAt i =  map (\is -> take (ax - _iO) is ++ [i] ++ drop (ax - _iO) is) $ map (calcIndex) [0..(sz `div` n - 1)]
-          indexMod = tail . reverse $ scanl (*) 1 (reverse shape')
-          calcIndex i = map (\(e, m) -> i `div` m `mod` e) $ zip shape' indexMod
-          _iO = 1 -- axis supplied is with respect to _iO = 1, not actual ⎕IO
+        where n = (shape a) !! (ax - _iO)
+              shape' = if (length . shape $ a) == 1
+                       then [1]
+                       else take (ax - _iO) (shape a) ++ drop (ax - _iO + 1) (shape a)
+              sz = arrNetSize a
+              subarrayAt i = case map (arrIndex a) $ indicesAt i of
+                  ((ScalarArr a):[]) -> a
+                  l -> shapedArrFromList shape' l
+              indicesAt i =  map (\is -> take (ax - _iO) is ++ [i] ++ drop (ax - _iO) is) $ map (calcIndex) [0..(sz `div` n - 1)]
+              indexMod = tail . reverse $ scanl (*) 1 (reverse shape')
+              calcIndex i = map (\(e, m) -> i `div` m `mod` e) $ zip shape' indexMod
+              _iO = 1 -- axis supplied is with respect to _iO = 1, not actual ⎕IO
 
-alongRank :: Array -> Int -> Array
-alongRank a r
+unAlongAxis :: Int -> [Array] -> Array
+unAlongAxis ax subArrs
+    | length subArrs == 0 = arrFromList []
+    | not . all (==(shape . head $ subArrs)) $ map (shape) subArrs = undefined
+    | otherwise = shapedArrFromList shape' $ map _elemAt [0..(n - 1)]
+        where _shape = shape . head $ subArrs
+              shape' = take ax' (_shape) ++ [length subArrs] ++ drop ax' (_shape)
+              _iO = 1 -- axis supplied is with respect to _iO = 1, not actual ⎕IO
+              indexMod = tail . reverse $ scanl (*) 1 (reverse shape')
+              calcIndex :: Int -> [Int]
+              calcIndex i = zipWith (\e m -> (i `div` m) `mod` e) shape' indexMod
+              n = foldr (*) 1 shape'
+              _elemAt i = (subArrs !! (calcIndex i !! ax')) `arrIndex` idxList'
+                  where idxList = calcIndex i
+                        subArrI = idxList !! ax'
+                        idxList' = take ax' idxList ++ drop (ax' + 1) idxList
+              ax' = ax - _iO
+
+mapVecsAlongAxis :: Int -> ([Scalar] -> [Scalar]) -> Array -> Array
+mapVecsAlongAxis ax f a = if length subArrs' == 1 then subArrs' !! 0 else unAlongAxis ax subArrs'
+    where subArrs = alongAxis ax a
+          subArrShape = if length subArrs == 0 then [0] else shape (head subArrs)
+          subArrNetSz = foldr (*) 1 subArrShape
+          vecs = foldr (zipWith (:)) (replicate subArrNetSz []) $ map arrToList subArrs
+          vecs' = map f vecs
+          subArrs' = map (shapedArrFromList subArrShape) $ foldr (zipWith (:)) (replicate vecSz []) vecs' -- undo the zipping into vecs
+          vecSz = case length vecs' of
+              0 -> 0
+              _ -> case map (length) vecs' of
+                  x | all (==(head x)) x -> head x
+                  _ -> undefined -- f should yeild vectors of uniform size
+
+alongRank :: Int -> Array -> Array
+alongRank r a
     | foldr (*) 1 (shape a) == 0 = arrFromList []
     | n <= 0 = arrFromList [ScalarArr a]
     | n >= (length $ shape a) = a
-    | otherwise = shapedArrFromList outerShape . map (ScalarArr . shapedArrFromList innerShape) . groupBy groupSz . arrToList $ a
-    where outerShape = take n $ shape a
-          innerShape = drop n $ shape a
-          n = (length $ shape a) - r
-          groupSz = foldr (*) 1 innerShape
+    | otherwise = shapedArrFromList outerShape . map (ScalarArr . shapedArrFromList innerShape) . groupsOf groupSz . arrToList $ a
+        where outerShape = take n $ shape a
+              innerShape = drop n $ shape a
+              n = (length $ shape a) - r
+              groupSz = foldr (*) 1 innerShape
+
+arrReorderAxes :: [Int] -> Array -> Array
+arrReorderAxes targetIdxs a
+    | length targetIdxs /= (length $ shape a) = undefined
+    | otherwise = shapedArrFromList shape' vals'
+        where shape' = map (foldr min intMax . map snd) . groupBy (on (==) fst) . sortBy (on compare fst) $ zip targetIdxs (shape a)
+              n = foldr (*) 1 shape'
+              vals' = map ((a`arrIndex`) . calcIndex) [0..(n - 1)]
+              calcIndex i = map ((idxList!!) . (+(-1))) targetIdxs
+                  where idxList = calcIndex' i
+              calcIndex' i = map (\(e, m) -> i `div` m `mod` e) $ zip shape' indexMod
+              indexMod = tail . reverse $ scanl (*) 1 (reverse shape')
 
 arithFnD :: (Double -> Double -> Double) -> Array -> Array -> Array
 arithFnD f x' y' = arrZipWith (f') x y
@@ -150,6 +203,14 @@ arithFnM f = arrMap (f')
     where f' (ScalarNum n) = ScalarNum $ f n
           f' (ScalarArr a) = ScalarArr . arithFnM f $ a
           f' _ = throw $ DomainError "expected number"
+
+isScalarArr :: Scalar -> Bool
+isScalarArr (ScalarArr _) = True
+isScalarArr _ = False
+
+isScalarCh :: Scalar -> Bool
+isScalarCh (ScalarCh _) = True
+isScalarCh _ = False
 
 intToScalarArr :: Int -> Array
 intToScalarArr = arrFromList . (:[]) . ScalarNum . fromIntegral
@@ -178,3 +239,7 @@ arrToBool a = case arrToInt a of
     1 -> True
     0 -> False
     _ -> throw . DomainError $ "expected boolean singleton"
+
+scalarToInt :: Scalar -> Int
+scalarToInt (ScalarNum n) | isIntegral n = floor n
+scalarToInt _ = throw $ DomainError "expected int singleton"

@@ -124,6 +124,7 @@ fOr = pureDyadFn (mkFnInfoD "∨") {fnIdD = Just $ ScalarNum 0} F.gcd
 fCircle = pureMonDyadFn (mkFnInfoA "○") F.piTimes F.circularFormulae
 fBang = pureMonDyadFn (mkFnInfoA "!") {fnIdAD = Just $ ScalarNum 1} F.factorial F.binomial
 fQuestion = mkMonDyadFn (mkFnInfoA "?") F.roll F.deal
+fEncode = pureDyadFn (mkFnInfoD "⊤") F.encode
 
 functionGlyphs :: [(Char, Function)]
 functionGlyphs = [
@@ -153,7 +154,8 @@ functionGlyphs = [
         ('∨', fOr),
         ('○', fCircle),
         ('!', fBang),
-        ('?', fQuestion)
+        ('?', fQuestion),
+        ('⊤', fEncode)
         -- TODO big list of functions
     ]
 
