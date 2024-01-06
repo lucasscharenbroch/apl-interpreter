@@ -15,6 +15,9 @@ import qualified Control.Monad.Trans.State.Strict as StateTStrict
 import Exceptions
 import Control.Exception (throw)
 import Util
+import Data.List
+import Data.Function
+import Data.Maybe
 
 {- SubEvalM (subset of EvalM): typeclass for wrapper monads -}
 -- (EvalM here refers to StateT IdMap IO)
@@ -144,6 +147,38 @@ deal x y
 
 {- ⎕IO Functions -}
 
+gradeUpD :: Array -> Array -> IdxOriginM Array
+gradeUpD x y
+    | not (all isChar xList && all isChar yList) = throw . DomainError $ "(⍋): args must be simple character arrays"
+    | not (arrRank x == 1) = throw . RankError $ "(⍋): expected vector as left argument"
+    | otherwise = ask >>= \iO -> return . arrFromList . map (ScalarNum . fromIntegral . fst) . sortBy (on _cmp snd) . zipWith (,) [iO..] . alongAxis iO $ y
+    where isChar s
+              | ScalarCh _ <- s = True
+              | otherwise = False
+          xList = arrToList x
+          yList = arrToList y
+          _cmp = on compare (map (_ind xList) . arrToList)
+          _ind l e = fromMaybe (length l) . lookup e $ zip l [0..]
+
+gradeUpM :: Array -> IdxOriginM Array
+gradeUpM x = ask >>= \iO -> return . arrFromList . map (ScalarNum . fromIntegral . fst) . sortBy (on compare snd) . zipWith (,) [iO..] . alongAxis_ iO $ x
+
+gradeDownD :: Array -> Array -> IdxOriginM Array
+gradeDownD x y
+    | not (all isChar xList && all isChar yList) = throw . DomainError $ "(⍒): args must be simple character arrays"
+    | not (arrRank x == 1) = throw . RankError $ "(⍒): expected vector as left argument"
+    | otherwise = ask >>= \iO -> return . arrFromList . map (ScalarNum . fromIntegral . fst) . sortBy (on (flip _cmp) snd) . zipWith (,) [iO..] . alongAxis iO $ y
+    where isChar s
+              | ScalarCh _ <- s = True
+              | otherwise = False
+          xList = arrToList x
+          yList = arrToList y
+          _cmp = on compare (map (_ind xList) . arrToList)
+          _ind l e = fromMaybe (length l) . lookup e $ zip l [0..]
+
+gradeDownM :: Array -> IdxOriginM Array
+gradeDownM x = ask >>= \iO -> return . arrFromList . map (ScalarNum . fromIntegral . fst) . sortBy (on (flip compare) snd) . zipWith (,) [iO..] . alongAxis_ iO $ x
+
 iota :: Array -> IdxOriginM Array
 iota x = if any (<0) x'
          then throw $ DomainError "(⍳): expected nonnegative arguments"
@@ -265,6 +300,12 @@ encode x y = arrReorderAxes reorderedAxes . shapedArrFromList shape' . concat . 
                         | otherwise = mod x y
           reorderedAxes = ([i + (length $ shape x) | i <- [1..(length $ shape_ y)]] ++ [1..(length $ shape x)])
 
+enlist :: Array -> Array
+enlist = arrFromList . concat . map _flatten . arrToList
+    where _flatten s = case s of
+              (ScalarArr a) -> concat . map _flatten . arrToList $ a
+              _ -> [s]
+
 equ :: Array -> Array -> Array
 equ = arithFnD (\n m -> fromIntegral . fromEnum $ n == m)
 
@@ -329,6 +370,11 @@ minimum = arithFnD (min)
 
 maximum :: Array -> Array -> Array
 maximum = arithFnD (max)
+
+membership :: Array -> Array -> Array
+membership x y = arrMap (boolToScalar . _isElement) x
+    where _isElement s = s `elem` yList
+          yList = arrToList y
 
 multiply :: Array -> Array -> Array
 multiply = arithFnD (*)

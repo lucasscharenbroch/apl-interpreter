@@ -40,6 +40,21 @@ arrToList :: Array -> [Scalar]
 arrToList (Array shape cells) = [cells A.! i | i <- [0..(sz - 1)]]
     where sz = foldr (*) 1 shape
 
+{- Ordering (for sorting) -}
+
+instance Ord Scalar where
+    compare x y =  case (x, y) of
+        (ScalarNum xn, ScalarNum yn) -> compare xn yn
+        (ScalarNum xn, ScalarCh yn) -> LT
+        (ScalarCh xn, ScalarNum yn) -> GT
+        (ScalarCh xc, ScalarCh yc) -> compare xc yc
+        (ScalarArr a, ScalarArr b) -> compare a b
+        (ScalarArr a, s) -> compare a (arrFromList [s])
+        (s, ScalarArr a) -> compare (arrFromList [s]) a
+
+instance Ord Array where
+    compare x y = compare (arrToList x) (arrToList y)
+
 {- Functions and Operators -}
 
 type FuncM = Array -> StateT IdMap IO Array

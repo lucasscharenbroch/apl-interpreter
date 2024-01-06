@@ -132,6 +132,9 @@ fEncode = pureDyadFn (mkFnInfoD "⊤") F.encode
 fTranspose = mkMonDyadFn (mkFnInfoA "⍉") {fnCanSelectAM = True, fnCanSelectAD = True} F.transpose F.reorderAxes
 fReverse = mkMonDyadFn (mkFnInfoA "⌽") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAM = reverseOnAxis, fnOnAxisAD = rotateOnAxis} F.reverseLast F.rotateLast
 fReverseFirst = mkMonDyadFn (mkFnInfoA "⊖") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAM = reverseOnAxis, fnOnAxisAD = rotateOnAxis} F.reverseFirst F.rotateFirst
+fEpsilon = pureMonDyadFn (mkFnInfoA "∊") F.enlist F.membership
+fGradeUp = mkMonDyadFn (mkFnInfoA "⍋") F.gradeUpM F.gradeUpD
+fGradeDown = mkMonDyadFn (mkFnInfoA "⍒") F.gradeDownM F.gradeDownD
 
 functionGlyphs :: [(Char, Function)]
 functionGlyphs = [
@@ -165,7 +168,10 @@ functionGlyphs = [
         ('⊤', fEncode),
         ('⍉', fTranspose),
         ('⌽', fReverse),
-        ('⊖', fReverseFirst)
+        ('⊖', fReverseFirst),
+        ('∊', fEpsilon),
+        ('⍋', fGradeUp),
+        ('⍒', fGradeDown)
         -- TODO big list of functions
     ]
 
