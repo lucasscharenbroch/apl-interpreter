@@ -54,6 +54,54 @@ implicitGroup = id
 getString :: StateT IdMap IO Array
 getString = arrFromList . map ScalarCh <$> (lift $ getLine)
 
+{- Axis-Spec Functions -}
+
+reverse :: Double -> Array -> IdxOriginM Array
+reverse ax x
+    | not . isIntegral $ ax = throw . RankError $ "(⌽): invalid axis"
+    | otherwise = ask >>= \iO -> let ax' = (Prelude.floor ax) - iO + 1
+                                 in if ax' <= 0 || ax' > (arrRank x)
+                                    then throw . RankError $ "(⌽): invalid axis"
+                                    else return $ mapVecsAlongAxis ax' Prelude.reverse x
+
+rotate :: Double -> Array -> Array -> IdxOriginM Array
+rotate ax x y
+    | not . isIntegral $ ax = throw . DomainError $ "(⌽): invalid axis"
+    | otherwise = ask >>= \iO -> return $ _rotate iO
+        where _rotate iO
+                  | ax' < iO || ax' > (iO + (arrRank y) - 1) = throw . RankError $ "(⌽): invalid axis"
+                  | shape x' /= shape' = throw . LengthError $ "(⌽): invalid shape of left argument"
+                  | otherwise = zipVecsAlongAxis (length $ shape x'') ax' ax' __rotate x'' y
+                  where ax' = Prelude.floor ax - iO + 1
+                        x' = case shape x of -- extend x if scalar
+                            [1] -> shapedArrFromList shape' (replicate (foldr (*) 1 shape') (x `at` 0))
+                            _ -> x
+                        shape' = if arrRank y == 1
+                                 then [1]
+                                 else take (ax' - 1) (shape y) ++ drop ax' (shape y)
+                        x'' = x' { shape = (shape x') ++ [1] } -- append a dummy axis
+              __rotate a b = case map scalarToInt a of
+                  [n] -> if n > 0
+                         then drop n' b ++ take n' b
+                         else Prelude.reverse $ drop n' b' ++ take n' b'
+                         where n' = (abs n) `mod` length b
+                               b' = Prelude.reverse b
+                  _ -> throw . DomainError $ "(⌽): expected scalar array as left argument"
+
+{- First/Last -Axis Functions -}
+
+reverseFirst :: Array -> IdxOriginM Array
+reverseFirst x = ask >>= \iO -> Functions.reverse (fromIntegral iO) x
+
+reverseLast :: Array -> IdxOriginM Array
+reverseLast x = ask >>= \iO -> Functions.reverse (fromIntegral $ iO + (arrRank x) - 1) x
+
+rotateFirst :: Array -> Array -> IdxOriginM Array
+rotateFirst x y = ask >>= \iO -> rotate (fromIntegral iO) x y
+
+rotateLast :: Array -> Array -> IdxOriginM Array
+rotateLast x y = ask >>= \iO -> rotate (fromIntegral $ iO + (arrRank y) - 1) x y
+
 {- Rng Functions -}
 
 roll :: Array -> RandAndIoM Array
@@ -102,7 +150,7 @@ iota x = if any (<0) x'
          else ask >>= \iO -> return $ shapedArrFromList x' [toScalar . map (ScalarNum . fromIntegral . (+iO)) . calcIndex $ i | i <- [0..(sz - 1)]]
     where x' = arrToIntVec x
           sz = foldr (*) 1 x'
-          indexMod = reverse . init $ scanl (*) 1 (reverse x')
+          indexMod = Prelude.reverse . init $ scanl (*) 1 (Prelude.reverse x')
           calcIndex i = map (\(e, m) -> i `div` m `mod` e) $ zip x' indexMod
           toScalar (s:[]) = s
           toScalar (ss) = ScalarArr . arrFromList $ ss
@@ -120,10 +168,20 @@ indexOf x y
           return $ arrMap (findIndexInXs) ys
     where xRank = length . shape $ x
           yRank = length . shape $ y
-          xs = alongAxis 1 x
+          xs = alongAxis_ 1 x
           ys = alongRank (xRank - 1) y
           toArray (ScalarArr a) = a
           toArray s = arrFromList [s]
+
+reorderAxes :: Array -> Array -> IdxOriginM Array
+reorderAxes x y
+    | arrRank x /= 1 = throw . RankError $ "(⍉): invalid rank of left argument"
+    | (head . shape) x /= arrRank y = throw . RankError $ "(⍉): invalid length of left argument"
+    | otherwise = ask >>= \iO -> if (not . all (`elem`x')) [iO..(foldr (max) iO x')]
+                                 || (not . all (`elem`[iO..(foldr (max) iO x')])) x'
+                                 then throw . RankError $ "(⍉): invalid axis"
+                                 else return $ arrReorderAxes x' y
+    where x' = arrToIntVec x
 
 {- Pure Functions -}
 
@@ -329,3 +387,6 @@ tally :: Array -> Array
 tally a
     | (length . shape $ a) == 0 = intToScalarArr 0
     | otherwise = intToScalarArr . head . shape $ a
+
+transpose :: Array -> Identity Array
+transpose x = Identity $ arrReorderAxes (Prelude.reverse [1..(length $ shape x)]) x

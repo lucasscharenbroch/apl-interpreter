@@ -96,6 +96,10 @@ fExpandFirst = pureDyadFn "⍀" (dFPH "⍀")
 iAsteriskM = Just $ pureFuncM F.naturalLog
 iAsteriskD = Just $ pureFuncD F.logBase
 
+-- on-axis
+reverseOnAxis = Just (\ax -> mkFuncM $ F.reverse ax)
+rotateOnAxis = Just (\ax -> mkFuncD $ F.rotate ax)
+
 -- primitive
 fPlus = pureMonDyadFn (mkFnInfoA "+") {fnIdAD = Just $ ScalarNum 0} F.conjugate F.add
 fMinus = pureMonDyadFn (mkFnInfoA "-") {fnIdAD = Just $ ScalarNum 0} F.negate F.subtract
@@ -125,6 +129,9 @@ fCircle = pureMonDyadFn (mkFnInfoA "○") F.piTimes F.circularFormulae
 fBang = pureMonDyadFn (mkFnInfoA "!") {fnIdAD = Just $ ScalarNum 1} F.factorial F.binomial
 fQuestion = mkMonDyadFn (mkFnInfoA "?") F.roll F.deal
 fEncode = pureDyadFn (mkFnInfoD "⊤") F.encode
+fTranspose = mkMonDyadFn (mkFnInfoA "⍉") {fnCanSelectAM = True, fnCanSelectAD = True} F.transpose F.reorderAxes
+fReverse = mkMonDyadFn (mkFnInfoA "⌽") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAM = reverseOnAxis, fnOnAxisAD = rotateOnAxis} F.reverseLast F.rotateLast
+fReverseFirst = mkMonDyadFn (mkFnInfoA "⊖") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAM = reverseOnAxis, fnOnAxisAD = rotateOnAxis} F.reverseFirst F.rotateFirst
 
 functionGlyphs :: [(Char, Function)]
 functionGlyphs = [
@@ -155,7 +162,10 @@ functionGlyphs = [
         ('○', fCircle),
         ('!', fBang),
         ('?', fQuestion),
-        ('⊤', fEncode)
+        ('⊤', fEncode),
+        ('⍉', fTranspose),
+        ('⌽', fReverse),
+        ('⊖', fReverseFirst)
         -- TODO big list of functions
     ]
 

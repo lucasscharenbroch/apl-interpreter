@@ -26,7 +26,7 @@ floatMin = read "-Infinity" :: Double
 {- General -}
 
 isIntegral :: Double -> Bool
-isIntegral n = n == (fromIntegral . Prelude.floor $ n)
+isIntegral n = n == (fromIntegral . floor $ n)
 
 groupsOf :: Int -> [a] -> [[a]]
 groupsOf _ [] = []
@@ -68,8 +68,7 @@ arrNetSize = foldr (*) 1 . shape
 
 arrIndex :: Array -> [Int] -> Scalar
 arrIndex a is = a `at` sum (zipWith (*) is indexMod)
-    where indexMod = reverse . init . scanl (*) 1 . reverse . shape $ a
-    -- where indexMod = tail . scanr (*) . shape $ a
+    where indexMod = tail . scanr (*) 1 $ shape a
 
 arrToDouble :: Array -> Double
 arrToDouble a
@@ -81,12 +80,12 @@ arrToDouble a
 arrToInt :: Array -> Int
 arrToInt a
     | not . isIntegral $ n = throw $ DomainError "expected intergral singleton"
-    | otherwise = Prelude.floor $ n
+    | otherwise = floor $ n
     where n = arrToDouble a
 
 arrToIntVec :: Array -> [Int]
 arrToIntVec = map (toInt) . arrToList
-    where toInt (ScalarNum n) | (fromIntegral . Prelude.floor $ n) - n == 0 = Prelude.floor n
+    where toInt (ScalarNum n) | (fromIntegral . floor $ n) - n == 0 = floor n
           toInt _ = throw $ DomainError "expected int singleton"
 
 -- remove redundant `1`s from shape.
@@ -124,13 +123,18 @@ alongAxis ax a
                        then [1]
                        else take (ax - _iO) (shape a) ++ drop (ax - _iO + 1) (shape a)
               sz = arrNetSize a
-              subarrayAt i = case map (arrIndex a) $ indicesAt i of
-                  ((ScalarArr a):[]) -> a
-                  l -> shapedArrFromList shape' l
+              subarrayAt i = shapedArrFromList shape' . map (arrIndex a) $ indicesAt i
               indicesAt i =  map (\is -> take (ax - _iO) is ++ [i] ++ drop (ax - _iO) is) $ map (calcIndex) [0..(sz `div` n - 1)]
-              indexMod = tail . reverse $ scanl (*) 1 (reverse shape')
+              indexMod = tail . scanr (*) 1 $ shape'
               calcIndex i = map (\(e, m) -> i `div` m `mod` e) $ zip shape' indexMod
               _iO = 1 -- axis supplied is with respect to _iO = 1, not actual ⎕IO
+
+alongAxis_ :: Int -> Array -> [Array]
+alongAxis_ ax a = map unwrap $ alongAxis ax a
+    where unwrap x
+              | shape x /= [1] = x
+              | (ScalarArr a:[]) <- arrToList x = a
+              | otherwise = x
 
 unAlongAxis :: Int -> [Array] -> Array
 unAlongAxis ax subArrs
@@ -138,10 +142,11 @@ unAlongAxis ax subArrs
     | not . all (==(shape . head $ subArrs)) $ map (shape) subArrs = undefined
     | otherwise = shapedArrFromList shape' $ map _elemAt [0..(n - 1)]
         where _shape = shape . head $ subArrs
-              shape' = take ax' (_shape) ++ [length subArrs] ++ drop ax' (_shape)
+              shape' = if _shape == [1]
+                      then [length subArrs]
+                      else take ax' (_shape) ++ [length subArrs] ++ drop ax' (_shape)
               _iO = 1 -- axis supplied is with respect to _iO = 1, not actual ⎕IO
-              indexMod = tail . reverse $ scanl (*) 1 (reverse shape')
-              calcIndex :: Int -> [Int]
+              indexMod = tail . scanr (*) 1 $ shape'
               calcIndex i = zipWith (\e m -> (i `div` m) `mod` e) shape' indexMod
               n = foldr (*) 1 shape'
               _elemAt i = (subArrs !! (calcIndex i !! ax')) `arrIndex` idxList'
@@ -158,6 +163,24 @@ mapVecsAlongAxis ax f a = if length subArrs' == 1 then subArrs' !! 0 else unAlon
           vecs = foldr (zipWith (:)) (replicate subArrNetSz []) $ map arrToList subArrs
           vecs' = map f vecs
           subArrs' = map (shapedArrFromList subArrShape) $ foldr (zipWith (:)) (replicate vecSz []) vecs' -- undo the zipping into vecs
+          vecSz = case length vecs' of
+              0 -> 0
+              _ -> case map (length) vecs' of
+                  x | all (==(head x)) x -> head x
+                  _ -> undefined -- f should yeild vectors of uniform size
+
+zipVecsAlongAxis :: Int -> Int -> Int -> ([Scalar] -> [Scalar] -> [Scalar]) -> Array -> Array -> Array
+zipVecsAlongAxis axA axB axC f a b = if length subArrs' == 1 then subArrs' !! 0 else unAlongAxis axC subArrs'
+    where subArrsA = alongAxis axA a
+          subArrsB = alongAxis axB b
+          subArrShapeA = if length subArrsA == 0 then [0] else shape (head subArrsA)
+          subArrShapeB = if length subArrsB == 0 then [0] else shape (head subArrsB)
+          subArrNetSzA = foldr (*) 1 subArrShapeA
+          subArrNetSzB = foldr (*) 1 subArrShapeB
+          vecsA = foldr (zipWith (:)) (replicate subArrNetSzA []) $ map arrToList subArrsA
+          vecsB = foldr (zipWith (:)) (replicate subArrNetSzB []) $ map arrToList subArrsB
+          vecs' = zipWith f vecsA vecsB
+          subArrs' = map (shapedArrFromList subArrShapeA) $ foldr (zipWith (:)) (replicate vecSz []) vecs' -- undo the zipping into vecs
           vecSz = case length vecs' of
               0 -> 0
               _ -> case map (length) vecs' of
@@ -185,7 +208,7 @@ arrReorderAxes targetIdxs a
               calcIndex i = map ((idxList!!) . (+(-1))) targetIdxs
                   where idxList = calcIndex' i
               calcIndex' i = map (\(e, m) -> i `div` m `mod` e) $ zip shape' indexMod
-              indexMod = tail . reverse $ scanl (*) 1 (reverse shape')
+              indexMod = tail . scanr (*) 1 $ shape'
 
 arithFnD :: (Double -> Double -> Double) -> Array -> Array -> Array
 arithFnD f x' y' = arrZipWith (f') x y

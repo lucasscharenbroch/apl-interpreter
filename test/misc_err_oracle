@@ -4,3 +4,9 @@ Domain Error: (⎕IO←): expected integral
 Domain Error: (⎕IO←): expected numeric singleton
 Domain Error: (⎕IO←): expected numeric singleton
 Domain Error: (⎕IO←): expected numeric singleton
+Rank Error: (⍉): invalid length of left argument
+Rank Error: (⍉): invalid length of left argument
+Rank Error: (⍉): invalid axis
+Rank Error: (⍉): invalid axis
+Rank Error: (⍉): invalid axis
+Rank Error: (⍉): invalid axis

@@ -53,7 +53,7 @@ data FnInfoM = FnInfoM {
                          fnNameM :: String
                        , fnNamePadM :: Int
                        , fnIdM :: Maybe Scalar
-                       , fnOnAxisM :: Maybe (Int -> FuncM)
+                       , fnOnAxisM :: Maybe (Double -> FuncM)
                        , fnInverseM :: Maybe (FuncM)
                        , fnCanSelectM :: Bool
                        }
@@ -66,7 +66,7 @@ data FnInfoD = FnInfoD {
                          fnNameD :: String
                        , fnNamePadD :: Int
                        , fnIdD :: Maybe Scalar
-                       , fnOnAxisD :: Maybe (Int -> FuncD)
+                       , fnOnAxisD :: Maybe (Double -> FuncD)
                        , fnInverseD :: Maybe (FuncD)
                        , fnCanSelectD :: Bool
                        }
@@ -80,8 +80,8 @@ data FnInfoA = FnInfoA {
                        , fnNamePadA :: Int
                        , fnIdAM :: Maybe Scalar
                        , fnIdAD :: Maybe Scalar
-                       , fnOnAxisAM :: Maybe (Int -> FuncM)
-                       , fnOnAxisAD :: Maybe (Int -> FuncD)
+                       , fnOnAxisAM :: Maybe (Double -> FuncM)
+                       , fnOnAxisAD :: Maybe (Double -> FuncD)
                        , fnInverseAM :: Maybe (FuncM)
                        , fnInverseAD :: Maybe (FuncD)
                        , fnCanSelectAM :: Bool
