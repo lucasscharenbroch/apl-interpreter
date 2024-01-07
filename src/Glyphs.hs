@@ -135,6 +135,10 @@ fReverseFirst = mkMonDyadFn (mkFnInfoA "⊖") {fnCanSelectAM = True, fnCanSelect
 fEpsilon = pureMonDyadFn (mkFnInfoA "∊") F.enlist F.membership
 fGradeUp = mkMonDyadFn (mkFnInfoA "⍋") F.gradeUpM F.gradeUpD
 fGradeDown = mkMonDyadFn (mkFnInfoA "⍒") F.gradeDownM F.gradeDownD
+fCup = pureMonDyadFn (mkFnInfoA "∪") F.unique F.union
+fCap = pureDyadFn (mkFnInfoD "∩") F.intersection
+fTilde = pureMonDyadFn (mkFnInfoA "~") F.logicalNegate F.without
+fNeq = pureMonDyadFn (mkFnInfoA "≠") F.uniqueMask F.neq
 
 functionGlyphs :: [(Char, Function)]
 functionGlyphs = [
@@ -171,7 +175,11 @@ functionGlyphs = [
         ('⊖', fReverseFirst),
         ('∊', fEpsilon),
         ('⍋', fGradeUp),
-        ('⍒', fGradeDown)
+        ('⍒', fGradeDown),
+        ('∪', fCup),
+        ('∩', fCap),
+        ('~', fTilde),
+        ('≠', fNeq)
         -- TODO big list of functions
     ]
 

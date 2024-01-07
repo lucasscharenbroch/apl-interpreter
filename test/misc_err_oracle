@@ -10,3 +10,13 @@ Rank Error: (⍉): invalid axis
 Rank Error: (⍉): invalid axis
 Rank Error: (⍉): invalid axis
 Rank Error: (⍉): invalid axis
+Domain Error: (⍋): args must be simple character arrays
+Domain Error: (⍒): args must be simple character arrays
+1
+1
+Domain Error: (∪): left argument should be a vector
+Domain Error: (∪): right argument should be a vector
+Domain Error: (∩): left argument should be a vector
+Domain Error: (∩): right argument should be a vector
+Domain Error: (~): left argument should be a vector
+Domain Error: (~): right argument should be a vector

@@ -339,6 +339,14 @@ gtr = arithFnD (\n m -> fromIntegral . fromEnum $ n > m)
 identity :: Array -> Array
 identity = id
 
+intersection :: Array -> Array -> Array
+intersection x y
+    | arrRank x /= 1 = throw . DomainError $ "(∩): left argument should be a vector"
+    | arrRank y /= 1 = throw . DomainError $ "(∩): right argument should be a vector"
+    | otherwise = arrFromList . filter (`elem`yList) $ xList
+    where xList = arrToList x
+          yList = arrToList y
+
 lcm :: Array -> Array -> Array
 lcm = arithFnD (_lcm)
     where _lcm x y
@@ -358,6 +366,12 @@ logBase :: Array -> Array -> Array
 logBase = arithFnD (_logBase)
     where _logBase b n | b <= 0 || b == 1 || n <= 0 = throw $ DomainError "(⍟)"
           _logBase b n = Prelude.logBase b n
+
+logicalNegate :: Array -> Array
+logicalNegate = arrMap _not
+    where _not s = case s of
+              (ScalarArr a) -> ScalarArr $ arrMap _not a
+              _ -> boolToScalar . not . scalarToBool $ s
 
 lss :: Array -> Array -> Array
 lss = arithFnD (\n m -> fromIntegral . fromEnum $ n < m)
@@ -389,6 +403,9 @@ naturalLog = arithFnM (_log)
 
 negate :: Array -> Array
 negate = arithFnM (Prelude.negate)
+
+neq :: Array -> Array -> Array
+neq = arithFnD (\n m -> fromIntegral . fromEnum $ n /= m)
 
 nor :: Array -> Array -> Array
 nor = arithFnD (\x y -> boolToDouble $ not (doubleToBool x || doubleToBool y))
@@ -436,3 +453,28 @@ tally a
 
 transpose :: Array -> Identity Array
 transpose x = Identity $ arrReorderAxes (Prelude.reverse [1..(length $ shape x)]) x
+
+union :: Array -> Array -> Array
+union x y
+    | arrRank x /= 1 = throw . DomainError $ "(∪): left argument should be a vector"
+    | arrRank y /= 1 = throw . DomainError $ "(∪): right argument should be a vector"
+    | otherwise = arrFromList $ xList ++ filter (not . (`elem`xList)) yList
+    where xList = arrToList x
+          yList = arrToList y
+
+unique :: Array -> Array
+unique = unAlongAxis 1 . nub . alongAxis 1
+
+uniqueMask :: Array -> Array
+uniqueMask = arrFromList . map (boolToScalar) . _uniqMask . alongAxis 1
+    where _uniqMask = Prelude.reverse . _uniqMaskRec . Prelude.reverse
+          _uniqMaskRec (x:xs) = not (x `elem` xs) : _uniqMaskRec xs
+          _uniqMaskRec [] = []
+
+without :: Array -> Array -> Array
+without x y
+    | arrRank x /= 1 = throw . DomainError $ "(~): left argument should be a vector"
+    | arrRank y /= 1 = throw . DomainError $ "(~): right argument should be a vector"
+    | otherwise = arrFromList . filter (not . (`elem`yList)) $ xList
+    where xList = arrToList x
+          yList = arrToList y
