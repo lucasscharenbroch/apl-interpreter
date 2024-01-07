@@ -139,6 +139,8 @@ fCup = pureMonDyadFn (mkFnInfoA "∪") F.unique F.union
 fCap = pureDyadFn (mkFnInfoD "∩") F.intersection
 fTilde = pureMonDyadFn (mkFnInfoA "~") F.logicalNegate F.without
 fNeq = pureMonDyadFn (mkFnInfoA "≠") F.uniqueMask F.neq
+fExecute = MonFn (mkFnInfoM "⍎") F.execute
+fFormat = pureMonFn (mkFnInfoM "⍕") F.format
 
 functionGlyphs :: [(Char, Function)]
 functionGlyphs = [
@@ -179,7 +181,9 @@ functionGlyphs = [
         ('∪', fCup),
         ('∩', fCap),
         ('~', fTilde),
-        ('≠', fNeq)
+        ('≠', fNeq),
+        ('⍎', fExecute),
+        ('⍕', fFormat)
         -- TODO big list of functions
     ]
 

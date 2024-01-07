@@ -1,3 +1,4 @@
+module Main where
 import System.Console.Haskeline
 import GlyphCompletion
 import Lex (Token(..), tokenize, countBracketNesting)

@@ -20,3 +20,11 @@ Domain Error: (∩): left argument should be a vector
 Domain Error: (∩): right argument should be a vector
 Domain Error: (~): left argument should be a vector
 Domain Error: (~): right argument should be a vector
+Syntax Error: (⍎): Parse Error
+Domain Error: (⍒): args must be simple character arrays
+1 2 3
+
+
+0
+11 7
+1 2 1

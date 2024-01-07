@@ -18,6 +18,9 @@ import Util
 import Data.List
 import Data.Function
 import Data.Maybe
+import Lex (tokenize)
+import {-# SOURCE #-} Main
+import {-# SOURCE #-} Parse
 
 {- SubEvalM (subset of EvalM): typeclass for wrapper monads -}
 -- (EvalM here refers to StateT IdMap IO)
@@ -104,6 +107,28 @@ rotateFirst x y = ask >>= \iO -> rotate (fromIntegral iO) x y
 
 rotateLast :: Array -> Array -> IdxOriginM Array
 rotateLast x y = ask >>= \iO -> rotate (fromIntegral $ iO + (arrRank y) - 1) x y
+
+{- EvalM Functions -}
+
+execute :: Array -> StateT IdMap IO Array
+execute x = _execStatement . tokenize . arrToString $ x
+    where _handleRes :: ExprResult -> StateT IdMap IO ()
+          _handleRes res = do idm <- get
+                              mb <- lift . catchExecErr $ evalAndShowRes idm res
+                              case mb of
+                                  Nothing -> throw . SyntaxError $ "(⍎): execution failed"
+                                  Just idm' -> put idm'
+          _execStatement ts = do idm <- get
+                                 case evalMatchFn idm ts parseExpr of
+                                     Nothing -> throw . SyntaxError $ "(⍎): Parse Error"
+                                     Just (res, ts') -> case ts' of
+                                         [] -> case res of
+                                                   ResNull -> return zilde
+                                                   ResFtn _ _ -> _handleRes res >> return zilde
+                                                   ResOtn _ _ -> _handleRes res >> return zilde
+                                                   ResAtn atn _ -> evalArrTree atn
+                                                   where zilde = arrFromList []
+                                         _ -> _handleRes res >> _execStatement ts'
 
 {- Rng Functions -}
 
@@ -319,6 +344,15 @@ factorial = arithFnM (_factorial)
               | n /= (fromIntegral . Prelude.floor $ n) = throw $ DomainError "(!): arguments should be integral"
               | n < 0 = throw $ DomainError "(!): arguments should be nonnegative"
               | otherwise = fromIntegral . foldr (*) 1 $ [1..(Prelude.floor n)]
+
+format :: Array -> Array
+format x = case map (map ScalarCh) . lines . show $ x of
+    [] -> arrFromList []
+    (v:[]) -> arrFromList v
+    x' -> shapedArrFromList [length x'', length (head x'')] . concat $ x''
+        where _pad sss = map (\ss -> ss ++ replicate (padSz - length ss) (ScalarCh ' ')) sss
+                  where padSz = foldr (max) 0 . map length $ sss
+              x'' = _pad x'
 
 floor :: Array -> Array
 floor = arithFnM (fromIntegral . Prelude.floor)

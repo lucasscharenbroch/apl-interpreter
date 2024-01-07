@@ -266,3 +266,12 @@ arrToBool a = case arrToInt a of
 scalarToInt :: Scalar -> Int
 scalarToInt (ScalarNum n) | isIntegral n = floor n
 scalarToInt _ = throw $ DomainError "expected int singleton"
+
+scalarToChar :: Scalar -> Char
+scalarToChar (ScalarCh c) = c
+scalarToChar _ = throw $ DomainError "expected character"
+
+arrToString :: Array -> String
+arrToString a
+    | arrRank a /= 1 = throw . RankError $ "expected character scalar or vector"
+    | otherwise = map scalarToChar . arrToList $ a
