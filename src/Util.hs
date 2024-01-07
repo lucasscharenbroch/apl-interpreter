@@ -22,6 +22,7 @@ infixr 8 .:.
 intMax = maxBound :: Int
 floatMax = read "Infinity" :: Double
 floatMin = read "-Infinity" :: Double
+zilde = arrFromList []
 
 {- General -}
 
@@ -69,6 +70,9 @@ arrNetSize = foldr (*) 1 . shape
 arrIndex :: Array -> [Int] -> Scalar
 arrIndex a is = a `at` sum (zipWith (*) is indexMod)
     where indexMod = tail . scanr (*) 1 $ shape a
+
+arrIndexInRange :: Array -> [Int] -> Bool
+arrIndexInRange a is = all (>=0) is && all id (zipWith (<) is (shape a)) && arrRank a == length is
 
 arrToDouble :: Array -> Double
 arrToDouble a
@@ -138,7 +142,7 @@ alongAxis_ ax a = map unwrap $ alongAxis ax a
 
 unAlongAxis :: Int -> [Array] -> Array
 unAlongAxis ax subArrs
-    | length subArrs == 0 = arrFromList []
+    | length subArrs == 0 = zilde
     | not . all (==(shape . head $ subArrs)) $ map (shape) subArrs = undefined
     | otherwise = shapedArrFromList shape' $ map _elemAt [0..(n - 1)]
         where _shape = shape . head $ subArrs
@@ -189,7 +193,7 @@ zipVecsAlongAxis axA axB axC f a b = if length subArrs' == 1 then subArrs' !! 0 
 
 alongRank :: Int -> Array -> Array
 alongRank r a
-    | foldr (*) 1 (shape a) == 0 = arrFromList []
+    | foldr (*) 1 (shape a) == 0 = zilde
     | n <= 0 = arrFromList [ScalarArr a]
     | n >= (length $ shape a) = a
     | otherwise = shapedArrFromList outerShape . map (ScalarArr . shapedArrFromList innerShape) . groupsOf groupSz . arrToList $ a
@@ -270,6 +274,16 @@ scalarToInt _ = throw $ DomainError "expected int singleton"
 scalarToChar :: Scalar -> Char
 scalarToChar (ScalarCh c) = c
 scalarToChar _ = throw $ DomainError "expected character"
+
+scalarToArr :: Scalar -> Array
+scalarToArr s = case s of
+              ScalarArr a -> a
+              _ -> arrFromList [s]
+
+arrToScalar :: Array -> Scalar
+arrToScalar a
+    | shape a == [1] = a `at` 0
+    | otherwise = ScalarArr a
 
 arrToString :: Array -> String
 arrToString a

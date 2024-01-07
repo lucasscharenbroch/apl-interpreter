@@ -95,10 +95,14 @@ fExpandFirst = pureDyadFn "⍀" (dFPH "⍀")
 -- inverses
 iAsteriskM = Just $ pureFuncM F.naturalLog
 iAsteriskD = Just $ pureFuncD F.logBase
+iAsteriskCircleM = Just $ pureFuncM F.exponential
+iAsteriskCircleD = Just $ pureFuncD F.power
 
 -- on-axis
 reverseOnAxis = Just (\ax -> mkFuncM $ F.reverse ax)
 rotateOnAxis = Just (\ax -> mkFuncD $ F.rotate ax)
+partitionedEncloseOnAxis = Just (\ax -> mkFuncD $ F.partitionedEnclose ax)
+partitionOnAxis = Just (\ax -> mkFuncD $ F.partition ax)
 
 -- primitive
 fPlus = pureMonDyadFn (mkFnInfoA "+") {fnIdAD = Just $ ScalarNum 0} F.conjugate F.add
@@ -113,7 +117,7 @@ fGtr = pureDyadFn (mkFnInfoD ">") {fnIdD = Just $ ScalarNum 0} F.gtr
 fGeq = pureDyadFn (mkFnInfoD "≥") {fnIdD = Just $ ScalarNum 1} F.geq
 fEqu = pureDyadFn (mkFnInfoD "=") {fnIdD = Just $ ScalarNum 1} F.equ
 fAsterisk = pureMonDyadFn (mkFnInfoA "*") {fnIdAD = Just $ ScalarNum 1, fnInverseAM = iAsteriskM, fnInverseAD = iAsteriskD} F.exponential F.power
-fAsteriskCircle = pureMonDyadFn (mkFnInfoA "⍟") F.naturalLog F.logBase
+fAsteriskCircle = pureMonDyadFn (mkFnInfoA "⍟") {fnInverseAM = iAsteriskCircleM, fnInverseAD = iAsteriskCircleD} F.naturalLog F.logBase
 fFloor = pureMonDyadFn (mkFnInfoA "⌊") {fnIdAD = Just $ ScalarNum floatMax} F.floor F.minimum
 fCeil = pureMonDyadFn (mkFnInfoA "⌈") {fnIdAD = Just $ ScalarNum floatMin} F.ceiling F.maximum
 fRightTack = pureMonDyadFn (mkFnInfoA "⊢") F.identity F.right
@@ -141,6 +145,9 @@ fTilde = pureMonDyadFn (mkFnInfoA "~") F.logicalNegate F.without
 fNeq = pureMonDyadFn (mkFnInfoA "≠") F.uniqueMask F.neq
 fExecute = MonFn (mkFnInfoM "⍎") F.execute
 fFormat = pureMonFn (mkFnInfoM "⍕") F.format
+fDisclose = mkMonDyadFn (mkFnInfoA "⊃") {fnCanSelectAM = True, fnCanSelectAD = True} F.first F.pick
+fEnclose = mkMonDyadFn (mkFnInfoA "⊂") {fnOnAxisAD = partitionedEncloseOnAxis} F.enclose F.partitionedEncloseLast
+fPartition = mkMonDyadFn (mkFnInfoA "⊆") {fnOnAxisAD = partitionOnAxis} F.nest F.partitionLast
 
 functionGlyphs :: [(Char, Function)]
 functionGlyphs = [
@@ -183,7 +190,10 @@ functionGlyphs = [
         ('~', fTilde),
         ('≠', fNeq),
         ('⍎', fExecute),
-        ('⍕', fFormat)
+        ('⍕', fFormat),
+        ('⊃', fDisclose),
+        ('⊂', fEnclose),
+        ('⊆', fPartition)
         -- TODO big list of functions
     ]
 

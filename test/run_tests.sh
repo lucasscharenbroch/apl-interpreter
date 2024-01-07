@@ -28,8 +28,8 @@ fi
 COL1=71
 
 dyalog_test_files=(
-        "exec_format"
         "general_fns"
+        "exec_format"
         "general_ops"
         "combinators"
         "subscript"

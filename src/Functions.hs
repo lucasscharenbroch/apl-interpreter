@@ -3,7 +3,6 @@
 module Functions where
 import Eval
 import GrammarTree
-import Data.List (elemIndex)
 import Data.Fixed (mod')
 import Control.Monad
 import System.Random
@@ -62,6 +61,55 @@ getString = arrFromList . map ScalarCh <$> (lift $ getLine)
 
 {- Axis-Spec Functions -}
 
+partitionedEnclose :: Double -> Array -> Array -> IdxOriginM Array
+partitionedEnclose ax x y
+    | not . isIntegral $ ax = throw . RankError $ "(⊂): invalid axis"
+    | otherwise = do iO <- ask
+                     let ax' = (Prelude.floor ax) - iO + 1
+                     if ax' <= 0 || ax' > (arrRank y) then throw . RankError $ "(⊂): invalid axis"
+                     else if arrRank x /= 1 then throw . RankError $ "(⊂): expected scalar/vector left argument"
+                     else return $ _pEnclose ax' (arrToIntVec x) (alongAxis ax' y)
+    where _pEnclose :: Int -> [Int] -> [Array] -> Array
+          _pEnclose _ [] [] = zilde
+          _pEnclose ax' ns es
+              | length es == 1 && length ns > 1 = _pEnclose ax' ns (replicate (length ns) (head es))
+              | length ns == 1 = _pEnclose ax' (replicate (length es) (head ns)) es
+              | length ns > (1 + length es) = throw . LengthError $ "(⊂): left argument too long"
+              | any (<0) ns = throw . DomainError $ "(⊂): left argument should be nonnegative"
+              | length ns < (1 + length es) = _pEnclose ax' (ns ++ replicate ((1 + length es) - (length ns)) 0) es
+              | otherwise = arrFromList . map ScalarArr $ intertwine divGroups arrGroups
+                  where ns' = dropWhile (==0) ns -- remove leading zeroes
+                        es' = drop (length ns - length ns') es
+                        groups = groupBy (\a b -> snd b == 0) $ zip es' ns'
+                        arrGroups = map ((:[]) . unAlongAxis ax' . map fst) $ groups
+                        divGroups = map ((flip replicate) zilde) $ (map ((-1+) . snd . head) groups) ++ [last ns]
+                        intertwine (a:[]) [] = a
+                        intertwine (a:as) (b:bs) = a ++ b ++ intertwine as bs
+                        intertwine a b = throw . RankError $ (show a) ++ " || " ++ (show b) ++ " // " ++ (show arrGroups) ++ " \\\\ " ++ (show divGroups) ++ " ^^ " ++ (show groups)
+
+partition :: Double -> Array -> Array -> IdxOriginM Array
+partition ax x y
+    | not . isIntegral $ ax = throw . RankError $ "(⊆): invalid axis"
+    | otherwise = do iO <- ask
+                     let ax' = (Prelude.floor ax) - iO + 1
+                     if ax' <= 0 || ax' > (arrRank y) then throw . RankError $ "(⊆): invalid axis"
+                     else if arrRank x /= 1 then throw . RankError $ "(⊆): expected scalar/vector left argument"
+                     else return $ mapVecsAlongAxis ax' (_partition (arrToIntVec x)) y
+    where _partition :: [Int] -> [Scalar] -> [Scalar]
+          _partition [] [] = []
+          _partition ns ss
+              | length ns == 1 = _partition (replicate (length ss) (head ns)) ss
+              | length ns /= length ss = throw . LengthError $ "(⊆): mismatched left and right argument lengths"
+              | any (<0) ns = throw . DomainError $ "(⊆): left argument should be nonnegative"
+              | otherwise = map joinScalars . filter (/=[]) . map (map fst . filter ((/=0) . snd)) . groupAdj (on (>=) snd) $ zip ss ns
+          groupAdj _ [] = []
+          groupAdj f (a:as) = case groupAdj f as of
+                                  [] -> [[a]]
+                                  rest@(g:gs)
+                                      | f a (head g) -> (a : g) : gs
+                                      | otherwise -> [a] : rest
+          joinScalars ss = ScalarArr . arrFromList $ ss
+
 reverse :: Double -> Array -> IdxOriginM Array
 reverse ax x
     | not . isIntegral $ ax = throw . RankError $ "(⌽): invalid axis"
@@ -96,6 +144,12 @@ rotate ax x y
 
 {- First/Last -Axis Functions -}
 
+partitionLast :: Array -> Array -> IdxOriginM Array
+partitionLast x y = ask >>= \iO -> Functions.partition (fromIntegral $ iO + (arrRank y) - 1) x y
+
+partitionedEncloseLast :: Array -> Array -> IdxOriginM Array
+partitionedEncloseLast x y = ask >>= \iO -> partitionedEnclose (fromIntegral $ iO + (arrRank y) - 1) x y
+
 reverseFirst :: Array -> IdxOriginM Array
 reverseFirst x = ask >>= \iO -> Functions.reverse (fromIntegral iO) x
 
@@ -127,7 +181,6 @@ execute x = _execStatement . tokenize . arrToString $ x
                                                    ResFtn _ _ -> _handleRes res >> return zilde
                                                    ResOtn _ _ -> _handleRes res >> return zilde
                                                    ResAtn atn _ -> evalArrTree atn
-                                                   where zilde = arrFromList []
                                          _ -> _handleRes res >> _execStatement ts'
 
 {- Rng Functions -}
@@ -233,6 +286,20 @@ indexOf x y
           toArray (ScalarArr a) = a
           toArray s = arrFromList [s]
 
+pick :: Array -> Array -> IdxOriginM Array
+pick x y
+    | arrRank x /= 1 = throw . RankError $ "(⊃): expected vector as left argument"
+    | otherwise = ask >>= \iO -> return $ _pick ((map . map) (+(-1*iO)) indices) y
+    where indices = map (arrToIntVec . scalarToArr) . arrToList $ x
+          _pick [] a = a
+          _pick (i:is) a
+              | length i /= arrRank a = throw . RankError $ "(⊃): invalid length of index"
+              | not $ arrIndexInRange a i = throw . LengthError $ "(⊃): index out of range"
+              | otherwise = _pick is a'
+                  where a' = case arrIndex a i of
+                                 ScalarArr arr -> arr
+                                 s -> arrFromList [s]
+
 reorderAxes :: Array -> Array -> IdxOriginM Array
 reorderAxes x y
     | arrRank x /= 1 = throw . RankError $ "(⍉): invalid rank of left argument"
@@ -325,6 +392,11 @@ encode x y = arrReorderAxes reorderedAxes . shapedArrFromList shape' . concat . 
                         | otherwise = mod x y
           reorderedAxes = ([i + (length $ shape x) | i <- [1..(length $ shape_ y)]] ++ [1..(length $ shape x)])
 
+enclose :: Array -> Identity Array
+enclose x
+    | (shape x) == [1] && (not . isScalarArr) (x `at` 0) = return x
+    | otherwise = return . arrFromList . (:[]) . ScalarArr $ x
+
 enlist :: Array -> Array
 enlist = arrFromList . concat . map _flatten . arrToList
     where _flatten s = case s of
@@ -345,9 +417,16 @@ factorial = arithFnM (_factorial)
               | n < 0 = throw $ DomainError "(!): arguments should be nonnegative"
               | otherwise = fromIntegral . foldr (*) 1 $ [1..(Prelude.floor n)]
 
+first :: Array -> Identity Array
+first x = case arrToList x of
+    [] -> return $ doubleToScalarArr 0
+    x':_ -> case x' of
+                ScalarArr a -> return $ a
+                _ -> return $ arrFromList [x']
+
 format :: Array -> Array
 format x = case map (map ScalarCh) . lines . show $ x of
-    [] -> arrFromList []
+    [] -> zilde
     (v:[]) -> arrFromList v
     x' -> shapedArrFromList [length x'', length (head x'')] . concat $ x''
         where _pad sss = map (\ss -> ss ++ replicate (padSz - length ss) (ScalarCh ' ')) sss
@@ -440,6 +519,12 @@ negate = arithFnM (Prelude.negate)
 
 neq :: Array -> Array -> Array
 neq = arithFnD (\n m -> fromIntegral . fromEnum $ n /= m)
+
+nest :: Array -> Identity Array
+nest x
+    | any isScalarArr $ arrToList x = return x
+    | shape x == [1] = return x
+    | otherwise = return $ arrFromList [ScalarArr x]
 
 nor :: Array -> Array -> Array
 nor = arithFnD (\x y -> boolToDouble $ not (doubleToBool x || doubleToBool y))

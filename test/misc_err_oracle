@@ -28,3 +28,21 @@ Domain Error: (⍒): args must be simple character arrays
 0
 11 7
 1 2 1
+┌┐
+└┘
+┌──┐
+│┌┐│
+│└┘│
+└──┘
+
+
+┌┐
+└┘
+
+Length Error: (⊆): mismatched left and right argument lengths
+Length Error: (⊂): left argument too long
+Length Error: (⊆): mismatched left and right argument lengths
+Domain Error: (⊂): left argument should be nonnegative
+Domain Error: (⊆): left argument should be nonnegative
+Rank Error: (⊂): expected scalar/vector left argument
+Rank Error: (⊆): expected scalar/vector left argument
