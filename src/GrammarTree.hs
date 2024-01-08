@@ -33,8 +33,8 @@ shapedArrFromList shape cells = Array {
                                 }
     where size = foldr (*) 1 shape
 
-arrFromList :: [Scalar] -> Array
-arrFromList l = shapedArrFromList [length l] l
+listToArr :: [Scalar] -> Array
+listToArr l = shapedArrFromList [length l] l
 
 arrToList :: Array -> [Scalar]
 arrToList (Array shape cells) = [cells A.! i | i <- [0..(sz - 1)]]
@@ -49,8 +49,8 @@ instance Ord Scalar where
         (ScalarCh xn, ScalarNum yn) -> GT
         (ScalarCh xc, ScalarCh yc) -> compare xc yc
         (ScalarArr a, ScalarArr b) -> compare a b
-        (ScalarArr a, s) -> compare a (arrFromList [s])
-        (s, ScalarArr a) -> compare (arrFromList [s]) a
+        (ScalarArr a, s) -> compare a (listToArr [s])
+        (s, ScalarArr a) -> compare (listToArr [s]) a
 
 instance Ord Array where
     compare x y = compare (arrToList x) (arrToList y)

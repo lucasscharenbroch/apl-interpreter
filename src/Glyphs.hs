@@ -133,7 +133,7 @@ fCircle = pureMonDyadFn (mkFnInfoA "○") F.piTimes F.circularFormulae
 fBang = pureMonDyadFn (mkFnInfoA "!") {fnIdAD = Just $ ScalarNum 1} F.factorial F.binomial
 fQuestion = mkMonDyadFn (mkFnInfoA "?") F.roll F.deal
 fEncode = pureDyadFn (mkFnInfoD "⊤") F.encode
-fTranspose = mkMonDyadFn (mkFnInfoA "⍉") {fnCanSelectAM = True, fnCanSelectAD = True} F.transpose F.reorderAxes
+fTranspose = mkMonDyadFn (mkFnInfoA "⍉") {fnCanSelectAM = True, fnCanSelectAD = True} (Identity . F.transpose) F.reorderAxes
 fReverse = mkMonDyadFn (mkFnInfoA "⌽") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAM = reverseOnAxis, fnOnAxisAD = rotateOnAxis} F.reverseLast F.rotateLast
 fReverseFirst = mkMonDyadFn (mkFnInfoA "⊖") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAM = reverseOnAxis, fnOnAxisAD = rotateOnAxis} F.reverseFirst F.rotateFirst
 fEpsilon = pureMonDyadFn (mkFnInfoA "∊") F.enlist F.membership
@@ -145,9 +145,9 @@ fTilde = pureMonDyadFn (mkFnInfoA "~") F.logicalNegate F.without
 fNeq = pureMonDyadFn (mkFnInfoA "≠") F.uniqueMask F.neq
 fExecute = MonFn (mkFnInfoM "⍎") F.execute
 fFormat = pureMonFn (mkFnInfoM "⍕") F.format
-fDisclose = mkMonDyadFn (mkFnInfoA "⊃") {fnCanSelectAM = True, fnCanSelectAD = True} F.first F.pick
-fEnclose = mkMonDyadFn (mkFnInfoA "⊂") {fnOnAxisAD = partitionedEncloseOnAxis} F.enclose F.partitionedEncloseLast
-fPartition = mkMonDyadFn (mkFnInfoA "⊆") {fnOnAxisAD = partitionOnAxis} F.nest F.partitionLast
+fDisclose = mkMonDyadFn (mkFnInfoA "⊃") {fnCanSelectAM = True, fnCanSelectAD = True} (Identity . F.first) F.pick
+fEnclose = mkMonDyadFn (mkFnInfoA "⊂") {fnOnAxisAD = partitionedEncloseOnAxis} (Identity . F.enclose) F.partitionedEncloseLast
+fPartition = mkMonDyadFn (mkFnInfoA "⊆") {fnOnAxisAD = partitionOnAxis} (Identity . F.nest) F.partitionLast
 
 functionGlyphs :: [(Char, Function)]
 functionGlyphs = [

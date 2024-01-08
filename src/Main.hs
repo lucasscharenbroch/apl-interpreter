@@ -56,7 +56,7 @@ handleArgv (VerboseFlag:opts) = do
 
 {- Constants -}
 
-defaultIdMap = mapInsert "⎕IO" (IdArr . arrFromList $ [ScalarNum 1]) emptyIdMap
+defaultIdMap = mapInsert "⎕IO" (IdArr . listToArr $ [ScalarNum 1]) emptyIdMap
 
 {- Helpers -}
 

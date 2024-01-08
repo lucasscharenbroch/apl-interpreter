@@ -57,7 +57,7 @@ implicitGroup :: Array -> Array
 implicitGroup = id
 
 getString :: StateT IdMap IO Array
-getString = arrFromList . map ScalarCh <$> (lift $ getLine)
+getString = listToArr . map ScalarCh <$> (lift $ getLine)
 
 {- Axis-Spec Functions -}
 
@@ -77,7 +77,7 @@ partitionedEnclose ax x y
               | length ns > (1 + length es) = throw . LengthError $ "(⊂): left argument too long"
               | any (<0) ns = throw . DomainError $ "(⊂): left argument should be nonnegative"
               | length ns < (1 + length es) = _pEnclose ax' (ns ++ replicate ((1 + length es) - (length ns)) 0) es
-              | otherwise = arrFromList . map ScalarArr $ intertwine divGroups arrGroups
+              | otherwise = listToArr . map ScalarArr $ intertwine divGroups arrGroups
                   where ns' = dropWhile (==0) ns -- remove leading zeroes
                         es' = drop (length ns - length ns') es
                         groups = groupBy (\a b -> snd b == 0) $ zip es' ns'
@@ -108,7 +108,7 @@ partition ax x y
                                   rest@(g:gs)
                                       | f a (head g) -> (a : g) : gs
                                       | otherwise -> [a] : rest
-          joinScalars ss = ScalarArr . arrFromList $ ss
+          joinScalars ss = ScalarArr . listToArr $ ss
 
 reverse :: Double -> Array -> IdxOriginM Array
 reverse ax x
@@ -202,7 +202,7 @@ roll a = shapedArrFromList (shape a) <$> mapM (_mapF) (arrToList a)
 deal :: Array -> Array -> RandAndIoM Array
 deal x y
     | x' > y' = throw $ DomainError "(?): right argument to must be greater than or equal to the right"
-    | otherwise = arrFromList . map (ScalarNum . fromIntegral) <$> _deal [(1, y')] y' x'
+    | otherwise = listToArr . map (ScalarNum . fromIntegral) <$> _deal [(1, y')] y' x'
     where x' = arrToInt x
           y' = arrToInt y
           _deal ranges netRange 0 = return []
@@ -229,7 +229,7 @@ gradeUpD :: Array -> Array -> IdxOriginM Array
 gradeUpD x y
     | not (all isChar xList && all isChar yList) = throw . DomainError $ "(⍋): args must be simple character arrays"
     | not (arrRank x == 1) = throw . RankError $ "(⍋): expected vector as left argument"
-    | otherwise = ask >>= \iO -> return . arrFromList . map (ScalarNum . fromIntegral . fst) . sortBy (on _cmp snd) . zipWith (,) [iO..] . alongAxis iO $ y
+    | otherwise = ask >>= \iO -> return . listToArr . map (ScalarNum . fromIntegral . fst) . sortBy (on _cmp snd) . zipWith (,) [iO..] . alongAxis iO $ y
     where isChar s
               | ScalarCh _ <- s = True
               | otherwise = False
@@ -239,13 +239,13 @@ gradeUpD x y
           _ind l e = fromMaybe (length l) . lookup e $ zip l [0..]
 
 gradeUpM :: Array -> IdxOriginM Array
-gradeUpM x = ask >>= \iO -> return . arrFromList . map (ScalarNum . fromIntegral . fst) . sortBy (on compare snd) . zipWith (,) [iO..] . alongAxis_ iO $ x
+gradeUpM x = ask >>= \iO -> return . listToArr . map (ScalarNum . fromIntegral . fst) . sortBy (on compare snd) . zipWith (,) [iO..] . alongAxis_ iO $ x
 
 gradeDownD :: Array -> Array -> IdxOriginM Array
 gradeDownD x y
     | not (all isChar xList && all isChar yList) = throw . DomainError $ "(⍒): args must be simple character arrays"
     | not (arrRank x == 1) = throw . RankError $ "(⍒): expected vector as left argument"
-    | otherwise = ask >>= \iO -> return . arrFromList . map (ScalarNum . fromIntegral . fst) . sortBy (on (flip _cmp) snd) . zipWith (,) [iO..] . alongAxis iO $ y
+    | otherwise = ask >>= \iO -> return . listToArr . map (ScalarNum . fromIntegral . fst) . sortBy (on (flip _cmp) snd) . zipWith (,) [iO..] . alongAxis iO $ y
     where isChar s
               | ScalarCh _ <- s = True
               | otherwise = False
@@ -255,7 +255,7 @@ gradeDownD x y
           _ind l e = fromMaybe (length l) . lookup e $ zip l [0..]
 
 gradeDownM :: Array -> IdxOriginM Array
-gradeDownM x = ask >>= \iO -> return . arrFromList . map (ScalarNum . fromIntegral . fst) . sortBy (on (flip compare) snd) . zipWith (,) [iO..] . alongAxis_ iO $ x
+gradeDownM x = ask >>= \iO -> return . listToArr . map (ScalarNum . fromIntegral . fst) . sortBy (on (flip compare) snd) . zipWith (,) [iO..] . alongAxis_ iO $ x
 
 iota :: Array -> IdxOriginM Array
 iota x = if any (<0) x'
@@ -266,7 +266,7 @@ iota x = if any (<0) x'
           indexMod = Prelude.reverse . init $ scanl (*) 1 (Prelude.reverse x')
           calcIndex i = map (\(e, m) -> i `div` m `mod` e) $ zip x' indexMod
           toScalar (s:[]) = s
-          toScalar (ss) = ScalarArr . arrFromList $ ss
+          toScalar (ss) = ScalarArr . listToArr $ ss
 
 indexOf :: Array -> Array -> IdxOriginM Array
 indexOf x y
@@ -284,7 +284,7 @@ indexOf x y
           xs = alongAxis_ 1 x
           ys = alongRank (xRank - 1) y
           toArray (ScalarArr a) = a
-          toArray s = arrFromList [s]
+          toArray s = listToArr [s]
 
 pick :: Array -> Array -> IdxOriginM Array
 pick x y
@@ -298,7 +298,7 @@ pick x y
               | otherwise = _pick is a'
                   where a' = case arrIndex a i of
                                  ScalarArr arr -> arr
-                                 s -> arrFromList [s]
+                                 s -> listToArr [s]
 
 reorderAxes :: Array -> Array -> IdxOriginM Array
 reorderAxes x y
@@ -392,13 +392,13 @@ encode x y = arrReorderAxes reorderedAxes . shapedArrFromList shape' . concat . 
                         | otherwise = mod x y
           reorderedAxes = ([i + (length $ shape x) | i <- [1..(length $ shape_ y)]] ++ [1..(length $ shape x)])
 
-enclose :: Array -> Identity Array
+enclose :: Array -> Array
 enclose x
-    | (shape x) == [1] && (not . isScalarArr) (x `at` 0) = return x
-    | otherwise = return . arrFromList . (:[]) . ScalarArr $ x
+    | (shape x) == [1] && (not . isScalarArr) (x `at` 0) = x
+    | otherwise = listToArr . (:[]) . ScalarArr $ x
 
 enlist :: Array -> Array
-enlist = arrFromList . concat . map _flatten . arrToList
+enlist = listToArr . concat . map _flatten . arrToList
     where _flatten s = case s of
               (ScalarArr a) -> concat . map _flatten . arrToList $ a
               _ -> [s]
@@ -417,17 +417,17 @@ factorial = arithFnM (_factorial)
               | n < 0 = throw $ DomainError "(!): arguments should be nonnegative"
               | otherwise = fromIntegral . foldr (*) 1 $ [1..(Prelude.floor n)]
 
-first :: Array -> Identity Array
+first :: Array -> Array
 first x = case arrToList x of
-    [] -> return $ doubleToScalarArr 0
+    [] -> doubleToScalarArr 0
     x':_ -> case x' of
-                ScalarArr a -> return $ a
-                _ -> return $ arrFromList [x']
+                ScalarArr a -> a
+                _ -> listToArr [x']
 
 format :: Array -> Array
 format x = case map (map ScalarCh) . lines . show $ x of
     [] -> zilde
-    (v:[]) -> arrFromList v
+    (v:[]) -> listToArr v
     x' -> shapedArrFromList [length x'', length (head x'')] . concat $ x''
         where _pad sss = map (\ss -> ss ++ replicate (padSz - length ss) (ScalarCh ' ')) sss
                   where padSz = foldr (max) 0 . map length $ sss
@@ -456,7 +456,7 @@ intersection :: Array -> Array -> Array
 intersection x y
     | arrRank x /= 1 = throw . DomainError $ "(∩): left argument should be a vector"
     | arrRank y /= 1 = throw . DomainError $ "(∩): right argument should be a vector"
-    | otherwise = arrFromList . filter (`elem`yList) $ xList
+    | otherwise = listToArr . filter (`elem`yList) $ xList
     where xList = arrToList x
           yList = arrToList y
 
@@ -520,11 +520,11 @@ negate = arithFnM (Prelude.negate)
 neq :: Array -> Array -> Array
 neq = arithFnD (\n m -> fromIntegral . fromEnum $ n /= m)
 
-nest :: Array -> Identity Array
+nest :: Array -> Array
 nest x
-    | any isScalarArr $ arrToList x = return x
-    | shape x == [1] = return x
-    | otherwise = return $ arrFromList [ScalarArr x]
+    | any isScalarArr $ arrToList x = x
+    | shape x == [1] = x
+    | otherwise = listToArr [ScalarArr x]
 
 nor :: Array -> Array -> Array
 nor = arithFnD (\x y -> boolToDouble $ not (doubleToBool x || doubleToBool y))
@@ -560,7 +560,7 @@ right :: Array -> Array -> Array
 right = flip const
 
 shapeOf :: Array -> Array
-shapeOf = arrFromList . map (ScalarNum . fromIntegral) . shape
+shapeOf = listToArr . map (ScalarNum . fromIntegral) . shape
 
 subtract :: Array -> Array -> Array
 subtract = arithFnD (-)
@@ -570,14 +570,14 @@ tally a
     | (length . shape $ a) == 0 = intToScalarArr 0
     | otherwise = intToScalarArr . head . shape $ a
 
-transpose :: Array -> Identity Array
-transpose x = Identity $ arrReorderAxes (Prelude.reverse [1..(length $ shape x)]) x
+transpose :: Array -> Array
+transpose x = arrReorderAxes (Prelude.reverse [1..(length $ shape x)]) x
 
 union :: Array -> Array -> Array
 union x y
     | arrRank x /= 1 = throw . DomainError $ "(∪): left argument should be a vector"
     | arrRank y /= 1 = throw . DomainError $ "(∪): right argument should be a vector"
-    | otherwise = arrFromList $ xList ++ filter (not . (`elem`xList)) yList
+    | otherwise = listToArr $ xList ++ filter (not . (`elem`xList)) yList
     where xList = arrToList x
           yList = arrToList y
 
@@ -585,7 +585,7 @@ unique :: Array -> Array
 unique = unAlongAxis 1 . nub . alongAxis 1
 
 uniqueMask :: Array -> Array
-uniqueMask = arrFromList . map (boolToScalar) . _uniqMask . alongAxis 1
+uniqueMask = listToArr . map (boolToScalar) . _uniqMask . alongAxis 1
     where _uniqMask = Prelude.reverse . _uniqMaskRec . Prelude.reverse
           _uniqMaskRec (x:xs) = not (x `elem` xs) : _uniqMaskRec xs
           _uniqMaskRec [] = []
@@ -594,6 +594,6 @@ without :: Array -> Array -> Array
 without x y
     | arrRank x /= 1 = throw . DomainError $ "(~): left argument should be a vector"
     | arrRank y /= 1 = throw . DomainError $ "(~): right argument should be a vector"
-    | otherwise = arrFromList . filter (not . (`elem`yList)) $ xList
+    | otherwise = listToArr . filter (not . (`elem`yList)) $ xList
     where xList = arrToList x
           yList = arrToList y

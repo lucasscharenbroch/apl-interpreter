@@ -69,7 +69,7 @@ each f = case f of
           _eachD d x y = arrZipWithM ((arrToScalar<$>) .: on d scalarToArr) x' y'
               where (x', y') = rankMorph (x, y)
           scalarToArr (ScalarArr a) = a
-          scalarToArr s = arrFromList [s]
+          scalarToArr s = listToArr [s]
           arrToScalar a
               | arrNetSize a == 1 = head $ arrToList a
               | otherwise = ScalarArr a

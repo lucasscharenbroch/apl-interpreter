@@ -315,7 +315,7 @@ parseIdxList = (foldIdxList . concat) <$> matchMax [
             (Right) <$> parseDerArr
         ]
     ]
-    where emptyArr = ArrLeaf . arrFromList $ []
+    where emptyArr = ArrLeaf . listToArr $ []
           foldIdxList [] = [Nothing]
           foldIdxList (Right arr:[]) = [Just arr]
           foldIdxList (Left _:rest) = Nothing : foldIdxList rest
@@ -447,7 +447,7 @@ parseArrComp = (applyImplCat . concat) <$> matchAllThenMax [parseScalar]
 parseScalar :: MatchFn ArrTreeNode
 parseScalar = matchOne [
             -- NUM
-            (\n -> ArrLeaf . arrFromList . (:[]) . ScalarNum $ n) <$> matchNumLiteral,
+            (\n -> ArrLeaf . listToArr . (:[]) . ScalarNum $ n) <$> matchNumLiteral,
             -- STR
             (toScalarStr . map ScalarCh) <$> matchStrLiteral,
             -- ⍞
@@ -463,12 +463,12 @@ parseScalar = matchOne [
             matchSpecialIdWith AATok "⍺⍺" (idEntryToArrTree),
             matchSpecialIdWith WWTok "⍵⍵" (idEntryToArrTree),
             -- ⍬
-            (\_ -> implGroup $ (ArrLeaf . arrFromList) []) <$> matchCh '⍬',
+            (\_ -> implGroup $ (ArrLeaf . listToArr) []) <$> matchCh '⍬',
             -- (der_arr)
             implGroup <$> parseParentheticalAtn
         ]
-    where toScalarStr (c:[]) = ArrLeaf . arrFromList $ [c]
-          toScalarStr s = implGroup (ArrLeaf . arrFromList $ s)
+    where toScalarStr (c:[]) = ArrLeaf . listToArr $ [c]
+          toScalarStr s = implGroup (ArrLeaf . listToArr $ s)
           idEntryToArrTree (IdArr a) = Just $ ArrLeaf a
           idEntryToArrTree _ = Nothing
           implGroup = ArrInternalMonFn (FnLeafFn fImplicitGroup)

@@ -207,10 +207,10 @@ evalArrTree (ArrInternalImplCat at1 at2) = do
     a2 <- evalArrTree at2
     a1 <- evalArrTree at1
     let a2' = case at2 of
-            ArrInternalMonFn (FnLeafFn fImplicitGroup) _ -> arrFromList [maybeEnclose a2]
+            ArrInternalMonFn (FnLeafFn fImplicitGroup) _ -> listToArr [maybeEnclose a2]
             _ -> a2
     let a1' = case at1 of
-            ArrInternalMonFn (FnLeafFn fImplicitGroup) _ -> arrFromList [maybeEnclose a1]
+            ArrInternalMonFn (FnLeafFn fImplicitGroup) _ -> listToArr [maybeEnclose a1]
             _ -> a1
     return $ arrCat a1' a2'
     where maybeEnclose arr = case arrToList arr of
@@ -337,6 +337,6 @@ execDfnStatement toks = do
                 Nothing -> evalArrTree atn >>= \a -> (put $ mapInsert "⍺" (IdArr a) idm) *> execDfnStatement toks'
             (DResCond cond res) -> evalArrTree cond >>= \x -> case x of
                 a
-                    | a == arrFromList [ScalarNum 1.0] -> evalArrTree res
-                    | a == arrFromList [ScalarNum 0.0] -> execDfnStatement toks'
+                    | a == listToArr [ScalarNum 1.0] -> evalArrTree res
+                    | a == listToArr [ScalarNum 0.0] -> execDfnStatement toks'
                 _ -> throw $ DomainError "expected boolean singleton as lhs of gaurd"

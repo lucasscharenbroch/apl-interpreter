@@ -22,7 +22,7 @@ infixr 8 .:.
 intMax = maxBound :: Int
 floatMax = read "Infinity" :: Double
 floatMin = read "-Infinity" :: Double
-zilde = arrFromList []
+zilde = listToArr []
 
 {- General -}
 
@@ -36,10 +36,10 @@ groupsOf n x = [take n x] ++ groupsOf n (drop n x)
 {- Array Helpers (low-level) -}
 
 arrCat :: Array -> Array -> Array
-arrCat x y = arrFromList $ (arrToList x) ++ (arrToList y)
+arrCat x y = listToArr $ (arrToList x) ++ (arrToList y)
 
 arrCons :: Scalar -> Array -> Array
-arrCons x y = arrFromList $ x : (arrToList y)
+arrCons x y = listToArr $ x : (arrToList y)
 
 arrZipWith :: (Scalar -> Scalar -> Scalar) -> Array -> Array -> Array
 arrZipWith f x y
@@ -194,7 +194,7 @@ zipVecsAlongAxis axA axB axC f a b = if length subArrs' == 1 then subArrs' !! 0 
 alongRank :: Int -> Array -> Array
 alongRank r a
     | foldr (*) 1 (shape a) == 0 = zilde
-    | n <= 0 = arrFromList [ScalarArr a]
+    | n <= 0 = listToArr [ScalarArr a]
     | n >= (length $ shape a) = a
     | otherwise = shapedArrFromList outerShape . map (ScalarArr . shapedArrFromList innerShape) . groupsOf groupSz . arrToList $ a
         where outerShape = take n $ shape a
@@ -219,9 +219,9 @@ arithFnD f x' y' = arrZipWith (f') x y
     where (x, y) = rankMorph (x', y')
           f' :: Scalar -> Scalar -> Scalar
           f' (ScalarNum n) (ScalarNum m) = ScalarNum $ f n m
-          f' n@(ScalarNum _) (ScalarArr arr) = ScalarArr $ rec (arrFromList [n]) arr
+          f' n@(ScalarNum _) (ScalarArr arr) = ScalarArr $ rec (listToArr [n]) arr
           f' (ScalarArr a) (ScalarArr b) = ScalarArr $ rec a b
-          f' (ScalarArr arr) n@(ScalarNum _) = ScalarArr $ rec arr (arrFromList [n])
+          f' (ScalarArr arr) n@(ScalarNum _) = ScalarArr $ rec arr (listToArr [n])
           f' _ _ = throw $ DomainError "expected number"
           rec = arithFnD f
 
@@ -240,10 +240,10 @@ isScalarCh (ScalarCh _) = True
 isScalarCh _ = False
 
 intToScalarArr :: Int -> Array
-intToScalarArr = arrFromList . (:[]) . ScalarNum . fromIntegral
+intToScalarArr = listToArr . (:[]) . ScalarNum . fromIntegral
 
 doubleToScalarArr :: Double -> Array
-doubleToScalarArr = arrFromList . (:[]) . ScalarNum
+doubleToScalarArr = listToArr . (:[]) . ScalarNum
 
 doubleToBool :: Double -> Bool
 doubleToBool 1.0 = True
@@ -278,7 +278,7 @@ scalarToChar _ = throw $ DomainError "expected character"
 scalarToArr :: Scalar -> Array
 scalarToArr s = case s of
               ScalarArr a -> a
-              _ -> arrFromList [s]
+              _ -> listToArr [s]
 
 arrToScalar :: Array -> Scalar
 arrToScalar a
