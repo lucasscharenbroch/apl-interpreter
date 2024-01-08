@@ -36,8 +36,8 @@ mkMonFn i f = MonFn i (\a -> toEvalM $ f a)
 mkDyadFn :: SubEvalM m => FnInfoD -> (Array -> Array -> m Array) -> Function
 mkDyadFn i f = DyadFn i (\a b -> toEvalM $ f a b)
 
-mkMonDyadFn :: (SubEvalM m0, SubEvalM m1) => FnInfoA -> (Array -> m0 Array) -> (Array -> Array -> m1 Array) -> Function
-mkMonDyadFn ia fm fd = MonDyadFn ia (\a -> toEvalM $ fm a) (\a b -> toEvalM $ fd a b)
+mkAmbivFn :: (SubEvalM m0, SubEvalM m1) => FnInfoA -> (Array -> m0 Array) -> (Array -> Array -> m1 Array) -> Function
+mkAmbivFn ia fm fd = AmbivFn ia (\a -> toEvalM $ fm a) (\a b -> toEvalM $ fd a b)
 
 mkMonOp :: SubEvalM m => String -> (Function -> m Function) -> Operator
 mkMonOp name o = MonOp name (toEvalM . o . expectFunc)
@@ -63,8 +63,8 @@ pureMonFn i f = mkMonFn i (Identity . f)
 pureDyadFn :: FnInfoD -> (Array -> Array -> Array) -> Function
 pureDyadFn i f = mkDyadFn i (Identity .: f)
 
-pureMonDyadFn :: FnInfoA -> (Array -> Array) -> (Array -> Array -> Array) -> Function
-pureMonDyadFn ia fm fd = mkMonDyadFn ia (Identity . fm) (Identity .: fd)
+pureAmbivFn :: FnInfoA -> (Array -> Array) -> (Array -> Array -> Array) -> Function
+pureAmbivFn ia fm fd = mkAmbivFn ia (Identity . fm) (Identity .: fd)
 
 pureMonOp :: String -> (Function -> Function) -> Operator
 pureMonOp name o = mkMonOp name (Identity . o)
@@ -106,51 +106,51 @@ partitionOnAxis = Just (\ax -> mkFuncD $ F.partition ax)
 catenateOnAxis = Just (\ax -> mkFuncD $ F.catenate ax)
 
 -- primitive
-fPlus = pureMonDyadFn (mkFnInfoA "+") {fnIdAD = Just $ ScalarNum 0} F.conjugate F.add
-fMinus = pureMonDyadFn (mkFnInfoA "-") {fnIdAD = Just $ ScalarNum 0} F.negate F.subtract
-fTimes = pureMonDyadFn (mkFnInfoA "×") {fnIdAD = Just $ ScalarNum 1} F.direction F.multiply
-fDivide = pureMonDyadFn (mkFnInfoA "÷") {fnIdAD = Just $ ScalarNum 1} F.reciprocal F.divide
-fIota = mkMonDyadFn (mkFnInfoA "⍳") F.iota F.indexOf
-fRho = pureMonDyadFn (mkFnInfoA "⍴") F.shapeOf F.reshape
+fPlus = pureAmbivFn (mkFnInfoA "+") {fnIdAD = Just $ ScalarNum 0} F.conjugate F.add
+fMinus = pureAmbivFn (mkFnInfoA "-") {fnIdAD = Just $ ScalarNum 0} F.negate F.subtract
+fTimes = pureAmbivFn (mkFnInfoA "×") {fnIdAD = Just $ ScalarNum 1} F.direction F.multiply
+fDivide = pureAmbivFn (mkFnInfoA "÷") {fnIdAD = Just $ ScalarNum 1} F.reciprocal F.divide
+fIota = mkAmbivFn (mkFnInfoA "⍳") F.iota F.indexOf
+fRho = pureAmbivFn (mkFnInfoA "⍴") F.shapeOf F.reshape
 fLss = pureDyadFn (mkFnInfoD "<") {fnIdD = Just $ ScalarNum 0} F.lss
 fLeq = pureDyadFn (mkFnInfoD "≤") {fnIdD = Just $ ScalarNum 1} F.leq
 fGtr = pureDyadFn (mkFnInfoD ">") {fnIdD = Just $ ScalarNum 0} F.gtr
 fGeq = pureDyadFn (mkFnInfoD "≥") {fnIdD = Just $ ScalarNum 1} F.geq
 fEqu = pureDyadFn (mkFnInfoD "=") {fnIdD = Just $ ScalarNum 1} F.equ
-fAsterisk = pureMonDyadFn (mkFnInfoA "*") {fnIdAD = Just $ ScalarNum 1, fnInverseAM = iAsteriskM, fnInverseAD = iAsteriskD} F.exponential F.power
-fAsteriskCircle = pureMonDyadFn (mkFnInfoA "⍟") {fnInverseAM = iAsteriskCircleM, fnInverseAD = iAsteriskCircleD} F.naturalLog F.logBase
-fFloor = pureMonDyadFn (mkFnInfoA "⌊") {fnIdAD = Just $ ScalarNum floatMax} F.floor F.minimum
-fCeil = pureMonDyadFn (mkFnInfoA "⌈") {fnIdAD = Just $ ScalarNum floatMin} F.ceiling F.maximum
-fRightTack = pureMonDyadFn (mkFnInfoA "⊢") F.identity F.right
-fLeftTack = pureMonDyadFn (mkFnInfoA "⊣") F.identity F.left
-fPipe = pureMonDyadFn (mkFnInfoA "|") {fnIdAD = Just $ ScalarNum 0} F.absoluteValue F.residue
-fTripleEqu = pureMonDyadFn (mkFnInfoA "≡") F.depth F.match
-fTripleNeq = pureMonDyadFn (mkFnInfoA "≢") F.tally F.notMatch
+fAsterisk = pureAmbivFn (mkFnInfoA "*") {fnIdAD = Just $ ScalarNum 1, fnInverseAM = iAsteriskM, fnInverseAD = iAsteriskD} F.exponential F.power
+fAsteriskCircle = pureAmbivFn (mkFnInfoA "⍟") {fnInverseAM = iAsteriskCircleM, fnInverseAD = iAsteriskCircleD} F.naturalLog F.logBase
+fFloor = pureAmbivFn (mkFnInfoA "⌊") {fnIdAD = Just $ ScalarNum floatMax} F.floor F.minimum
+fCeil = pureAmbivFn (mkFnInfoA "⌈") {fnIdAD = Just $ ScalarNum floatMin} F.ceiling F.maximum
+fRightTack = pureAmbivFn (mkFnInfoA "⊢") F.identity F.right
+fLeftTack = pureAmbivFn (mkFnInfoA "⊣") F.identity F.left
+fPipe = pureAmbivFn (mkFnInfoA "|") {fnIdAD = Just $ ScalarNum 0} F.absoluteValue F.residue
+fTripleEqu = pureAmbivFn (mkFnInfoA "≡") F.depth F.match
+fTripleNeq = pureAmbivFn (mkFnInfoA "≢") F.tally F.notMatch
 fNand = pureDyadFn (mkFnInfoD "⍲") F.nand
 fNor = pureDyadFn (mkFnInfoD "⍱") F.nor
 fAnd = pureDyadFn (mkFnInfoD "∧") {fnIdD = Just $ ScalarNum 1} F.lcm
 fOr = pureDyadFn (mkFnInfoD "∨") {fnIdD = Just $ ScalarNum 0} F.gcd
-fCircle = pureMonDyadFn (mkFnInfoA "○") F.piTimes F.circularFormulae
-fBang = pureMonDyadFn (mkFnInfoA "!") {fnIdAD = Just $ ScalarNum 1} F.factorial F.binomial
-fQuestion = mkMonDyadFn (mkFnInfoA "?") F.roll F.deal
+fCircle = pureAmbivFn (mkFnInfoA "○") F.piTimes F.circularFormulae
+fBang = pureAmbivFn (mkFnInfoA "!") {fnIdAD = Just $ ScalarNum 1} F.factorial F.binomial
+fQuestion = mkAmbivFn (mkFnInfoA "?") F.roll F.deal
 fEncode = pureDyadFn (mkFnInfoD "⊤") F.encode
-fTranspose = mkMonDyadFn (mkFnInfoA "⍉") {fnCanSelectAM = True, fnCanSelectAD = True} (Identity . F.transpose) F.reorderAxes
-fReverse = mkMonDyadFn (mkFnInfoA "⌽") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAM = reverseOnAxis, fnOnAxisAD = rotateOnAxis} F.reverseLast F.rotateLast
-fReverseFirst = mkMonDyadFn (mkFnInfoA "⊖") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAM = reverseOnAxis, fnOnAxisAD = rotateOnAxis} F.reverseFirst F.rotateFirst
-fEpsilon = pureMonDyadFn (mkFnInfoA "∊") F.enlist F.membership
-fGradeUp = mkMonDyadFn (mkFnInfoA "⍋") F.gradeUpM F.gradeUpD
-fGradeDown = mkMonDyadFn (mkFnInfoA "⍒") F.gradeDownM F.gradeDownD
-fCup = pureMonDyadFn (mkFnInfoA "∪") F.unique F.union
+fTranspose = mkAmbivFn (mkFnInfoA "⍉") {fnCanSelectAM = True, fnCanSelectAD = True} (Identity . F.transpose) F.reorderAxes
+fReverse = mkAmbivFn (mkFnInfoA "⌽") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAM = reverseOnAxis, fnOnAxisAD = rotateOnAxis} F.reverseLast F.rotateLast
+fReverseFirst = mkAmbivFn (mkFnInfoA "⊖") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAM = reverseOnAxis, fnOnAxisAD = rotateOnAxis} F.reverseFirst F.rotateFirst
+fEpsilon = pureAmbivFn (mkFnInfoA "∊") F.enlist F.membership
+fGradeUp = mkAmbivFn (mkFnInfoA "⍋") F.gradeUpM F.gradeUpD
+fGradeDown = mkAmbivFn (mkFnInfoA "⍒") F.gradeDownM F.gradeDownD
+fCup = pureAmbivFn (mkFnInfoA "∪") F.unique F.union
 fCap = pureDyadFn (mkFnInfoD "∩") F.intersection
-fTilde = pureMonDyadFn (mkFnInfoA "~") F.logicalNegate F.without
-fNeq = pureMonDyadFn (mkFnInfoA "≠") F.uniqueMask F.neq
+fTilde = pureAmbivFn (mkFnInfoA "~") F.logicalNegate F.without
+fNeq = pureAmbivFn (mkFnInfoA "≠") F.uniqueMask F.neq
 fExecute = MonFn (mkFnInfoM "⍎") F.execute
 fFormat = pureMonFn (mkFnInfoM "⍕") F.format
-fDisclose = mkMonDyadFn (mkFnInfoA "⊃") {fnCanSelectAM = True, fnCanSelectAD = True} (Identity . F.first) F.pick
-fEnclose = mkMonDyadFn (mkFnInfoA "⊂") {fnOnAxisAD = partitionedEncloseOnAxis} (Identity . F.enclose) F.partitionedEncloseLast
-fPartition = mkMonDyadFn (mkFnInfoA "⊆") {fnOnAxisAD = partitionOnAxis} (Identity . F.nest) F.partitionLast
-fComma = mkMonDyadFn (mkFnInfoA ",") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAD = catenateOnAxis} (Identity . F.ravel) F.catenateLast
-fCommaBar = mkMonDyadFn (mkFnInfoA "⍪") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAD = catenateOnAxis} (Identity . F.table) F.catenateFirst
+fDisclose = mkAmbivFn (mkFnInfoA "⊃") {fnCanSelectAM = True, fnCanSelectAD = True} (Identity . F.first) F.pick
+fEnclose = mkAmbivFn (mkFnInfoA "⊂") {fnOnAxisAD = partitionedEncloseOnAxis} (Identity . F.enclose) F.partitionedEncloseLast
+fPartition = mkAmbivFn (mkFnInfoA "⊆") {fnOnAxisAD = partitionOnAxis} (Identity . F.nest) F.partitionLast
+fComma = mkAmbivFn (mkFnInfoA ",") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAD = catenateOnAxis} (Identity . F.ravel) F.catenateLast
+fCommaBar = mkAmbivFn (mkFnInfoA "⍪") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAD = catenateOnAxis} (Identity . F.table) F.catenateFirst
 
 functionGlyphs :: [(Char, Function)]
 functionGlyphs = [

@@ -15,25 +15,25 @@ import Data.Maybe
 getDyadFn :: Function -> FuncD
 getDyadFn f = case f of
    (DyadFn _ x) -> x
-   (MonDyadFn _ _ x) -> x
+   (AmbivFn _ _ x) -> x
    _ -> throw $ SyntaxError "expected dyadic function"
 
 getMonFn :: Function -> FuncM
 getMonFn f = case f of
     (MonFn _ x) -> x
-    (MonDyadFn _ x _) -> x
+    (AmbivFn _ x _) -> x
     _ -> throw $ SyntaxError "expected monadic function"
 
 getInverseM :: Function -> FuncM
 getInverseM f = case f of
     MonFn i _ -> fromMaybe err (fnInverseM i)
-    MonDyadFn i _ _ -> fromMaybe err (fnInverseAM i)
+    AmbivFn i _ _ -> fromMaybe err (fnInverseAM i)
     where err = throw . DomainError $ "function has no inverse: {" ++ (show f) ++ "}"
 
 getInverseD :: Function -> FuncD
 getInverseD f = case f of
     DyadFn i _ -> fromMaybe err (fnInverseD i)
-    MonDyadFn i _ _ -> fromMaybe err (fnInverseAD i)
+    AmbivFn i _ _ -> fromMaybe err (fnInverseAD i)
     where err = throw . DomainError $ "function has no inverse: {" ++ (show f) ++ "}"
 
 {- General Operators -}
@@ -42,7 +42,7 @@ each :: Function -> Function
 each f = case f of
     MonFn _ fM -> autoInfoMonFnM "¨" f (_eachM fM)
     DyadFn _ fD -> autoInfoDyadFnM "¨" f (_eachD fD)
-    MonDyadFn _ fM fD -> autoInfoMonDyadFnM "¨" f (_eachM fM) (_eachD fD)
+    AmbivFn _ fM fD -> autoInfoAmbivFnM "¨" f (_eachM fM) (_eachD fD)
     where _eachM :: FuncM -> FuncM
           _eachM m x = arrMapM ((arrToScalar<$>) . m . scalarToArr) $ x
           _eachD :: FuncD -> FuncD
@@ -57,11 +57,11 @@ each f = case f of
 over :: Function -> Function -> Function
 over f g = case (f, g) of
     (MonFn _ fF, MonFn _ gF) -> autoInfoMonFnD "⍥" f g (atopMM fF gF)
-    (MonFn _ fF, MonDyadFn _ gF _) -> autoInfoMonFnD "⍥" f g (atopMM fF gF)
+    (MonFn _ fF, AmbivFn _ gF _) -> autoInfoMonFnD "⍥" f g (atopMM fF gF)
     (DyadFn _ fF, MonFn _ gF) -> autoInfoDyadFnD "⍥" f g (overDM fF gF)
-    (DyadFn _ fF, MonDyadFn _ gF _) -> autoInfoDyadFnD "⍥" f g (overDM fF gF)
-    (MonDyadFn _ fMF fDF, MonFn _ gF) -> autoInfoMonDyadFnD "⍥" f g (atopMM fMF gF) (overDM fDF gF)
-    (MonDyadFn _ fMF fDF, MonDyadFn _ gF _) -> autoInfoMonDyadFnD "⍥" f g (atopMM fMF gF) (overDM fDF gF)
+    (DyadFn _ fF, AmbivFn _ gF _) -> autoInfoDyadFnD "⍥" f g (overDM fF gF)
+    (AmbivFn _ fMF fDF, MonFn _ gF) -> autoInfoAmbivFnD "⍥" f g (atopMM fMF gF) (overDM fDF gF)
+    (AmbivFn _ fMF fDF, AmbivFn _ gF _) -> autoInfoAmbivFnD "⍥" f g (atopMM fMF gF) (overDM fDF gF)
     _ -> throw . SyntaxError $ "(⍥): invalid arity of arguments"
     where overDM d m l r = join $ d <$> m l <*> m r
 
@@ -72,10 +72,10 @@ atop l r = case (l, r) of
     (Right f, Right g) -> case (f, g) of
         (MonFn _ fF, MonFn _ gF) -> autoInfoMonFnD "⍤" l r (atopMM fF gF)
         (MonFn _ fF, DyadFn _ gF) -> autoInfoDyadFnD "⍤" l r (atopMD fF gF)
-        (MonFn _ fF, MonDyadFn _ gMF gDF) -> autoInfoMonDyadFnD "⍤" l r (atopMM fF gMF) (atopMD fF gDF)
-        (MonDyadFn _ fF _, MonFn _ gF) -> autoInfoMonFnD "⍤" l r (atopMM fF gF)
-        (MonDyadFn _ fF _, DyadFn _ gF) -> autoInfoDyadFnD "⍤" l r (atopMD fF gF)
-        (MonDyadFn _ fF _, MonDyadFn _ gMF gDF) -> autoInfoMonDyadFnD "⍤" l r (atopMM fF gMF) (atopMD fF gDF)
+        (MonFn _ fF, AmbivFn _ gMF gDF) -> autoInfoAmbivFnD "⍤" l r (atopMM fF gMF) (atopMD fF gDF)
+        (AmbivFn _ fF _, MonFn _ gF) -> autoInfoMonFnD "⍤" l r (atopMM fF gF)
+        (AmbivFn _ fF _, DyadFn _ gF) -> autoInfoDyadFnD "⍤" l r (atopMD fF gF)
+        (AmbivFn _ fF _, AmbivFn _ gMF gDF) -> autoInfoAmbivFnD "⍤" l r (atopMM fF gMF) (atopMD fF gDF)
         _ -> throw . SyntaxError $ "(⍤): invalid arity of argument functions"
     -- TODO rank
     _ -> throw . SyntaxError $ "(⍤): invalid argument types"
@@ -84,11 +84,11 @@ jot :: (Either Array Function) -> (Either Array Function) -> Function
 jot l r = case (l, r) of
     (Right f, Right g) -> case (f, g) of
         (MonFn _ fF, MonFn _ gF) -> autoInfoMonFnD "∘" f g (atopMM fF gF)
-        (MonFn _ fF, MonDyadFn _ gF _) -> autoInfoMonFnD "∘" f g (atopMM fF gF)
+        (MonFn _ fF, AmbivFn _ gF _) -> autoInfoMonFnD "∘" f g (atopMM fF gF)
         (DyadFn _ fF, MonFn _ gF) -> autoInfoDyadFnD "∘" f g (besideDM fF gF)
-        (DyadFn _ fF, MonDyadFn _ gF _) -> autoInfoDyadFnD "∘" f g (besideDM fF gF)
-        (MonDyadFn _ fMF fDF, MonFn _ gF) -> autoInfoMonDyadFnD "∘" f g (atopMM fMF gF) (besideDM fDF gF)
-        (MonDyadFn _ fMF fDF, MonDyadFn _ gF _) -> autoInfoMonDyadFnD "∘" f g (atopMM fMF gF) (besideDM fDF gF)
+        (DyadFn _ fF, AmbivFn _ gF _) -> autoInfoDyadFnD "∘" f g (besideDM fF gF)
+        (AmbivFn _ fMF fDF, MonFn _ gF) -> autoInfoAmbivFnD "∘" f g (atopMM fMF gF) (besideDM fDF gF)
+        (AmbivFn _ fMF fDF, AmbivFn _ gF _) -> autoInfoAmbivFnD "∘" f g (atopMM fMF gF) (besideDM fDF gF)
         _ -> throw . SyntaxError $ "(∘): invalid arity of argument functions"
     (Right f, Left a) -> autoInfoMonFnD "∘" f a (curryRight (getDyadFn f) a)
     (Left a, Right f) -> autoInfoMonFnD "∘" a f (curryLeft a (getDyadFn f))
@@ -104,7 +104,7 @@ power l r = case (l, r) of
                         where f' = if n < 0 then getInverseM f else fM
         (DyadFn _ fD) -> autoInfoDyadFnD "⍣" l r (_powD f')
                          where f' = if n < 0 then getInverseD f else fD
-        (MonDyadFn _ fM fD) -> autoInfoMonDyadFnD "⍣" l r (_powM f'm) (_powD f'd)
+        (AmbivFn _ fM fD) -> autoInfoAmbivFnD "⍣" l r (_powM f'm) (_powD f'd)
                                where (f'm, f'd) = if n < 0 then (getInverseM f, getInverseD f) else (fM, fD)
         where n = arrToInt a
               _powM m x = foldM (flip ($)) x (replicate (abs n) m)
@@ -112,7 +112,7 @@ power l r = case (l, r) of
     (Right f, Right g) -> case f of
         MonFn _ fM -> autoInfoMonFnD "⍣" l r (_powM fM)
         DyadFn _ fD -> autoInfoDyadFnD "⍣" l r (_powD fD)
-        MonDyadFn _ fM fD -> autoInfoMonDyadFnD "⍣" l r (_powM fM) (_powD fD)
+        AmbivFn _ fM fD -> autoInfoAmbivFnD "⍣" l r (_powM fM) (_powD fD)
         where _powM :: FuncM -> FuncM
               _powM m y = do y' <- m y
                              stop <- arrToBool <$> g' y' y
@@ -126,8 +126,8 @@ power l r = case (l, r) of
 
 selfie :: Either Array Function -> Function
 selfie arg = case arg of
-    (Left a) -> autoInfoMonDyadFnM "⍨" arg (\_ -> return a) (\_ _ -> return a)
-    (Right f) -> autoInfoMonDyadFnM "⍨" arg (\a -> dyFn a a) (\l r -> dyFn r l)
+    (Left a) -> autoInfoAmbivFnM "⍨" arg (\_ -> return a) (\_ _ -> return a)
+    (Right f) -> autoInfoAmbivFnM "⍨" arg (\a -> dyFn a a) (\l r -> dyFn r l)
         where dyFn = getDyadFn f
 
 {-
@@ -135,7 +135,7 @@ reduce :: FnTreeNode -> Function
 reduce ft = MonFn "der/" -- TODO
     where f = case evalFnTree ft of
               (Left (DyadFn _ f)) -> f
-              (Left (MonDyadFn _ _ f)) -> f
+              (Left (AmbivFn _ _ f)) -> f
               (Left _) -> undefined -- TODO exception: need dyadic function
               _ -> undefined
 -}

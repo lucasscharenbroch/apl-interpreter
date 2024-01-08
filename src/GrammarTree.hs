@@ -140,7 +140,7 @@ defFnInfoA = FnInfoA { -- default function info (ambivalent)
 
 data Function = MonFn FnInfoM FuncM
               | DyadFn FnInfoD FuncD
-              | MonDyadFn FnInfoA FuncM FuncD
+              | AmbivFn FnInfoA FuncM FuncD
 
 type OpM = (Either Array Function) -> StateT IdMap IO Function
 type OpD = (Either Array Function) -> OpM

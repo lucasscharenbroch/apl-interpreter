@@ -26,7 +26,7 @@ class ShowAndPad a where
 instance ShowAndPad Function where
     showAndPad (MonFn i _) = infoToNamePad i
     showAndPad (DyadFn i _) = infoToNamePad i
-    showAndPad (MonDyadFn i _ _) = infoToNamePad i
+    showAndPad (AmbivFn i _ _) = infoToNamePad i
 
 instance ShowAndPad Array where
     showAndPad a = (show a, 0)
@@ -54,8 +54,8 @@ autoInfoMonFnM s a = MonFn (namePadToFnInfoM $ showMonTreeHelper (showAndPad a) 
 autoInfoDyadFnM :: ShowAndPad a => String -> a -> FuncD -> Function
 autoInfoDyadFnM s a = DyadFn (namePadToFnInfoD $ showMonTreeHelper (showAndPad a) s)
 
-autoInfoMonDyadFnM :: ShowAndPad a => String -> a -> FuncM -> FuncD -> Function
-autoInfoMonDyadFnM s a = MonDyadFn (namePadToFnInfoA $ showMonTreeHelper (showAndPad a) s)
+autoInfoAmbivFnM :: ShowAndPad a => String -> a -> FuncM -> FuncD -> Function
+autoInfoAmbivFnM s a = AmbivFn (namePadToFnInfoA $ showMonTreeHelper (showAndPad a) s)
 
 autoInfoMonFnD :: (ShowAndPad a, ShowAndPad b) => String -> a -> b -> FuncM -> Function
 autoInfoMonFnD s a b = MonFn (namePadToFnInfoM $ showDyadTreeHelper (showAndPad a) (showAndPad b) s)
@@ -63,8 +63,8 @@ autoInfoMonFnD s a b = MonFn (namePadToFnInfoM $ showDyadTreeHelper (showAndPad 
 autoInfoDyadFnD :: (ShowAndPad a, ShowAndPad b) => String -> a -> b -> FuncD -> Function
 autoInfoDyadFnD s a b = DyadFn (namePadToFnInfoD $ showDyadTreeHelper (showAndPad a) (showAndPad b) s)
 
-autoInfoMonDyadFnD :: (ShowAndPad a, ShowAndPad b) => String -> a -> b -> FuncM -> FuncD -> Function
-autoInfoMonDyadFnD s a b = MonDyadFn (namePadToFnInfoA $ showDyadTreeHelper (showAndPad a) (showAndPad b) s)
+autoInfoAmbivFnD :: (ShowAndPad a, ShowAndPad b) => String -> a -> b -> FuncM -> FuncD -> Function
+autoInfoAmbivFnD s a b = AmbivFn (namePadToFnInfoA $ showDyadTreeHelper (showAndPad a) (showAndPad b) s)
 
 expectFunc :: (Either Array Function) -> Function
 expectFunc eaf = case eaf of
@@ -109,10 +109,10 @@ atop f g = do
     return $ case (f', g') of
         (MonFn _ fF, MonFn _ gF) -> MonFn infoM (atopMM fF gF)
         (MonFn _ fF, DyadFn _ gF) -> DyadFn infoD (atopMD fF gF)
-        (MonFn _ fF, MonDyadFn _ gMF gDF) -> MonDyadFn infoA (atopMM fF gMF) (atopMD fF gDF)
-        (MonDyadFn _ fF _, MonFn _ gF) -> MonFn infoM (atopMM fF gF)
-        (MonDyadFn _ fF _, DyadFn _ gF) -> DyadFn infoD (atopMD fF gF)
-        (MonDyadFn _ fF _, MonDyadFn _ gMF gDF) -> MonDyadFn infoA (atopMM fF gMF) (atopMD fF gDF)
+        (MonFn _ fF, AmbivFn _ gMF gDF) -> AmbivFn infoA (atopMM fF gMF) (atopMD fF gDF)
+        (AmbivFn _ fF _, MonFn _ gF) -> MonFn infoM (atopMM fF gF)
+        (AmbivFn _ fF _, DyadFn _ gF) -> DyadFn infoD (atopMD fF gF)
+        (AmbivFn _ fF _, AmbivFn _ gMF gDF) -> AmbivFn infoA (atopMM fF gMF) (atopMD fF gDF)
         _ -> undefined
 
 fork :: FnTreeNode -> FnTreeNode -> FnTreeNode -> StateT IdMap IO Function
@@ -126,26 +126,26 @@ fork f g h = do
             return $ case (g', h') of
                 (DyadFn _ gF, DyadFn _ hF) -> DyadFn infoD (forkADD fA gF hF)
                 (DyadFn _ gF, MonFn _ hF) -> MonFn infoM (forkADM fA gF hF)
-                (MonDyadFn _ _ gF, DyadFn _ hF) -> DyadFn infoD (forkADD fA gF hF)
-                (MonDyadFn _ _ gF, MonFn _ hF) -> MonFn infoM (forkADM fA gF hF)
-                (MonDyadFn _ _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn infoA (forkADM fA gF hMF) (forkADD fA gF hDF)
+                (AmbivFn _ _ gF, DyadFn _ hF) -> DyadFn infoD (forkADD fA gF hF)
+                (AmbivFn _ _ gF, MonFn _ hF) -> MonFn infoM (forkADM fA gF hF)
+                (AmbivFn _ _ gF, AmbivFn _ hMF hDF) -> AmbivFn infoA (forkADM fA gF hMF) (forkADD fA gF hDF)
         Right f' -> do
             let (infoM, infoD, infoA) = namePadToFnInfoMDA $ showForkHelper (showAndPad f') (showAndPad g') (showAndPad h')
             return $ case (f', g', h') of
                 (DyadFn _ fF, DyadFn _ gF, DyadFn _ hF) -> DyadFn infoD (forkDDD fF gF hF)
-                (DyadFn _ fF, MonDyadFn _ _ gF, DyadFn _ hF) -> DyadFn infoD (forkDDD fF gF hF)
+                (DyadFn _ fF, AmbivFn _ _ gF, DyadFn _ hF) -> DyadFn infoD (forkDDD fF gF hF)
                 (MonFn _ fF, DyadFn _ gF, MonFn _ hF) -> MonFn infoM (forkMDM fF gF hF)
-                (MonFn _ fF, MonDyadFn _ _ gF, MonFn _ hF) -> MonFn infoM (forkMDM fF gF hF)
-                (MonDyadFn _ fMF fDF, DyadFn _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn infoA (forkMDM fMF gF hMF) (forkDDD fDF gF hDF)
-                (MonDyadFn _ fMF fDF, MonDyadFn _ _ gF, MonDyadFn _ hMF hDF) -> MonDyadFn infoA (forkMDM fMF gF hMF) (forkDDD fDF gF hDF)
-                (MonDyadFn _ _ fF, DyadFn _ gF, DyadFn _ hF) -> DyadFn infoD (forkDDD fF gF hF)
-                (MonDyadFn _ _ fF, MonDyadFn _ _ gF, DyadFn _ hF) -> DyadFn infoD (forkDDD fF gF hF)
-                (MonDyadFn _ fF _, DyadFn _ gF, MonFn _ hF) -> MonFn infoM (forkMDM fF gF hF)
-                (MonDyadFn _ fF _, MonDyadFn _ _ gF, MonFn _ hF) -> MonFn infoM (forkMDM fF gF hF)
-                (DyadFn _ fF, DyadFn _ gF, MonDyadFn _ _ hF) -> DyadFn infoD (forkDDD fF gF hF)
-                (DyadFn _ fF, MonDyadFn _ _ gF, MonDyadFn _ _ hF) -> DyadFn infoD (forkDDD fF gF hF)
-                (MonFn _ fF, DyadFn _ gF, MonDyadFn _ hF _) -> MonFn infoM (forkMDM fF gF hF)
-                (MonFn _ fF, MonDyadFn _ _ gF, MonDyadFn _ hF _) -> MonFn infoM (forkMDM fF gF hF)
+                (MonFn _ fF, AmbivFn _ _ gF, MonFn _ hF) -> MonFn infoM (forkMDM fF gF hF)
+                (AmbivFn _ fMF fDF, DyadFn _ gF, AmbivFn _ hMF hDF) -> AmbivFn infoA (forkMDM fMF gF hMF) (forkDDD fDF gF hDF)
+                (AmbivFn _ fMF fDF, AmbivFn _ _ gF, AmbivFn _ hMF hDF) -> AmbivFn infoA (forkMDM fMF gF hMF) (forkDDD fDF gF hDF)
+                (AmbivFn _ _ fF, DyadFn _ gF, DyadFn _ hF) -> DyadFn infoD (forkDDD fF gF hF)
+                (AmbivFn _ _ fF, AmbivFn _ _ gF, DyadFn _ hF) -> DyadFn infoD (forkDDD fF gF hF)
+                (AmbivFn _ fF _, DyadFn _ gF, MonFn _ hF) -> MonFn infoM (forkMDM fF gF hF)
+                (AmbivFn _ fF _, AmbivFn _ _ gF, MonFn _ hF) -> MonFn infoM (forkMDM fF gF hF)
+                (DyadFn _ fF, DyadFn _ gF, AmbivFn _ _ hF) -> DyadFn infoD (forkDDD fF gF hF)
+                (DyadFn _ fF, AmbivFn _ _ gF, AmbivFn _ _ hF) -> DyadFn infoD (forkDDD fF gF hF)
+                (MonFn _ fF, DyadFn _ gF, AmbivFn _ hF _) -> MonFn infoM (forkMDM fF gF hF)
+                (MonFn _ fF, AmbivFn _ _ gF, AmbivFn _ hF _) -> MonFn infoM (forkMDM fF gF hF)
 
 {- Subscripting -}
 
@@ -184,11 +184,11 @@ evalAxisSpec f a = case f of
     (DyadFn i _) -> case fnOnAxisD i of
         Nothing -> throw . SyntaxError $ "([]): function doesn't implement axis specification"
         Just fAx -> autoInfoDyadFnD "[]" f a (fAx ax)
-    (MonDyadFn i _ _) -> case (fnOnAxisAM i, fnOnAxisAD i) of
+    (AmbivFn i _ _) -> case (fnOnAxisAM i, fnOnAxisAD i) of
         (Nothing, Nothing) -> throw . SyntaxError $ "([]): function doesn't implement axis specification"
         (Just fM, Nothing) -> autoInfoMonFnD "[]" f a (fM ax)
         (Nothing, Just fD) -> autoInfoDyadFnD "[]" f a (fD ax)
-        (Just fM, Just fD) -> autoInfoMonDyadFnD "[]" f a (fM ax) (fD ax)
+        (Just fM, Just fD) -> autoInfoAmbivFnD "[]" f a (fM ax) (fD ax)
     where unwrapScalarNum a
               | shape a /= [1] = throw . RankError $ "([]): invalid axis"
               | ScalarNum n <- a `at` 0 = n
@@ -204,7 +204,7 @@ evalArrTree (ArrInternalMonFn ft at) = do
     f <- expectFunc <$> evalFnTree ft
     case f of
         MonFn _ f' -> f' a
-        MonDyadFn _ f' _ -> f' a
+        AmbivFn _ f' _ -> f' a
         _ -> undefined -- function should be monadic
 evalArrTree (ArrNiladicFn _ f) = f
 evalArrTree (ArrInternalDyadFn ft at1 at2) = do
@@ -213,7 +213,7 @@ evalArrTree (ArrInternalDyadFn ft at1 at2) = do
     f <- expectFunc <$> evalFnTree ft
     case f of
         DyadFn _ f' -> f' a1 a2
-        MonDyadFn _ _ f' -> f' a1 a2
+        AmbivFn _ _ f' -> f' a1 a2
         _ -> undefined -- function should be dyadic
 evalArrTree (ArrInternalAssignment id at) = do
     a <- evalArrTree at
@@ -305,7 +305,7 @@ evalOpTree (OpInternalDummyNode next) = evalOpTree next
 {- Eval Dfns -}
 
 mkDfn :: [Token] -> (Maybe IdEntry) -> (Maybe IdEntry) -> (Maybe IdEntry) -> Function
-mkDfn toks aa ww dd = MonDyadFn (namePadToFnInfoA namePad) (evalDfnM toks aa ww dd) (evalDfnD toks aa ww dd)
+mkDfn toks aa ww dd = AmbivFn (namePadToFnInfoA namePad) (evalDfnM toks aa ww dd) (evalDfnD toks aa ww dd)
     where namePad = case (aa, ww) of
                         (Nothing, Nothing) -> (rootStr, 0)
                         (Just ide, Nothing) -> showMonTreeHelper (_showIde ide) rootStr
