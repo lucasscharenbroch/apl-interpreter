@@ -46,3 +46,6 @@ Domain Error: (⊂): left argument should be nonnegative
 Domain Error: (⊆): left argument should be nonnegative
 Rank Error: (⊂): expected scalar/vector left argument
 Rank Error: (⊆): expected scalar/vector left argument
+Length Error: (,): mismatched argument shapes
+Length Error: (,): mismatched argument shapes
+Rank Error: (,): mismatched argument ranks

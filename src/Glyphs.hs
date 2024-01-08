@@ -103,6 +103,7 @@ reverseOnAxis = Just (\ax -> mkFuncM $ F.reverse ax)
 rotateOnAxis = Just (\ax -> mkFuncD $ F.rotate ax)
 partitionedEncloseOnAxis = Just (\ax -> mkFuncD $ F.partitionedEnclose ax)
 partitionOnAxis = Just (\ax -> mkFuncD $ F.partition ax)
+catenateOnAxis = Just (\ax -> mkFuncD $ F.catenate ax)
 
 -- primitive
 fPlus = pureMonDyadFn (mkFnInfoA "+") {fnIdAD = Just $ ScalarNum 0} F.conjugate F.add
@@ -148,6 +149,8 @@ fFormat = pureMonFn (mkFnInfoM "⍕") F.format
 fDisclose = mkMonDyadFn (mkFnInfoA "⊃") {fnCanSelectAM = True, fnCanSelectAD = True} (Identity . F.first) F.pick
 fEnclose = mkMonDyadFn (mkFnInfoA "⊂") {fnOnAxisAD = partitionedEncloseOnAxis} (Identity . F.enclose) F.partitionedEncloseLast
 fPartition = mkMonDyadFn (mkFnInfoA "⊆") {fnOnAxisAD = partitionOnAxis} (Identity . F.nest) F.partitionLast
+fComma = mkMonDyadFn (mkFnInfoA ",") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAD = catenateOnAxis} (Identity . F.ravel) F.catenateLast
+fCommaBar = mkMonDyadFn (mkFnInfoA "⍪") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAD = catenateOnAxis} (Identity . F.table) F.catenateFirst
 
 functionGlyphs :: [(Char, Function)]
 functionGlyphs = [
@@ -193,7 +196,9 @@ functionGlyphs = [
         ('⍕', fFormat),
         ('⊃', fDisclose),
         ('⊂', fEnclose),
-        ('⊆', fPartition)
+        ('⊆', fPartition),
+        (',', fComma),
+        ('⍪', fCommaBar)
         -- TODO big list of functions
     ]
 

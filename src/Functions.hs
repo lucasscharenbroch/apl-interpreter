@@ -61,6 +61,43 @@ getString = listToArr . map ScalarCh <$> (lift $ getLine)
 
 {- Axis-Spec Functions -}
 
+catenate :: Double -> Array -> Array -> IdxOriginM Array
+catenate ax x y
+    | isIntegral ax = ask >>= \iO -> let ax' = (Prelude.floor ax) - iO + 1
+                                     in return $ _catenate ax'
+    | otherwise = ask >>= \iO -> let ax' = (Prelude.ceiling ax) - iO + 1
+                                 in return $ _laminate ax'
+    where _catenate ax'
+              | ax' <= 0 || ax' > rank = throw . RankError $ "(,): invalid axis"
+              | x == zilde = y
+              | y == zilde = x
+              | (shape'' x') /= (shape'' y') = throw . LengthError $ "(,): mismatched argument shapes"
+              | otherwise = zipVecsAlongAxis ax'' ax'' ax'' (++) x' y'
+              where (x', y') = _rankMorph (x, y)
+                    rank = arrRank x'
+                    _rankMorph (a, b)
+                        | shape a == [1] && arrNetSize b > 0 = (shapedArrFromList (shape'1 b) $ replicate (foldr (*) 1 $ shape'1 b) (a `at` 0), b)
+                        | shape b == [1] && arrNetSize a > 0 = (a, shapedArrFromList (shape'1 a) $ replicate (foldr (*) 1 $ shape'1 a) (b `at` 0))
+                        | arrRank a == arrRank b = (a, b)
+                        | arrRank a == arrRank b + 1 && ax' <= arrRank a = (a, b {shape = take _ax' (shape b) ++ [1] ++ drop _ax' (shape b)})
+                        | arrRank a + 1 == arrRank b && ax' <= arrRank b = (a {shape = take (_ax' + 1) (shape a) ++ [1] ++ drop (_ax' + 1) (shape a)}, b)
+                        | otherwise = throw . RankError $ "(,): mismatched argument ranks"
+                        where _ax' = ax' - 1
+                    shape'1 a = take (ax' - 1) (shape a) ++ [1] ++ drop ax' (shape a)
+                    shape'' a = take (ax'' - 1) (shape a) ++ drop ax'' (shape a)
+                    ax'' = if arrRank x' == arrRank x + 1 then ax' + 1 else ax'
+          _laminate ax'
+              | ax' < 0 || ax' > rank = throw . RankError $ "(,): invalid axis"
+              | (shape x') /= (shape y') = throw . LengthError $ "(,): mismatched argument shapes"
+              | otherwise = unAlongAxis (ax' + 1) [x', y']
+              where (x', y') = _rankMorph (x, y)
+                    rank = arrRank x'
+                    _rankMorph (a, b)
+                        | shape a == [1] && arrNetSize b > 0 = (shapedArrFromList (shape'1 b) $ replicate (foldr (*) 1 $ shape'1 b) (a `at` 0), b)
+                        | shape b == [1] && arrNetSize a > 0 = (a, shapedArrFromList (shape'1 a) $ replicate (foldr (*) 1 $ shape'1 a) (b `at` 0))
+                        | otherwise = throw . RankError $ "(,): mismatched argument ranks"
+                    shape'1 a = take (ax' - 1) (shape a) ++ [1] ++ drop ax' (shape a)
+
 partitionedEnclose :: Double -> Array -> Array -> IdxOriginM Array
 partitionedEnclose ax x y
     | not . isIntegral $ ax = throw . RankError $ "(⊂): invalid axis"
@@ -143,6 +180,12 @@ rotate ax x y
                   _ -> throw . DomainError $ "(⌽): expected scalar array as left argument"
 
 {- First/Last -Axis Functions -}
+
+catenateFirst :: Array -> Array -> IdxOriginM Array
+catenateFirst x y = ask >>= \iO -> catenate (fromIntegral iO) x y
+
+catenateLast :: Array -> Array -> IdxOriginM Array
+catenateLast x y = ask >>= \iO -> catenate (fromIntegral $ iO + (arrRank x) - 1) x y
 
 partitionLast :: Array -> Array -> IdxOriginM Array
 partitionLast x y = ask >>= \iO -> Functions.partition (fromIntegral $ iO + (arrRank y) - 1) x y
@@ -538,6 +581,9 @@ piTimes = arithFnM (pi*)
 power :: Array -> Array -> Array
 power = arithFnD (**)
 
+ravel :: Array -> Array
+ravel x = x {shape=[arrNetSize x]}
+
 reciprocal :: Array -> Array
 reciprocal = arithFnM (_reciprocal)
     where _reciprocal 0 = throw $ DomainError "division by zero"
@@ -564,6 +610,10 @@ shapeOf = listToArr . map (ScalarNum . fromIntegral) . shape
 
 subtract :: Array -> Array -> Array
 subtract = arithFnD (-)
+
+table :: Array -> Array
+table x = x {shape = shape'}
+    where shape' = [head $ shape x, foldr (*) 1 (tail . shape $ x)]
 
 tally :: Array -> Array
 tally a
