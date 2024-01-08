@@ -204,6 +204,7 @@ functionGlyphs = [
 
 {- Operators -}
 
+-- double-as-functions
 {-
 oReduce = pureMonOp "/" (mOPH "/")
 oScan = pureMonOp "\\" (mOPH "\\")
@@ -211,14 +212,13 @@ oReduceFirst = pureMonOp "⌿" (mOPH "⌿")
 oScanFirst = pureMonOp "⍀" (mOPH "⍀")
 -}
 
+-- primitive
 oSelfie = pureMonOpOptA "⍨" O.selfie
 oAtop = pureDyadOpOptA "⍤" O.atop
 oOver = pureDyadOp "⍥" O.over
 oJot = pureDyadOpOptA "∘" O.jot
 oEach = pureMonOp "¨" O.each
 oPower = pureDyadOpOptA "⍣" O.power
-
--- oAxisSpec axis = pureMonOp ("[" ++ (show axis) ++ "]") (mOPH "[]") -- TODO remove `axis' arg and add arg to called fn
 
 operatorGlyphs :: [(Char, Operator)]
 operatorGlyphs = [

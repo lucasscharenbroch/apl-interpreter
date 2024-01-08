@@ -65,7 +65,7 @@ catenate :: Double -> Array -> Array -> IdxOriginM Array
 catenate ax x y
     | isIntegral ax = ask >>= \iO -> let ax' = (Prelude.floor ax) - iO + 1
                                      in return $ _catenate ax'
-    | otherwise = ask >>= \iO -> let ax' = (Prelude.ceiling ax) - iO + 1
+    | otherwise = ask >>= \iO -> let ax' = (Prelude.ceiling ax) - iO
                                  in return $ _laminate ax'
     where _catenate ax'
               | ax' <= 0 || ax' > rank = throw . RankError $ "(,): invalid axis"
@@ -93,10 +93,10 @@ catenate ax x y
               where (x', y') = _rankMorph (x, y)
                     rank = arrRank x'
                     _rankMorph (a, b)
-                        | shape a == [1] && arrNetSize b > 0 = (shapedArrFromList (shape'1 b) $ replicate (foldr (*) 1 $ shape'1 b) (a `at` 0), b)
-                        | shape b == [1] && arrNetSize a > 0 = (a, shapedArrFromList (shape'1 a) $ replicate (foldr (*) 1 $ shape'1 a) (b `at` 0))
+                        | shape a == [1] && arrNetSize b > 0 = (shapedArrFromList (shape b) $ replicate (arrNetSize b) (a `at` 0), b)
+                        | shape b == [1] && arrNetSize a > 0 = (a, shapedArrFromList (shape a) $ replicate (arrNetSize a) (b `at` 0))
+                        | shape a == shape b = (a, b)
                         | otherwise = throw . RankError $ "(,): mismatched argument ranks"
-                    shape'1 a = take (ax' - 1) (shape a) ++ [1] ++ drop ax' (shape a)
 
 partitionedEnclose :: Double -> Array -> Array -> IdxOriginM Array
 partitionedEnclose ax x y
@@ -122,7 +122,6 @@ partitionedEnclose ax x y
                         divGroups = map ((flip replicate) zilde) $ (map ((-1+) . snd . head) groups) ++ [last ns]
                         intertwine (a:[]) [] = a
                         intertwine (a:as) (b:bs) = a ++ b ++ intertwine as bs
-                        intertwine a b = throw . RankError $ (show a) ++ " || " ++ (show b) ++ " // " ++ (show arrGroups) ++ " \\\\ " ++ (show divGroups) ++ " ^^ " ++ (show groups)
 
 partition :: Double -> Array -> Array -> IdxOriginM Array
 partition ax x y

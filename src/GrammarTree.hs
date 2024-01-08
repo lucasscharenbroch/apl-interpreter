@@ -162,6 +162,7 @@ data FnTreeNode = FnLeafFn Function
                 | FnInternalFork FnTreeNode FnTreeNode FnTreeNode
                 | FnInternalAssignment String FnTreeNode
                 | FnInternalQuadAssignment FnTreeNode
+                | FnInternalAxisSpec FnTreeNode ArrTreeNode
                 | FnInternalDummyNode FnTreeNode
 
 -- "array tree": a tree that makes up a derived array

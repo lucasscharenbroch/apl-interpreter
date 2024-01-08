@@ -48,6 +48,24 @@ namePadToFnInfoMDA (name, pad) = (defFnInfoM {fnNameM = name, fnNamePadM = pad},
                                   defFnInfoD {fnNameD = name, fnNamePadD = pad},
                                   defFnInfoA {fnNameA = name, fnNamePadA = pad})
 
+autoInfoMonFnM :: ShowAndPad a => String -> a -> FuncM -> Function
+autoInfoMonFnM s a = MonFn (namePadToFnInfoM $ showMonTreeHelper (showAndPad a) s)
+
+autoInfoDyadFnM :: ShowAndPad a => String -> a -> FuncD -> Function
+autoInfoDyadFnM s a = DyadFn (namePadToFnInfoD $ showMonTreeHelper (showAndPad a) s)
+
+autoInfoMonDyadFnM :: ShowAndPad a => String -> a -> FuncM -> FuncD -> Function
+autoInfoMonDyadFnM s a = MonDyadFn (namePadToFnInfoA $ showMonTreeHelper (showAndPad a) s)
+
+autoInfoMonFnD :: (ShowAndPad a, ShowAndPad b) => String -> a -> b -> FuncM -> Function
+autoInfoMonFnD s a b = MonFn (namePadToFnInfoM $ showDyadTreeHelper (showAndPad a) (showAndPad b) s)
+
+autoInfoDyadFnD :: (ShowAndPad a, ShowAndPad b) => String -> a -> b -> FuncD -> Function
+autoInfoDyadFnD s a b = DyadFn (namePadToFnInfoD $ showDyadTreeHelper (showAndPad a) (showAndPad b) s)
+
+autoInfoMonDyadFnD :: (ShowAndPad a, ShowAndPad b) => String -> a -> b -> FuncM -> FuncD -> Function
+autoInfoMonDyadFnD s a b = MonDyadFn (namePadToFnInfoA $ showDyadTreeHelper (showAndPad a) (showAndPad b) s)
+
 expectFunc :: (Either Array Function) -> Function
 expectFunc eaf = case eaf of
     (Left  _) -> undefined
@@ -156,6 +174,27 @@ evalArrSubscript iO lhs ixs = partialFlatten $ shapedArrFromList shape' cells'
                    Nothing -> [0..(i - 1)]
                    Just a -> map (+(-1*iO)) $ arrToIntVec a
 
+{- Axis Spec -}
+
+evalAxisSpec :: Function -> Array -> Function
+evalAxisSpec f a = case f of
+    (MonFn i _) -> case fnOnAxisM i of
+        Nothing -> throw . SyntaxError $ "([]): function doesn't implement axis specification"
+        Just fAx -> autoInfoMonFnD "[]" f a (fAx ax)
+    (DyadFn i _) -> case fnOnAxisD i of
+        Nothing -> throw . SyntaxError $ "([]): function doesn't implement axis specification"
+        Just fAx -> autoInfoDyadFnD "[]" f a (fAx ax)
+    (MonDyadFn i _ _) -> case (fnOnAxisAM i, fnOnAxisAD i) of
+        (Nothing, Nothing) -> throw . SyntaxError $ "([]): function doesn't implement axis specification"
+        (Just fM, Nothing) -> autoInfoMonFnD "[]" f a (fM ax)
+        (Nothing, Just fD) -> autoInfoDyadFnD "[]" f a (fD ax)
+        (Just fM, Just fD) -> autoInfoMonDyadFnD "[]" f a (fM ax) (fD ax)
+    where unwrapScalarNum a
+              | shape a /= [1] = throw . RankError $ "([]): invalid axis"
+              | ScalarNum n <- a `at` 0 = n
+              | otherwise = throw . RankError $ "([]): invalid axis"
+          ax = unwrapScalarNum a
+
 {- Eval Tree Fns -}
 
 evalArrTree :: ArrTreeNode -> StateT IdMap IO Array
@@ -242,6 +281,12 @@ evalFnTree (FnInternalQuadAssignment next) = do
     efa <- evalFnTree next
     lift $ putStrLn . fromHomoEither . bimap show show $ efa
     return efa
+evalFnTree (FnInternalAxisSpec ftn atn) = do
+    a <- evalArrTree atn
+    efa <- evalFnTree ftn
+    case efa of
+        Left _ -> undefined -- (internal error: axis spec bound more strongly than subscript)
+        Right f -> return . Right $ evalAxisSpec f a
 evalFnTree (FnInternalDummyNode next) = evalFnTree next
 
 evalOpTree :: OpTreeNode -> StateT IdMap IO Operator

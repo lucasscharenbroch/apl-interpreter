@@ -12,24 +12,6 @@ import Data.Maybe
 
 {- Helpers -}
 
-autoInfoMonFnM :: ShowAndPad a => String -> a -> FuncM -> Function
-autoInfoMonFnM s a = MonFn (namePadToFnInfoM $ showMonTreeHelper (showAndPad a) s)
-
-autoInfoDyadFnM :: ShowAndPad a => String -> a -> FuncD -> Function
-autoInfoDyadFnM s a = DyadFn (namePadToFnInfoD $ showMonTreeHelper (showAndPad a) s)
-
-autoInfoMonDyadFnM :: ShowAndPad a => String -> a -> FuncM -> FuncD -> Function
-autoInfoMonDyadFnM s a = MonDyadFn (namePadToFnInfoA $ showMonTreeHelper (showAndPad a) s)
-
-autoInfoMonFnD :: (ShowAndPad a, ShowAndPad b) => String -> a -> b -> FuncM -> Function
-autoInfoMonFnD s a b = MonFn (namePadToFnInfoM $ showDyadTreeHelper (showAndPad a) (showAndPad b) s)
-
-autoInfoDyadFnD :: (ShowAndPad a, ShowAndPad b) => String -> a -> b -> FuncD -> Function
-autoInfoDyadFnD s a b = DyadFn (namePadToFnInfoD $ showDyadTreeHelper (showAndPad a) (showAndPad b) s)
-
-autoInfoMonDyadFnD :: (ShowAndPad a, ShowAndPad b) => String -> a -> b -> FuncM -> FuncD -> Function
-autoInfoMonDyadFnD s a b = MonDyadFn (namePadToFnInfoA $ showDyadTreeHelper (showAndPad a) (showAndPad b) s)
-
 getDyadFn :: Function -> FuncD
 getDyadFn f = case f of
    (DyadFn _ x) -> x
@@ -53,8 +35,6 @@ getInverseD f = case f of
     DyadFn i _ -> fromMaybe err (fnInverseD i)
     MonDyadFn i _ _ -> fromMaybe err (fnInverseAD i)
     where err = throw . DomainError $ "function has no inverse: {" ++ (show f) ++ "}"
-
-{- Special Operators -}
 
 {- General Operators -}
 

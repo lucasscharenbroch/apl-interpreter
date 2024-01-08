@@ -201,6 +201,7 @@ showFtnHelper (FnInternalFork f1 f2 f3) = showForkHelper h1 h2 h3
           h3 = showFtnHelper f3
 showFtnHelper (FnInternalAssignment id child) = showMonTreeHelper (showFtnHelper child) (id ++ " ←")
 showFtnHelper (FnInternalQuadAssignment child) = showMonTreeHelper (showFtnHelper child) "⎕ ←"
+showFtnHelper (FnInternalAxisSpec ftn atn) = showDyadTreeHelper (showFtnHelper ftn) ((singleBoxify $ show atn), 0) "[]"
 showFtnHelper (FnInternalDummyNode child) = showFtnHelper child
 
 instance Show FnTreeNode where

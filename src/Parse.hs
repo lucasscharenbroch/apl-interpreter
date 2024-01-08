@@ -35,16 +35,18 @@ import QuadNames
  -
  - train => [df] {(arr|df) df} df            (where df = der_fn)
  -
- - der_fn => (f|a) op [f|a] {op [f|a]}       (where (f|a) is fn or arr; match the
- -                                            optional iff op is dyadic)
- -                                           (∘ may match (f|a) if the following op is .
- -                                            (this allows for outer product))
- -                                           (∘ must not match op if . follows it)
+ - der_fn => (f|a) op_like [f|a] {op_like [f|a]}       (where (f|a) is fn or arr; match the
+ -                                                      optional iff op_like is dyadic)
+ -                                                     (∘ may match (f|a) if the following op is .
+ -                                                      (this allows for outer product))
+ -                                                     (∘ must not match op if . follows it)
  -        => fn
+ -
+ - op_like => [der_arr]
+ -         => op
  -
  - op => ¨ ⍨ ⌸ ⌶                             (monadic)
  -    => ⍣ . ∘ ⍤ ⍥ @ ⍠ ⌺                     (dyadic)
- -    => [der_arr]                           (monadic)
  -    => dfn_decl                            (if dfn_decl is op)
  -    => ∇∇                                  (if ∇∇ is in id map)
  -    => op_ass
@@ -233,6 +235,9 @@ data ParentheticalResult = ParenFtn FnTreeNode
                          | ParenAtn ArrTreeNode
                          | ParenOtn OpTreeNode
 
+data OpLike = OpLikeM (FnTreeNode -> FnTreeNode)
+            | OpLikeD (FnTreeNode -> FnTreeNode -> FnTreeNode)
+
 {- Parsing Functions -}
 
 parseExpr :: MatchFn ExprResult
@@ -359,22 +364,30 @@ parseTrain = (tranify) <$> matchOne [(:) <$> parseDerFn <*> _matchTail, _matchTa
 
 parseDerFn :: MatchFn FnTreeNode
 parseDerFn = matchOne [_parseOpExpr, parseFn]
-    where _parseOpExpr = join $ _parseOpExprRec <$> _parseArg <*> parseOp
+    where _parseOpExpr = join $ _parseOpExprRec <$> _parseArg <*> parseOpLike
           _parseArg = matchOne [parseFn, FnLeafArr <$> parseArr]
-          _parseOpExprRec :: FnTreeNode -> OpTreeNode -> MatchFn FnTreeNode
-          _parseOpExprRec lhs otn = do
-              df <- case unwrapOpTree otn of
-                        (MonOp _ _) -> return $ FnInternalMonOp otn lhs
-                        (DyadOp _ _) -> do rhs <- _parseArg
-                                           return $ FnInternalDyadOp otn lhs rhs
-              maybeMatch parseOp >>= \mb -> case mb of
+          _parseOpExprRec :: FnTreeNode -> OpLike -> MatchFn FnTreeNode
+          _parseOpExprRec lhs opLike = do
+              df <- case opLike of
+                        (OpLikeM f) -> return $ f lhs
+                        (OpLikeD f) -> do rhs <- _parseArg
+                                          return $ f lhs rhs
+              maybeMatch parseOpLike >>= \mb -> case mb of
                    Nothing -> return $ df
-                   (Just otn2) -> _parseOpExprRec df otn2
+                   (Just opLike2) -> _parseOpExprRec df opLike2
+
+parseOpLike :: MatchFn OpLike
+parseOpLike = matchOne [
+        mkOpLike <$> parseOp,
+        OpLikeM . (flip FnInternalAxisSpec) <$> (matchCh '[' *> parseDerArr <* matchCh ']')
+    ]
+    where mkOpLike otn = case unwrapOpTree otn of
+              MonOp _ _ -> OpLikeM $ FnInternalMonOp otn
+              DyadOp _ _ -> OpLikeD $ FnInternalDyadOp otn
 
 parseOp :: MatchFn OpTreeNode
 parseOp = matchOne [
         matchOne $ map (\(c, o) -> (\_ -> OpLeaf o) <$> matchCh c) operatorGlyphs,
-        -- OpLeaf . oAxisSpec <$> (matchCh '[' *> parseDerArr <* matchCh ']'), -- TODO
         -- dfn_decl
         dfnDeclToOp =<< parseDfnDecl,
         -- ∇∇
