@@ -27,10 +27,12 @@ at :: Array -> Int -> Scalar
 at a i = (cells a) A.! i
 
 shapedArrFromList :: [Int] -> [Scalar] -> Array
-shapedArrFromList shape cells = Array {
-                                  shape = shape
-                                , cells = A.listArray (0, size - 1) cells
-                                }
+shapedArrFromList shape cells
+    | size /= length cells = undefined
+    | otherwise = Array {
+                          shape = shape
+                        , cells = A.listArray (0, size - 1) cells
+                        }
     where size = foldr (*) 1 shape
 
 listToArr :: [Scalar] -> Array

@@ -66,3 +66,20 @@ Rank Error: (\): invalid (fractional) axis
 Domain Error: expected int singleton
 Domain Error: (⍸): expected argument with nonnegative elements
 Domain Error: (⍸): major cells of left argument should be sorted
+Length Error: (⊥): mismatched lengths
+Length Error: (⊥): mismatched lengths
+Length Error: (⊥): mismatched axis lengths
+Length Error: (⊥): mismatched axis lengths
+Length Error: (⊥): mismatched axis lengths
+Rank Error: (/): invalid axis
+Rank Error: (/): invalid axis
+Rank Error: (/): invalid (fractional) axis
+Rank Error: (/): invalid (fractional) axis
+Rank Error: (/): invalid (fractional) axis
+Rank Error: (\): invalid axis
+Rank Error: (\): invalid axis
+Rank Error: (\): invalid axis
+Length Error: (/): window too big
+Domain Error: (/): left argument should be nonnegative
+Length Error: (⊥): mismatched lengths
+Length Error: (⊥): mismatched lengths

@@ -136,6 +136,7 @@ fCircle = pureAmbivFn (mkFnInfoA "○") F.piTimes F.circularFormulae
 fBang = pureAmbivFn (mkFnInfoA "!") {fnIdAD = Just $ ScalarNum 1} F.factorial F.binomial
 fQuestion = mkAmbivFn (mkFnInfoA "?") F.roll F.deal
 fEncode = pureDyadFn (mkFnInfoD "⊤") F.encode
+fDecode = pureDyadFn (mkFnInfoD "⊥") F.decode
 fTranspose = mkAmbivFn (mkFnInfoA "⍉") {fnCanSelectAM = True, fnCanSelectAD = True} (Identity . F.transpose) F.reorderAxes
 fReverse = mkAmbivFn (mkFnInfoA "⌽") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAM = reverseOnAxis, fnOnAxisAD = rotateOnAxis} F.reverseLast F.rotateLast
 fReverseFirst = mkAmbivFn (mkFnInfoA "⊖") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAM = reverseOnAxis, fnOnAxisAD = rotateOnAxis} F.reverseFirst F.rotateFirst
@@ -190,6 +191,7 @@ functionGlyphs = [
         ('!', fBang),
         ('?', fQuestion),
         ('⊤', fEncode),
+        ('⊥', fDecode),
         ('⍉', fTranspose),
         ('⌽', fReverse),
         ('⊖', fReverseFirst),

@@ -49,14 +49,14 @@ arrCons x y = listToArr $ x : (arrToList y)
 arrZipWith :: (Scalar -> Scalar -> Scalar) -> Array -> Array -> Array
 arrZipWith f x y
     | xsz /= ysz = undefined
-    | otherwise = shapedArrFromList (shape x) [(x `at` i) `f` (y `at` i) | i <- [0..xsz]]
+    | otherwise = shapedArrFromList (shape x) [(x `at` i) `f` (y `at` i) | i <- [0..(xsz - 1)]]
     where xsz = foldr (*) 1 $ shape x
           ysz = foldr (*) 1 $ shape y
 
 arrZipWithM :: Monad m => (Scalar -> Scalar -> m Scalar) -> Array -> Array -> m Array
 arrZipWithM f x y
     | xsz /= ysz = undefined
-    | otherwise = shapedArrFromList (shape x) <$> sequence [(x `at` i) `f` (y `at` i) | i <- [0..xsz]]
+    | otherwise = shapedArrFromList (shape x) <$> sequence [(x `at` i) `f` (y `at` i) | i <- [0..(xsz - 1)]]
     where xsz = foldr (*) 1 $ shape x
           ysz = foldr (*) 1 $ shape y
 
@@ -296,6 +296,10 @@ scalarToInt _ = throw $ DomainError "expected int singleton"
 
 intToScalar :: Int -> Scalar
 intToScalar = ScalarNum . fromIntegral
+
+scalarToDouble :: Scalar -> Double
+scalarToDouble (ScalarNum n) = n
+scalarToDouble _ = throw $ DomainError "expected numeric singleton"
 
 scalarToChar :: Scalar -> Char
 scalarToChar (ScalarCh c) = c

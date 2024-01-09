@@ -485,6 +485,28 @@ circularFormulae = arithFnD _cf
 conjugate :: Array -> Array
 conjugate = id
 
+decode :: Array -> Array -> Array
+decode x y
+    | (x == zilde && y == zilde) || (x == zilde && (arrNetSize y) == 1) || (y == zilde && (arrNetSize x) == 1) = listToArr [ScalarNum 0]
+    | x == zilde || y == zilde = throw . LengthError $ "(⊥): mismatched lengths"
+    | otherwise = shapedArrFromList shape' .  arrToList .  mapVecsAlongAxis 1 _decode $ y
+    where yRank = arrRank y
+          xRank = arrRank x
+          shape' = if yRank == 1 && xRank == 1
+                   then [1]
+                   else (init $ shape x) ++ (tail $ shape y)
+          _decode :: [Scalar] -> [Scalar]
+          _decode ss = arrToList . mapVecsAlongAxis xRank (flip decodeScalars $ ss) $ x
+          decodeScalars :: [Scalar] -> [Scalar] -> [Scalar]
+          decodeScalars as bs
+              | length as == length bs = (:[]) . ScalarNum . sum $ zipWith (*) bs' mul
+              | length as == 1 && length bs > 1 = decodeScalars (Prelude.replicate (length bs) (head as)) bs
+              | length as > 1 && length bs == 1 = decodeScalars as (Prelude.replicate (length as) (head bs))
+              | otherwise = throw . LengthError $ "(⊥): mismatched axis lengths"
+              where as' = map scalarToDouble as
+                    bs' = map scalarToDouble bs
+                    mul = {-init . scanr (max) 0 . -} tail . scanr (*) 1 $ as'
+
 depth :: Array -> Array
 depth = intToScalarArr . _depth . ScalarArr
     where _depth :: Scalar -> Int

@@ -47,19 +47,25 @@ reduce :: Bool -> Function -> F.IdxOriginM Function
 reduce isFirst f = do iO <- ask
                       let _ax arg = if isFirst then fromIntegral iO else fromIntegral $ arrRank arg - 1 + iO
                       return $ AmbivFn dinfo (\y -> _reduce (_ax y) (intToScalarArr $ (shape y !! ((_ax y) - iO))) y) (\x y -> _reduce (_ax y) x y)
-    where dinfo = (namePadToFnInfoA $ showMonTreeHelper (showAndPad f) "/") { fnOnAxisAM = Just $ \ax -> \y -> getQIo >>= \iO -> _reduce ax (intToScalarArr $ shape y !! floor (ax - arrToDouble iO)) y
+    where dinfo = (namePadToFnInfoA $ showMonTreeHelper (showAndPad f) "/") { fnOnAxisAM = Just _reduceM
                                                                             , fnOnAxisAD = Just _reduce }
           fd = case f of
               MonFn _ _ -> throw . DomainError $ "(/): expected dyadic function"
               DyadFn _ d -> d
               AmbivFn _ _ d -> d
+          _reduceM ax y
+              | not $ isIntegral ax = throw . RankError $ "(/): invalid (fractional) axis"
+              | otherwise = do iO <- arrToInt <$> getQIo
+                               let ax' = (floor ax) - iO + 1
+                               if ax' < 1 || ax' > arrRank y then throw . RankError $ "(/): invalid axis"
+                               else _reduce ax (intToScalarArr . max 0 $ shape y !! (ax' - 1)) y
           _reduce :: Double -> Array -> Array -> StateT IdMap IO Array
           _reduce ax x y
-              | y == zilde = return $ scalarToArr idElem
               | not $ isIntegral ax = throw . RankError $ "(/): invalid (fractional) axis"
+              | y == zilde && win == 0 = return $ scalarToArr idElem
               | win <= 0 = throw . DomainError $ "(/): left argument should be nonnegative"
               | otherwise = do iO <- arrToInt <$> getQIo
-                               let ax' = (Prelude.floor ax) - iO + 1
+                               let ax' = (floor ax) - iO + 1
                                if ax' < 1 || ax' > arrRank y then throw . RankError $ "(/): invalid axis"
                                else if (shape y !! (ax' - 1)) < win then throw . LengthError $ "(/): window too big"
                                else (fmap (maybeUnAlongAxis ax')) . mapM (mapVecsAlongAxisM ax' __reduce . unAlongAxis ax') . windowsOf win . alongAxis ax' $ y
@@ -121,11 +127,6 @@ each f = case f of
           _eachD :: FuncD -> FuncD
           _eachD d x y = arrZipWithM ((arrToScalar<$>) .: on d scalarToArr) x' y'
               where (x', y') = rankMorph (x, y)
-          scalarToArr (ScalarArr a) = a
-          scalarToArr s = listToArr [s]
-          arrToScalar a
-              | arrNetSize a == 1 = head $ arrToList a
-              | otherwise = ScalarArr a
 
 over :: Function -> Function -> Function
 over f g = case (f, g) of
@@ -202,13 +203,3 @@ selfie arg = case arg of
     (Left a) -> autoInfoAmbivFnM "⍨" arg (\_ -> return a) (\_ _ -> return a)
     (Right f) -> autoInfoAmbivFnM "⍨" arg (\a -> dyFn a a) (\l r -> dyFn r l)
         where dyFn = getDyadFn f
-
-{-
-reduce :: FnTreeNode -> Function
-reduce ft = MonFn "der/" -- TODO
-    where f = case evalFnTree ft of
-              (Left (DyadFn _ f)) -> f
-              (Left (AmbivFn _ _ f)) -> f
-              (Left _) -> undefined -- TODO exception: need dyadic function
-              _ -> undefined
--}
