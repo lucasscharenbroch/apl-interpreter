@@ -385,6 +385,20 @@ indexOf x y
           ys = alongRank (xRank - 1) y
           toArray (ScalarArr a) = a
           toArray s = listToArr [s]
+
+intervalIndex :: Array -> Array -> IdxOriginM Array
+intervalIndex x y = do iO <- ask
+                       if not $ isSorted x' then throw . DomainError $ "(⍸): major cells of left argument should be sorted"
+                       else return . listToArr . map (intToScalar . (+iO)) . map (bucket x') $ y'
+    where x' = alongAxis 1 x
+          y' = alongAxis 1 y
+          isSorted (x:y:xs) = x <= y && isSorted (y:xs)
+          isSorted _ = True
+          bucket [] _ = -1
+          bucket (x:xs) y
+              | y < x = -1
+              | otherwise = 1 + bucket xs y
+
 iota :: Array -> IdxOriginM Array
 iota x = if any (<0) x'
          then throw $ DomainError "(⍳): expected nonnegative arguments"
@@ -395,7 +409,6 @@ iota x = if any (<0) x'
           calcIndex i = map (\(e, m) -> i `div` m `mod` e) $ zip x' indexMod
           toScalar (s:[]) = s
           toScalar (ss) = ScalarArr . listToArr $ ss
-
 
 pick :: Array -> Array -> IdxOriginM Array
 pick x y
@@ -420,6 +433,16 @@ reorderAxes x y
                                  then throw . RankError $ "(⍉): invalid axis"
                                  else return $ arrReorderAxes x' y
     where x' = arrToIntVec x
+
+where_ :: Array -> IdxOriginM Array
+where_ x = do -- ⍸ ← {(,⍵)/,⍳⍴⍵}
+              --      ^^^  ^^^^
+              --      lhs   rhs
+              rhs <- ravel <$> (iota . shapeOf) x
+              let lhs = ravel x
+              if any (<0) (arrToIntVec x)
+              then throw . DomainError $ "(⍸): expected argument with nonnegative elements"
+              else Functions.replicate 1 lhs rhs
 
 {- Pure Functions -}
 

@@ -158,6 +158,7 @@ fReplicate = mkDyadFn (mkFnInfoD "/") {fnOnAxisD = replicateOnAxis} F.replicateL
 fReplicateFirst = mkDyadFn (mkFnInfoD "⌿") {fnOnAxisD = replicateOnAxis} F.replicateFirst
 fExpand = mkDyadFn (mkFnInfoD "\\") {fnOnAxisD = expandOnAxis} F.expandLast
 fExpandFirst = mkDyadFn (mkFnInfoD "⍀") {fnOnAxisD = expandOnAxis} F.expandFirst
+fIotaUnderbar = mkAmbivFn (mkFnInfoA "⍸") F.where_ F.intervalIndex
 
 functionGlyphs :: [(Char, Function)]
 functionGlyphs = [
@@ -206,7 +207,8 @@ functionGlyphs = [
         ('⊆', fPartition),
         (',', fComma),
         ('⍪', fCommaBar),
-        ('⌷', fSquad)
+        ('⌷', fSquad),
+        ('⍸', fIotaUnderbar)
         -- TODO big list of functions
     ]
 

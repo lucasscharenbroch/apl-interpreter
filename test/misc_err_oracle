@@ -63,3 +63,6 @@ Length Error: (\): number of positive ints in left arg ≠ number of subarrays i
 Domain Error: (\): expected dyadic function
 Rank Error: (\): invalid axis
 Rank Error: (\): invalid (fractional) axis
+Domain Error: expected int singleton
+Domain Error: (⍸): expected argument with nonnegative elements
+Domain Error: (⍸): major cells of left argument should be sorted
