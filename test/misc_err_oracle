@@ -83,3 +83,6 @@ Length Error: (/): window too big
 Domain Error: (/): left argument should be nonnegative
 Length Error: (⊥): mismatched lengths
 Length Error: (⊥): mismatched lengths
+Domain Error: (⍴): ⍬ is an invalid shape
+Length Error: (.): mismatched lengths of leading/trailing axes of right/left argument
+Length Error: (.): mismatched lengths of leading/trailing axes of right/left argument

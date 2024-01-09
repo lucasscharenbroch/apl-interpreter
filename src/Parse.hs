@@ -238,6 +238,9 @@ data ParentheticalResult = ParenFtn FnTreeNode
 data OpLike = OpLikeM (FnTreeNode -> FnTreeNode)
             | OpLikeD (FnTreeNode -> FnTreeNode -> FnTreeNode)
 
+data OpLikeDirective = AnyOpLike           -- any operator
+                     | NonOverloadedOpLike -- any operator except {/⌿\⍀} (lhs is an array)
+
 {- Parsing Functions -}
 
 parseExpr :: MatchFn ExprResult
@@ -364,24 +367,29 @@ parseTrain = (tranify) <$> matchOne [(:) <$> parseDerFn <*> _matchTail, _matchTa
 
 parseDerFn :: MatchFn FnTreeNode
 parseDerFn = matchOne [_parseOpExpr, parseFn]
-    where _parseOpExpr = do arg <- _parseArg
-                            opLike <- parseOpLike (Just arg)
-                            _parseOpExprRec arg opLike
+    where _parseOpExpr = do arg <- matchOne [Right <$> _parseArg, Left <$> matchCh '∘']
+                            case arg of
+                                Right lhs -> case lhs of
+                                                 FnLeafArr _ -> _completeOpExpr lhs NonOverloadedOpLike >>= _parseOpExprRec
+                                                 _ -> _completeOpExpr lhs AnyOpLike >>= _parseOpExprRec
+                                Left _ -> do matchCh '.'
+                                             rhs <- _parseArg
+                                             let df = FnInternalMonOp (OpLeaf oOuterProduct) rhs
+                                             _parseOpExprRec df
           _parseArg = matchOne [parseFn, FnLeafArr <$> parseArr]
-          _parseOpExprRec :: FnTreeNode -> OpLike -> MatchFn FnTreeNode
-          _parseOpExprRec lhs opLike = do
-              df <- case opLike of
-                        (OpLikeM f) -> return $ f lhs
-                        (OpLikeD f) -> do rhs <- _parseArg
-                                          return $ f lhs rhs
-              maybeMatch (parseOpLike Nothing) >>= \mb -> case mb of
-                   Nothing -> return $ df
-                   (Just opLike2) -> _parseOpExprRec df opLike2
+          _completeOpExpr :: FnTreeNode -> OpLikeDirective -> MatchFn FnTreeNode
+          _completeOpExpr lhs dir = parseOpLike dir >>= \opLike -> case opLike of
+                                        OpLikeM f -> return $ f lhs
+                                        OpLikeD f -> _parseArg >>= \rhs -> return $ f lhs rhs
+          _parseOpExprRec :: FnTreeNode -> MatchFn FnTreeNode
+          _parseOpExprRec lhs = maybeMatch (_completeOpExpr lhs AnyOpLike) >>= \mb -> case mb of
+                                    Nothing -> return $ lhs
+                                    Just lhs' -> _parseOpExprRec lhs'
 
-parseOpLike :: Maybe FnTreeNode -> MatchFn OpLike
-parseOpLike mbftn = case mbftn of
-        Just (FnLeafArr _) -> matchOne nonOverloadedOpMatchFns -- don't match overloaded glyphs
-        _ -> matchOne allOpMatchFns                            -- if lhs is an array
+parseOpLike :: OpLikeDirective -> MatchFn OpLike
+parseOpLike directive = case directive of
+        AnyOpLike -> matchOne allOpMatchFns
+        NonOverloadedOpLike -> matchOne nonOverloadedOpMatchFns
     where nonOverloadedOpMatchFns = [
                   mkOpLike <$> parseOp,
                   OpLikeM . (flip FnInternalAxisSpec) <$> (matchCh '[' *> parseDerArr <* matchCh ']')

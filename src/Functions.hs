@@ -703,7 +703,9 @@ reciprocal = arithFnM (_reciprocal)
           _reciprocal n = 1 / n
 
 reshape :: Array -> Array -> Array
-reshape x y = shapedArrFromList newShape . take newSize . concat . Prelude.replicate intMax $ baseList
+reshape x y
+    | x == zilde = throw . DomainError $ "(⍴): ⍬ is an invalid shape"
+    | otherwise = shapedArrFromList newShape . take newSize . concat . Prelude.replicate intMax $ baseList
     where newShape = arrToIntVec x
           newSize = foldr (*) 1 newShape
           baseList = case arrToList y of

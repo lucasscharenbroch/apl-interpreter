@@ -28,12 +28,12 @@ fi
 COL1=71
 
 dyalog_test_files=(
+        "general_ops"
         "general_fns"
         "scan_reduce"
         "rand"
         "index"
         "exec_format"
-        "general_ops"
         "combinators"
         "deeply_nested_parens"
         "quad_gets"
@@ -55,6 +55,7 @@ dyalog_test_files=(
 manual_test_files=(
         "misc_err"
         "index_err"
+        "pretty_print"
     )
 
 total_passed=0

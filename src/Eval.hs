@@ -208,7 +208,7 @@ evalArrTree (ArrInternalMonFn ft at) = do
     case f of
         MonFn _ f' -> f' a
         AmbivFn _ f' _ -> f' a
-        _ -> undefined -- function should be monadic
+        _ -> throw . SyntaxError $ "expected monadic function: (\n" ++ (show f) ++ "\n)"
 evalArrTree (ArrNiladicFn _ f) = f
 evalArrTree (ArrInternalDyadFn ft at1 at2) = do
     a2 <- evalArrTree at2
@@ -217,7 +217,7 @@ evalArrTree (ArrInternalDyadFn ft at1 at2) = do
     case f of
         DyadFn _ f' -> f' a1 a2
         AmbivFn _ _ f' -> f' a1 a2
-        _ -> undefined -- function should be dyadic
+        _ -> throw . SyntaxError $ "expected dyadic function: (\n" ++ (show f) ++ "\n)"
 evalArrTree (ArrInternalAssignment id at) = do
     a <- evalArrTree at
     idm <- get

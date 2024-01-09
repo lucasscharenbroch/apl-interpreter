@@ -128,6 +128,38 @@ each f = case f of
           _eachD d x y = arrZipWithM ((arrToScalar<$>) .: on d scalarToArr) x' y'
               where (x', y') = rankMorph (x, y)
 
+innerProduct :: Function -> Function -> Function
+innerProduct f g = autoInfoDyadFnD "." f g _innerProduct
+    where _innerProduct :: FuncD
+          _innerProduct x y
+              | x == zilde && y == zilde = return . scalarToArr $ idElem
+              | (x == zilde && shape y == [1]) || (shape x == [1] && y == zilde) = return . scalarToArr $ idElem
+              | otherwise = shapedArrFromList shape' . arrToList <$> mapVecsAlongAxisM 1 (zipEach x') y'
+              where (x', y') = extend (x, y)
+                    shape' = if arrRank x' == 1 && arrRank y' == 1 then [1]
+                             else (init $ shape x') ++ (tail $ shape y')
+          extend (x, y)
+              | shape x == [1] = (listToArr $ replicate (head $ shape y) (x `at` 0), y)
+              | shape y == [1] = (x, listToArr $ replicate (last $ shape x) (y `at` 0))
+              | (last $ shape x) /= (head $ shape y) = throw . LengthError $ "(.): mismatched lengths of leading/trailing axes of right/left argument"
+              | otherwise = (x, y)
+          idElem = case f of
+              AmbivFn i _ _ -> fromMaybe noIdErr (fnIdAD i)
+              DyadFn i _ -> fromMaybe noIdErr (fnIdD i)
+          noIdErr = throw . DomainError $ "(.): no identity element for function"
+          fd = getDyadFn f
+          gd = getDyadFn g
+          zipEach :: Array -> [Scalar] -> StateT IdMap IO [Scalar]
+          zipEach a ss = arrToList <$> mapVecsAlongAxisM (arrRank a) (\v -> join $ _reduce <$> zipWithM (on gd scalarToArr) v ss) a
+          _reduce :: [Array] -> StateT IdMap IO [Scalar]
+          _reduce as = (:[]) . arrToScalar <$> foldrM (fd) (last as) (init as)
+
+outerProduct :: Function -> Function
+outerProduct f = autoInfoDyadFnM "∘." f _outerProduct
+    where _outerProduct x y = partialFlatten . shapedArrFromList shape' <$> mapM (\l -> ((fmap arrToScalar) .: on fd scalarToArr) (l !! 0) (l !! 1)) (sequence [arrToList x, arrToList y])
+              where shape' = shape x ++ shape y
+                    fd = getDyadFn f
+
 over :: Function -> Function -> Function
 over f g = case (f, g) of
     (MonFn _ fF, MonFn _ gF) -> autoInfoMonFnD "⍥" f g (atopMM fF gF)

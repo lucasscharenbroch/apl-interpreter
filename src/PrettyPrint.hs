@@ -27,7 +27,7 @@ showSigFigures i d'
     | e >= i = sign ++ (show . (/(10^i')) . _round 0 $ d / (10^(e-i'))) ++ "E" ++ (show e)
     | d - (fromIntegral intPortion) == 0 = sign ++ show intPortion
     | d <= (1e-6) = sign ++ (head . show $ decPortionInt) : "." ++ (stripTrailingZeroes . tail . show $ decPortionInt) ++ "E¯" ++ (show (numDecZeroes + 1))
-    | otherwise = if e == i' -- no decimal portion
+    | otherwise = if e == i' || (length . stripTrailingZeroes . show $ decPortionInt) == 0 -- no decimal portion
                   then sign ++ (show roundedIntPortion)
                   else sign ++ (show intPortion) ++ "." ++ replicate numDecZeroes '0' ++ (stripTrailingZeroes . show $ decPortionInt)
         where e = floor $ (logBase 10 d)
