@@ -6,9 +6,14 @@ import qualified Functions as F
 import Control.Exception (throw)
 import Exceptions
 import Control.Monad
+import Control.Monad.Reader
+import Control.Monad.State.Lazy
 import Data.Function
 import Util
 import Data.Maybe
+import Data.Foldable (foldrM)
+import QuadNames
+import Data.List
 
 {- Helpers -}
 
@@ -35,6 +40,74 @@ getInverseD f = case f of
     DyadFn i _ -> fromMaybe err (fnInverseD i)
     AmbivFn i _ _ -> fromMaybe err (fnInverseAD i)
     where err = throw . DomainError $ "function has no inverse: {" ++ (show f) ++ "}"
+
+{- Axis-Spec Operators -}
+
+reduce :: Bool -> Function -> F.IdxOriginM Function
+reduce isFirst f = do iO <- ask
+                      let _ax arg = if isFirst then fromIntegral iO else fromIntegral $ arrRank arg - 1 + iO
+                      return $ AmbivFn dinfo (\y -> _reduce (_ax y) (intToScalarArr $ (shape y !! ((_ax y) - iO))) y) (\x y -> _reduce (_ax y) x y)
+    where dinfo = (namePadToFnInfoA $ showMonTreeHelper (showAndPad f) "/") { fnOnAxisAM = Just $ \ax -> \y -> getQIo >>= \iO -> _reduce ax (intToScalarArr $ shape y !! floor (ax - arrToDouble iO)) y
+                                                                            , fnOnAxisAD = Just _reduce }
+          fd = case f of
+              MonFn _ _ -> throw . DomainError $ "(/): expected dyadic function"
+              DyadFn _ d -> d
+              AmbivFn _ _ d -> d
+          _reduce :: Double -> Array -> Array -> StateT IdMap IO Array
+          _reduce ax x y
+              | y == zilde = return $ scalarToArr idElem
+              | not $ isIntegral ax = throw . RankError $ "(/): invalid (fractional) axis"
+              | win <= 0 = throw . DomainError $ "(/): left argument should be nonnegative"
+              | otherwise = do iO <- arrToInt <$> getQIo
+                               let ax' = (Prelude.floor ax) - iO + 1
+                               if ax' < 1 || ax' > arrRank y then throw . RankError $ "(/): invalid axis"
+                               else if (shape y !! (ax' - 1)) < win then throw . LengthError $ "(/): window too big"
+                               else (fmap (maybeUnAlongAxis ax')) . mapM (mapVecsAlongAxisM ax' __reduce . unAlongAxis ax') . windowsOf win . alongAxis ax' $ y
+              where win = arrToInt x
+                    idElem = case f of
+                        AmbivFn i _ _ -> fromMaybe noIdErr (fnIdAD i)
+                        DyadFn i _ -> fromMaybe noIdErr (fnIdD i)
+                    noIdErr = throw . DomainError $ "(/): no identity element for function"
+                    __reduce :: [Scalar] -> StateT IdMap IO [Scalar]
+                    __reduce ss = (:[]) <$> foldrM ((fmap arrToScalar) .: on fd scalarToArr) (last ss) (init ss)
+                    maybeUnAlongAxis ax' [] = zilde
+                    maybeUnAlongAxis ax' (a:[]) = a
+                    maybeUnAlongAxis ax' as = unAlongAxis ax' as
+
+scan :: Bool -> Function -> F.IdxOriginM Function
+scan isFirst f = do iO <- ask
+                    let _ax arg = if isFirst then fromIntegral iO else fromIntegral $ arrRank arg - 1 + iO
+                    return $ MonFn dinfo (\y -> _scan (_ax y) y)
+    where dinfo = (namePadToFnInfoM $ showMonTreeHelper (showAndPad f) "\\") {fnOnAxisM = Just _scan}
+          fd = case f of
+              MonFn _ _ -> throw . DomainError $ "(\\): expected dyadic function"
+              DyadFn _ d -> d
+              AmbivFn _ _ d -> d
+          _scan :: Double -> Array -> StateT IdMap IO Array
+          _scan ax y
+              | y == zilde = return zilde
+              | not $ isIntegral ax = throw . RankError $ "(\\): invalid (fractional) axis"
+              | otherwise = do iO <- arrToInt <$> getQIo
+                               let ax' = (Prelude.floor ax) - iO + 1
+                               if ax' < 1 || ax' > arrRank y then throw . RankError $ "(\\): invalid axis"
+                               else mapVecsAlongAxisM ax' __scan $ y
+              where __scan :: [Scalar] -> StateT IdMap IO [Scalar]
+                    __scan ss = mapM (_reduce) . tail . inits $ ss
+                    _reduce ss = foldrM ((fmap arrToScalar) .: on fd scalarToArr) (last ss) (init ss)
+
+{- First/Last -Axis Operators -}
+
+reduceFirst :: Function -> F.IdxOriginM Function
+reduceFirst = reduce True
+
+reduceLast :: Function -> F.IdxOriginM Function
+reduceLast = reduce False
+
+scanFirst :: Function -> F.IdxOriginM Function
+scanFirst = scan True
+
+scanLast :: Function -> F.IdxOriginM Function
+scanLast = scan False
 
 {- General Operators -}
 

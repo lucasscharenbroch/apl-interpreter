@@ -33,6 +33,11 @@ groupsOf :: Int -> [a] -> [[a]]
 groupsOf _ [] = []
 groupsOf n x = [take n x] ++ groupsOf n (drop n x)
 
+windowsOf :: Int -> [a] -> [[a]]
+windowsOf n a
+    | n > length a = []
+    | otherwise = (take n a) : windowsOf n (tail a)
+
 {- Array Helpers (low-level) -}
 
 arrCat :: Array -> Array -> Array
@@ -173,6 +178,24 @@ mapVecsAlongAxis ax f a = if length subArrs' == 1 then subArrs' !! 0 else unAlon
                   x | all (==(head x)) x -> head x
                   _ -> undefined -- f should yeild vectors of uniform size
 
+mapVecsAlongAxisM :: Monad m => Int -> ([Scalar] -> m [Scalar]) -> Array -> m Array
+mapVecsAlongAxisM ax f a = do res <- subArrs'
+                              if length res == 1
+                              then return (res !! 0)
+                              else return $ unAlongAxis ax res
+    where subArrs = alongAxis ax a
+          subArrShape = if length subArrs == 0 then [0] else shape (head subArrs)
+          subArrNetSz = foldr (*) 1 subArrShape
+          vecs = foldr (zipWith (:)) (replicate subArrNetSz []) $ map arrToList subArrs
+          vecs' = mapM f vecs
+          subArrs' = do vecs'' <- vecs'
+                        let vecSz = case length vecs'' of
+                                0 -> 0
+                                _ -> case map (length) vecs'' of
+                                    x | all (==(head x)) x -> head x
+                                    _ -> undefined -- f should yeild vectors of uniform size
+                        return . map (shapedArrFromList subArrShape) . foldr (zipWith (:)) (replicate vecSz []) $ vecs''
+
 zipVecsAlongAxis :: Int -> Int -> Int -> ([Scalar] -> [Scalar] -> [Scalar]) -> Array -> Array -> Array
 zipVecsAlongAxis axA axB axC f a b = if length subArrs' == 1 then subArrs' !! 0 else unAlongAxis axC subArrs'
     where subArrsA = alongAxis axA a
@@ -270,6 +293,9 @@ arrToBool a = case arrToInt a of
 scalarToInt :: Scalar -> Int
 scalarToInt (ScalarNum n) | isIntegral n = floor n
 scalarToInt _ = throw $ DomainError "expected int singleton"
+
+intToScalar :: Int -> Scalar
+intToScalar = ScalarNum . fromIntegral
 
 scalarToChar :: Scalar -> Char
 scalarToChar (ScalarCh c) = c

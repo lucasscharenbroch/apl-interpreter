@@ -44,6 +44,7 @@ import QuadNames
  -
  - op_like => [der_arr]
  -         => op
+ -         => op_or_fn
  -
  - op => ¨ ⍨ ⌸ ⌶                             (monadic)
  -    => ⍣ . ∘ ⍤ ⍥ @ ⍠ ⌺                     (dyadic)
@@ -52,7 +53,6 @@ import QuadNames
  -    => op_ass
  -    => ⎕ ← op
  -    => ID                                  (if ID is op)
- -    => op_or_fn
  -    => (op)
  -
  - op_ass => ID ← op
@@ -364,7 +364,9 @@ parseTrain = (tranify) <$> matchOne [(:) <$> parseDerFn <*> _matchTail, _matchTa
 
 parseDerFn :: MatchFn FnTreeNode
 parseDerFn = matchOne [_parseOpExpr, parseFn]
-    where _parseOpExpr = join $ _parseOpExprRec <$> _parseArg <*> parseOpLike
+    where _parseOpExpr = do arg <- _parseArg
+                            opLike <- parseOpLike (Just arg)
+                            _parseOpExprRec arg opLike
           _parseArg = matchOne [parseFn, FnLeafArr <$> parseArr]
           _parseOpExprRec :: FnTreeNode -> OpLike -> MatchFn FnTreeNode
           _parseOpExprRec lhs opLike = do
@@ -372,16 +374,20 @@ parseDerFn = matchOne [_parseOpExpr, parseFn]
                         (OpLikeM f) -> return $ f lhs
                         (OpLikeD f) -> do rhs <- _parseArg
                                           return $ f lhs rhs
-              maybeMatch parseOpLike >>= \mb -> case mb of
+              maybeMatch (parseOpLike Nothing) >>= \mb -> case mb of
                    Nothing -> return $ df
                    (Just opLike2) -> _parseOpExprRec df opLike2
 
-parseOpLike :: MatchFn OpLike
-parseOpLike = matchOne [
-        mkOpLike <$> parseOp,
-        OpLikeM . (flip FnInternalAxisSpec) <$> (matchCh '[' *> parseDerArr <* matchCh ']')
-    ]
-    where mkOpLike otn = case unwrapOpTree otn of
+parseOpLike :: Maybe FnTreeNode -> MatchFn OpLike
+parseOpLike mbftn = case mbftn of
+        Just (FnLeafArr _) -> matchOne nonOverloadedOpMatchFns -- don't match overloaded glyphs
+        _ -> matchOne allOpMatchFns                            -- if lhs is an array
+    where nonOverloadedOpMatchFns = [
+                  mkOpLike <$> parseOp,
+                  OpLikeM . (flip FnInternalAxisSpec) <$> (matchCh '[' *> parseDerArr <* matchCh ']')
+              ]
+          allOpMatchFns = nonOverloadedOpMatchFns ++ [mkOpLike . OpLeaf . fst <$> parseOpOrFn]
+          mkOpLike otn = case unwrapOpTree otn of
               MonOp _ _ -> OpLikeM $ FnInternalMonOp otn
               DyadOp _ _ -> OpLikeD $ FnInternalDyadOp otn
 
@@ -394,7 +400,6 @@ parseOp = matchOne [
         matchSpecialIdWith DDTok "∇∇" idEntryToOtn,
         parseOpAss,
         matchIdWith (idEntryToOtn),
-        (OpLeaf . fst) <$> parseOpOrFn,
         OpInternalDummyNode <$> parseParentheticalOtn
     ]
     where idEntryToOtn (IdOp o) = Just (OpLeaf o)

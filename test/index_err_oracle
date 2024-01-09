@@ -2,23 +2,59 @@
 3 4
 
 
-Length Error: ([]): index out of range
-Length Error: ([]): index out of range
-Length Error: ([]): index out of range
-Length Error: ([]): index out of range
-Length Error: ([]): index out of range
+Length Error: index out of range
+Length Error: index out of range
+Length Error: index out of range
+Length Error: index out of range
+Length Error: index out of range
 1 3
-Length Error: ([]): index out of range
+Length Error: index out of range
 1
 3
-Length Error: ([]): index out of range
+Length Error: index out of range
 2 4
-Length Error: ([]): index out of range
+Length Error: index out of range
 2
 4
-Length Error: ([]): index out of range
-Length Error: ([]): index out of range
-Length Error: ([]): index out of range
-Length Error: ([]): index out of range
-Length Error: ([]): index out of range
-Length Error: ([]): index out of range
+Length Error: index out of range
+Length Error: index out of range
+Length Error: index out of range
+Length Error: index out of range
+Length Error: index out of range
+Length Error: index out of range
+Rank Error: ([]): wrong size of index list
+Rank Error: ([]): wrong size of index list
+Rank Error: ([]): wrong size of index list
+Length Error: index out of range
+Length Error: index out of range
+1 2
+3 4
+Length Error: index out of range
+0
+Length Error: index out of range
+Length Error: index out of range
+Length Error: index out of range
+Length Error: index out of range
+Length Error: index out of range
+Length Error: index out of range
+1
+Length Error: index out of range
+1
+2
+Length Error: index out of range
+Length Error: index out of range
+Length Error: index out of range
+2
+Length Error: index out of range
+3
+4
+Length Error: index out of range
+Length Error: index out of range
+Length Error: index out of range
+3
+Length Error: index out of range
+Length Error: index out of range
+Length Error: index out of range
+Length Error: index out of range
+Length Error: index out of range
+Length Error: index out of range

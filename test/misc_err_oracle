@@ -49,3 +49,17 @@ Rank Error: (⊆): expected scalar/vector left argument
 Length Error: (,): mismatched argument shapes
 Length Error: (,): mismatched argument shapes
 Rank Error: (,): mismatched argument ranks
+x
+Length Error: (\): number of positive ints in left arg ≠ number of subarrays in right arg
+Rank Error: invalid axis
+
+Length Error: (\): number of positive ints in left arg ≠ number of subarrays in right arg
+
+Length Error: (\): number of positive ints in left arg ≠ number of subarrays in right arg
+Length Error: (\): number of positive ints in left arg ≠ number of subarrays in right arg
+Length Error: (\): number of positive ints in left arg ≠ number of subarrays in right arg
+Length Error: (\): number of positive ints in left arg ≠ number of subarrays in right arg
+Length Error: (\): number of positive ints in left arg ≠ number of subarrays in right arg
+Domain Error: (\): expected dyadic function
+Rank Error: (\): invalid axis
+Rank Error: (\): invalid (fractional) axis

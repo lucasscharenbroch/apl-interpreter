@@ -76,8 +76,8 @@ catenate ax x y
               where (x', y') = _rankMorph (x, y)
                     rank = arrRank x'
                     _rankMorph (a, b)
-                        | shape a == [1] && arrNetSize b > 0 = (shapedArrFromList (shape'1 b) $ replicate (foldr (*) 1 $ shape'1 b) (a `at` 0), b)
-                        | shape b == [1] && arrNetSize a > 0 = (a, shapedArrFromList (shape'1 a) $ replicate (foldr (*) 1 $ shape'1 a) (b `at` 0))
+                        | shape a == [1] && arrNetSize b > 0 = (shapedArrFromList (shape'1 b) $ Prelude.replicate (foldr (*) 1 $ shape'1 b) (a `at` 0), b)
+                        | shape b == [1] && arrNetSize a > 0 = (a, shapedArrFromList (shape'1 a) $ Prelude.replicate (foldr (*) 1 $ shape'1 a) (b `at` 0))
                         | arrRank a == arrRank b = (a, b)
                         | arrRank a == arrRank b + 1 && ax' <= arrRank a = (a, b {shape = take _ax' (shape b) ++ [1] ++ drop _ax' (shape b)})
                         | arrRank a + 1 == arrRank b && ax' <= arrRank b = (a {shape = take (_ax' + 1) (shape a) ++ [1] ++ drop (_ax' + 1) (shape a)}, b)
@@ -93,10 +93,36 @@ catenate ax x y
               where (x', y') = _rankMorph (x, y)
                     rank = arrRank x'
                     _rankMorph (a, b)
-                        | shape a == [1] && arrNetSize b > 0 = (shapedArrFromList (shape b) $ replicate (arrNetSize b) (a `at` 0), b)
-                        | shape b == [1] && arrNetSize a > 0 = (a, shapedArrFromList (shape a) $ replicate (arrNetSize a) (b `at` 0))
+                        | shape a == [1] && arrNetSize b > 0 = (shapedArrFromList (shape b) $ Prelude.replicate (arrNetSize b) (a `at` 0), b)
+                        | shape b == [1] && arrNetSize a > 0 = (a, shapedArrFromList (shape a) $ Prelude.replicate (arrNetSize a) (b `at` 0))
                         | shape a == shape b = (a, b)
                         | otherwise = throw . RankError $ "(,): mismatched argument ranks"
+
+expand :: Double -> Array -> Array -> IdxOriginM Array
+expand ax x y = do iO <- ask
+                   let x' = arrToIntVec x
+                   let ax' = (Prelude.floor ax) - iO + 1
+                   let subarrays = alongAxis ax' y
+                   return . unAlongAxis ax' $ _expand x' subarrays
+    where _expand :: [Int] -> [Array] -> [Array]
+          _expand ns subarrays
+              | length ns == 0 = []
+              | length subarrays == 0 && length ns == 0 = []
+              | length ns /= 1 && length subarrays == 1 =  _expand ns (Prelude.replicate (length ns) (head subarrays))
+              | otherwise = _expandRec ns subarrays zero
+                    where zero = shapedArrFromList shape' (Prelude.replicate size' (ScalarNum 0)) -- poor-man's fill-element
+                          shape' = shape $ head subarrays
+                          size' = arrNetSize $ head subarrays
+          _expandRec [] [] _ = []
+          _expandRec (n:ns) (a:as) zero
+              | n > 0 = Prelude.replicate n a ++ _expandRec ns as zero
+              | n == 0 = [zero] ++ _expandRec ns (a:as) zero
+              | otherwise = Prelude.replicate (abs n) zero ++ _expandRec ns (a:as) zero
+          _expandRec (n:ns) [] zero
+              | n > 0 = throw . LengthError $ "(\\): number of positive ints in left arg ≠ number of subarrays in right arg"
+              | n == 0 = [zero] ++ _expandRec ns [] zero
+              | otherwise = Prelude.replicate (abs n) zero ++ _expandRec ns [] zero
+          _expandRec [] _ _ = throw . LengthError $ "(\\): number of positive ints in left arg ≠ number of subarrays in right arg"
 
 partitionedEnclose :: Double -> Array -> Array -> IdxOriginM Array
 partitionedEnclose ax x y
@@ -109,17 +135,18 @@ partitionedEnclose ax x y
     where _pEnclose :: Int -> [Int] -> [Array] -> Array
           _pEnclose _ [] [] = zilde
           _pEnclose ax' ns es
-              | length es == 1 && length ns > 1 = _pEnclose ax' ns (replicate (length ns) (head es))
-              | length ns == 1 = _pEnclose ax' (replicate (length es) (head ns)) es
+              | length ns == 0 || length es == 0 = zilde
+              | length es == 1 && length ns > 1 = _pEnclose ax' ns (Prelude.replicate (length ns) (head es))
+              | length ns == 1 && length es > 1 = _pEnclose ax' (Prelude.replicate (length es) (head ns)) es
               | length ns > (1 + length es) = throw . LengthError $ "(⊂): left argument too long"
               | any (<0) ns = throw . DomainError $ "(⊂): left argument should be nonnegative"
-              | length ns < (1 + length es) = _pEnclose ax' (ns ++ replicate ((1 + length es) - (length ns)) 0) es
               | otherwise = listToArr . map ScalarArr $ intertwine divGroups arrGroups
-                  where ns' = dropWhile (==0) ns -- remove leading zeroes
-                        es' = drop (length ns - length ns') es
+                  where _ns = (ns ++ Prelude.replicate (1 + length es - length ns) 0)
+                        ns' = dropWhile (==0) _ns
+                        es' = drop (length _ns - length ns') es
                         groups = groupBy (\a b -> snd b == 0) $ zip es' ns'
                         arrGroups = map ((:[]) . unAlongAxis ax' . map fst) $ groups
-                        divGroups = map ((flip replicate) zilde) $ (map ((-1+) . snd . head) groups) ++ [last ns]
+                        divGroups = map ((flip Prelude.replicate) zilde) $ (map ((-1+) . snd . head) groups) ++ [last _ns]
                         intertwine (a:[]) [] = a
                         intertwine (a:as) (b:bs) = a ++ b ++ intertwine as bs
 
@@ -134,7 +161,7 @@ partition ax x y
     where _partition :: [Int] -> [Scalar] -> [Scalar]
           _partition [] [] = []
           _partition ns ss
-              | length ns == 1 = _partition (replicate (length ss) (head ns)) ss
+              | length ns == 1 = _partition (Prelude.replicate (length ss) (head ns)) ss
               | length ns /= length ss = throw . LengthError $ "(⊆): mismatched left and right argument lengths"
               | any (<0) ns = throw . DomainError $ "(⊆): left argument should be nonnegative"
               | otherwise = map joinScalars . filter (/=[]) . map (map fst . filter ((/=0) . snd)) . groupAdj (on (>=) snd) $ zip ss ns
@@ -145,6 +172,24 @@ partition ax x y
                                       | f a (head g) -> (a : g) : gs
                                       | otherwise -> [a] : rest
           joinScalars ss = ScalarArr . listToArr $ ss
+
+replicate :: Double -> Array -> Array -> IdxOriginM Array
+replicate ax x y = do iO <- ask
+                      let x' = arrToIntVec x
+                      let ax' = (Prelude.floor ax) - iO + 1
+                      let subarrays = alongAxis ax' y
+                      return . unAlongAxis ax' $ _replicate x' subarrays
+    where _replicate :: [Int] -> [Array] -> [Array]
+          _replicate ns subarrays
+              | length ns == 0 = []
+              | length subarrays == 0 && length ns == 0 = []
+              | length ns == 1 && length subarrays /= 1 = _replicate (Prelude.replicate (length subarrays) (head ns)) subarrays
+              | length ns /= 1 && length subarrays == 1 =  _replicate ns (Prelude.replicate (length ns) (head subarrays))
+              | length ns /= length subarrays = throw . LengthError $ "(/): mismatched lengths of arguments"
+              | otherwise = concat $ zipWith (\n a -> Prelude.replicate n a ++ Prelude.replicate (-1 * n) zero) ns subarrays
+                    where zero = shapedArrFromList shape' (Prelude.replicate size' (ScalarNum 0)) -- poor-man's fill-element
+                          shape' = shape $ head subarrays
+                          size' = arrNetSize $ head subarrays
 
 reverse :: Double -> Array -> IdxOriginM Array
 reverse ax x
@@ -164,7 +209,7 @@ rotate ax x y
                   | otherwise = zipVecsAlongAxis (length $ shape x'') ax' ax' __rotate x'' y
                   where ax' = Prelude.floor ax - iO + 1
                         x' = case shape x of -- extend x if scalar
-                            [1] -> shapedArrFromList shape' (replicate (foldr (*) 1 shape') (x `at` 0))
+                            [1] -> shapedArrFromList shape' (Prelude.replicate (foldr (*) 1 shape') (x `at` 0))
                             _ -> x
                         shape' = if arrRank y == 1
                                  then [1]
@@ -186,11 +231,23 @@ catenateFirst x y = ask >>= \iO -> catenate (fromIntegral iO) x y
 catenateLast :: Array -> Array -> IdxOriginM Array
 catenateLast x y = ask >>= \iO -> catenate (fromIntegral $ iO + (arrRank x) - 1) x y
 
+expandFirst :: Array -> Array -> IdxOriginM Array
+expandFirst x y = ask >>= \iO -> Functions.expand (fromIntegral iO) x y
+
+expandLast :: Array -> Array -> IdxOriginM Array
+expandLast x y = ask >>= \iO -> Functions.expand (fromIntegral $ iO + (arrRank y) - 1) x y
+
 partitionLast :: Array -> Array -> IdxOriginM Array
 partitionLast x y = ask >>= \iO -> Functions.partition (fromIntegral $ iO + (arrRank y) - 1) x y
 
 partitionedEncloseLast :: Array -> Array -> IdxOriginM Array
 partitionedEncloseLast x y = ask >>= \iO -> partitionedEnclose (fromIntegral $ iO + (arrRank y) - 1) x y
+
+replicateFirst :: Array -> Array -> IdxOriginM Array
+replicateFirst x y = ask >>= \iO -> Functions.replicate (fromIntegral iO) x y
+
+replicateLast :: Array -> Array -> IdxOriginM Array
+replicateLast x y = ask >>= \iO -> Functions.replicate (fromIntegral $ iO + (arrRank y) - 1) x y
 
 reverseFirst :: Array -> IdxOriginM Array
 reverseFirst x = ask >>= \iO -> Functions.reverse (fromIntegral iO) x
@@ -299,16 +356,17 @@ gradeDownD x y
 gradeDownM :: Array -> IdxOriginM Array
 gradeDownM x = ask >>= \iO -> return . listToArr . map (ScalarNum . fromIntegral . fst) . sortBy (on (flip compare) snd) . zipWith (,) [iO..] . alongAxis_ iO $ x
 
-iota :: Array -> IdxOriginM Array
-iota x = if any (<0) x'
-         then throw $ DomainError "(⍳): expected nonnegative arguments"
-         else ask >>= \iO -> return $ shapedArrFromList x' [toScalar . map (ScalarNum . fromIntegral . (+iO)) . calcIndex $ i | i <- [0..(sz - 1)]]
-    where x' = arrToIntVec x
-          sz = foldr (*) 1 x'
-          indexMod = Prelude.reverse . init $ scanl (*) 1 (Prelude.reverse x')
-          calcIndex i = map (\(e, m) -> i `div` m `mod` e) $ zip x' indexMod
-          toScalar (s:[]) = s
-          toScalar (ss) = ScalarArr . listToArr $ ss
+index :: Array -> Array -> IdxOriginM Array
+index x y
+    | arrRank x /= 1 = throw . DomainError $ "(⌷): expected vector as left argument"
+    | otherwise = ask >>= \iO -> return . evalArrSubscript iO y $ indexArrs
+    where scalarToIntArr s = case s of
+              ScalarNum n -> listToArr [s]
+              ScalarArr a -> shapedArrFromList (shape a) (map (ScalarNum . fromIntegral) $ arrToIntVec a) -- force an error if a's elements aren't ints
+              _ -> throw . DomainError $ "(⌷): expected integer vector (of depth ≤2) as left argument"
+          indexArrs = if arrRank y >= arrNetSize x
+                      then (map (Just . scalarToIntArr) . arrToList $ x) ++ Prelude.replicate (arrRank y - arrNetSize x) Nothing
+                      else throw . RankError $ "(⌷): index list too long"
 
 indexOf :: Array -> Array -> IdxOriginM Array
 indexOf x y
@@ -327,6 +385,17 @@ indexOf x y
           ys = alongRank (xRank - 1) y
           toArray (ScalarArr a) = a
           toArray s = listToArr [s]
+iota :: Array -> IdxOriginM Array
+iota x = if any (<0) x'
+         then throw $ DomainError "(⍳): expected nonnegative arguments"
+         else ask >>= \iO -> return $ shapedArrFromList x' [toScalar . map (ScalarNum . fromIntegral . (+iO)) . calcIndex $ i | i <- [0..(sz - 1)]]
+    where x' = arrToIntVec x
+          sz = foldr (*) 1 x'
+          indexMod = Prelude.reverse . init $ scanl (*) 1 (Prelude.reverse x')
+          calcIndex i = map (\(e, m) -> i `div` m `mod` e) $ zip x' indexMod
+          toScalar (s:[]) = s
+          toScalar (ss) = ScalarArr . listToArr $ ss
+
 
 pick :: Array -> Array -> IdxOriginM Array
 pick x y
@@ -471,7 +540,7 @@ format x = case map (map ScalarCh) . lines . show $ x of
     [] -> zilde
     (v:[]) -> listToArr v
     x' -> shapedArrFromList [length x'', length (head x'')] . concat $ x''
-        where _pad sss = map (\ss -> ss ++ replicate (padSz - length ss) (ScalarCh ' ')) sss
+        where _pad sss = map (\ss -> ss ++ Prelude.replicate (padSz - length ss) (ScalarCh ' ')) sss
                   where padSz = foldr (max) 0 . map length $ sss
               x'' = _pad x'
 
@@ -589,7 +658,7 @@ reciprocal = arithFnM (_reciprocal)
           _reciprocal n = 1 / n
 
 reshape :: Array -> Array -> Array
-reshape x y = shapedArrFromList newShape . take newSize . concat . replicate intMax $ baseList
+reshape x y = shapedArrFromList newShape . take newSize . concat . Prelude.replicate intMax $ baseList
     where newShape = arrToIntVec x
           newSize = foldr (*) 1 newShape
           baseList = case arrToList y of

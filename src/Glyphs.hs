@@ -104,6 +104,8 @@ rotateOnAxis = Just (\ax -> mkFuncD $ F.rotate ax)
 partitionedEncloseOnAxis = Just (\ax -> mkFuncD $ F.partitionedEnclose ax)
 partitionOnAxis = Just (\ax -> mkFuncD $ F.partition ax)
 catenateOnAxis = Just (\ax -> mkFuncD $ F.catenate ax)
+replicateOnAxis = Just (\ax -> mkFuncD $ F.replicate ax)
+expandOnAxis = Just (\ax -> mkFuncD $ F.expand ax)
 
 -- primitive
 fPlus = pureAmbivFn (mkFnInfoA "+") {fnIdAD = Just $ ScalarNum 0} F.conjugate F.add
@@ -151,6 +153,11 @@ fEnclose = mkAmbivFn (mkFnInfoA "⊂") {fnOnAxisAD = partitionedEncloseOnAxis} (
 fPartition = mkAmbivFn (mkFnInfoA "⊆") {fnOnAxisAD = partitionOnAxis} (Identity . F.nest) F.partitionLast
 fComma = mkAmbivFn (mkFnInfoA ",") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAD = catenateOnAxis} (Identity . F.ravel) F.catenateLast
 fCommaBar = mkAmbivFn (mkFnInfoA "⍪") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAD = catenateOnAxis} (Identity . F.table) F.catenateFirst
+fSquad = mkDyadFn (mkFnInfoD "⌷") {fnCanSelectD = True} F.index
+fReplicate = mkDyadFn (mkFnInfoD "/") {fnOnAxisD = replicateOnAxis} F.replicateLast
+fReplicateFirst = mkDyadFn (mkFnInfoD "⌿") {fnOnAxisD = replicateOnAxis} F.replicateFirst
+fExpand = mkDyadFn (mkFnInfoD "\\") {fnOnAxisD = expandOnAxis} F.expandLast
+fExpandFirst = mkDyadFn (mkFnInfoD "⍀") {fnOnAxisD = expandOnAxis} F.expandFirst
 
 functionGlyphs :: [(Char, Function)]
 functionGlyphs = [
@@ -198,19 +205,18 @@ functionGlyphs = [
         ('⊂', fEnclose),
         ('⊆', fPartition),
         (',', fComma),
-        ('⍪', fCommaBar)
+        ('⍪', fCommaBar),
+        ('⌷', fSquad)
         -- TODO big list of functions
     ]
 
 {- Operators -}
 
 -- double-as-functions
-{-
-oReduce = pureMonOp "/" (mOPH "/")
-oScan = pureMonOp "\\" (mOPH "\\")
-oReduceFirst = pureMonOp "⌿" (mOPH "⌿")
-oScanFirst = pureMonOp "⍀" (mOPH "⍀")
--}
+oReduce = mkMonOp "/" O.reduceLast
+oReduceFirst = mkMonOp "⌿" O.reduceFirst
+oScan = mkMonOp "\\" O.scanLast
+oScanFirst = mkMonOp "⍀" O.scanFirst
 
 -- primitive
 oSelfie = pureMonOpOptA "⍨" O.selfie
@@ -233,10 +239,8 @@ operatorGlyphs = [
 
 opOrFnGlyphs :: [(Char, Operator, Function)]
 opOrFnGlyphs = [
-{-
         ('/', oReduce, fReplicate),
         ('⌿', oReduceFirst, fReplicateFirst),
         ('\\', oScan, fExpand),
         ('⍀', oScanFirst, fExpandFirst)
--}
     ]

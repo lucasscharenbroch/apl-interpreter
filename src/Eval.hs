@@ -150,14 +150,17 @@ fork f g h = do
 {- Subscripting -}
 
 evalArrSubscript :: Int -> Array -> [Maybe Array] -> Array
-evalArrSubscript iO lhs [Just arr] = arrMap elemAt arr
+evalArrSubscript _ lhs ixs
+    | ((arrRank lhs) /= (length ixs)) && (length ixs /= 1 || ixs == [Nothing]) = throw . RankError $ "([]): wrong size of index list"
+evalArrSubscript iO lhs [Just arr]
+    | otherwise = arrMap elemAt arr
     where elemAt s = case s of
               ScalarNum n
                   | isIntegral n && validIndex [n'] -> lhs `arrIndex` [n']
                     where n' = (floor n) - iO
               ScalarArr a
                   | all isScalarInt (arrToList a) && validIndex (map (+(-1*iO)) $ arrToIntVec a) -> lhs `arrIndex` map (+(-1*iO)) (arrToIntVec a)
-              _ -> throw . RankError $ "([]): invalid index: " ++ (show s)
+              _ -> throw . RankError $ "invalid index: " ++ (show s)
           validIndex ns = (length ns == _rank) && (all (>=0) ns) && (all id (zipWith (<) ns _shape))
           _rank = arrRank lhs
           _shape = shape lhs
@@ -168,7 +171,7 @@ evalArrSubscript iO lhs ixs = partialFlatten $ shapedArrFromList shape' cells'
     where shape' = map length $ intVecs
           cells' = if all id $ zipWith (\x iv -> all (>=0) iv && all (<x) iv) (shape lhs) intVecs
                    then map (lhs`arrIndex`) . sequence $ intVecs -- sequence is n-wise cartesian product for lists
-                   else throw $ LengthError "([]): index out of range"
+                   else throw $ LengthError "index out of range"
           intVecs = zipWith toIv ixs (shape lhs)
           toIv mbA i = case mbA of
                    Nothing -> [0..(i - 1)]
