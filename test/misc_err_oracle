@@ -86,3 +86,14 @@ Length Error: (⊥): mismatched lengths
 Domain Error: (⍴): ⍬ is an invalid shape
 Length Error: (.): mismatched lengths of leading/trailing axes of right/left argument
 Length Error: (.): mismatched lengths of leading/trailing axes of right/left argument
+
+
+
+Length Error: (@): mismatched lengths of left and right arguments/results
+Length Error: (@): mismatched lengths of left and right arguments/results
+1 2 7 6
+Length Error: (@): index out of range
+Length Error: (@): mismatched lengths of left and right arguments/results
+Length Error: (@): mismatched lengths of left and right arguments/results
+Length Error: (@): mismatched lengths of left and right arguments/results
+Syntax Error: (@): ⍺⍺ is array, so derived function is monadic

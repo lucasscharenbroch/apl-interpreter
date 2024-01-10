@@ -139,8 +139,8 @@ innerProduct f g = autoInfoDyadFnD "." f g _innerProduct
                     shape' = if arrRank x' == 1 && arrRank y' == 1 then [1]
                              else (init $ shape x') ++ (tail $ shape y')
           extend (x, y)
-              | shape x == [1] = (listToArr $ replicate (head $ shape y) (x `at` 0), y)
-              | shape y == [1] = (x, listToArr $ replicate (last $ shape x) (y `at` 0))
+              | shape x == [1] = (listToArr $ replicate (head $ shape y) (x `GrammarTree.at` 0), y)
+              | shape y == [1] = (x, listToArr $ replicate (last $ shape x) (y `GrammarTree.at` 0))
               | (last $ shape x) /= (head $ shape y) = throw . LengthError $ "(.): mismatched lengths of leading/trailing axes of right/left argument"
               | otherwise = (x, y)
           idElem = case f of
@@ -172,6 +172,28 @@ over f g = case (f, g) of
     where overDM d m l r = join $ d <$> m l <*> m r
 
 {- Operators that sometimes take Arrays -}
+
+at :: (Either Array Function) -> (Either Array Function) -> Function
+at l r = autoInfoAmbivFnD "@" l r (_at Nothing) (\x -> _at $ Just x)
+    where _at mbX y = do selectedIndices <- case r of
+                             Right f -> join $ (F.toEvalM . F.where_) . validateBoolArr <$> (getMonFn f) y
+                             Left a -> return a
+                         iO <- arrToInt <$> getQIo
+                         vals <- case l of
+                             Right f -> case mbX of
+                                 Nothing -> (getMonFn f) . listToArr . map (arrToScalar . evalArrSubscript iO y . (:[]) . Just . scalarToArr_) $ arrToList selectedIndices
+                                 Just x -> (getDyadFn f) x . listToArr . map (arrToScalar . evalArrSubscript iO y . (:[]) . Just . scalarToArr_) $ arrToList selectedIndices
+                             Left a -> if isJust mbX then throw . SyntaxError $ "(@): ⍺⍺ is array, so derived function is monadic"
+                                       else return $ a
+                         let vals' = if arrNetSize vals == 1 && arrNetSize selectedIndices > 1
+                                     then replicate (arrNetSize selectedIndices) (vals `GrammarTree.at` 0)
+                                     else arrToList $ vals
+                         let selectedIndices' = map (map (+(-1*iO)). arrToIntVec . scalarToArr) . arrToList $ selectedIndices
+                         if not . all (arrIndexInRange y) $ selectedIndices' then throw . LengthError $ "(@): index out of range"
+                         else if length vals' /= length selectedIndices' then throw . LengthError $ "(@): mismatched lengths of left and right arguments/results"
+                         else return $ arrModL y (zipWith (,) selectedIndices' vals')
+          validateBoolArr a
+              | (\_ -> True) . map scalarToBool . arrToList $ a = a
 
 atop :: (Either Array Function) -> (Either Array Function) -> Function
 atop l r = case (l, r) of

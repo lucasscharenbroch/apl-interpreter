@@ -76,6 +76,10 @@ arrIndex :: Array -> [Int] -> Scalar
 arrIndex a is = a `at` sum (zipWith (*) is indexMod)
     where indexMod = tail . scanr (*) 1 $ shape a
 
+arrModL :: Array -> [([Int], Scalar)] -> Array
+arrModL a l = arrMod a (map (\(is, e) -> (sum $ zipWith (*) is indexMod, e)) l)
+    where indexMod = tail . scanr (*) 1 $ shape a
+
 arrIndexInRange :: Array -> [Int] -> Bool
 arrIndexInRange a is = all (>=0) is && all id (zipWith (<) is (shape a)) && arrRank a == length is
 
@@ -309,6 +313,9 @@ scalarToArr :: Scalar -> Array
 scalarToArr s = case s of
               ScalarArr a -> a
               _ -> listToArr [s]
+
+scalarToArr_ :: Scalar -> Array
+scalarToArr_ = listToArr . (:[])
 
 arrToScalar :: Array -> Scalar
 arrToScalar a

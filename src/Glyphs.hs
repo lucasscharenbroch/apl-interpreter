@@ -231,6 +231,7 @@ oEach = pureMonOp "¨" O.each
 oPower = pureDyadOpOptA "⍣" O.power
 oInnerProduct = pureDyadOp "." O.innerProduct
 oOuterProduct = pureMonOp "∘." O.outerProduct
+oAt = pureDyadOpOptA "@" O.at
 
 operatorGlyphs :: [(Char, Operator)]
 operatorGlyphs = [
@@ -240,7 +241,8 @@ operatorGlyphs = [
         ('∘', oJot),
         ('¨', oEach),
         ('⍣', oPower),
-        ('.', oInnerProduct)
+        ('.', oInnerProduct),
+        ('@', oAt)
         -- TODO big list of operators
     ]
 

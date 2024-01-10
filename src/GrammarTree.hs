@@ -26,6 +26,9 @@ data Array = Array {
 at :: Array -> Int -> Scalar
 at a i = (cells a) A.! i
 
+arrMod :: Array -> [(Int, Scalar)] -> Array
+arrMod a l = a { cells = (cells a) A.// l }
+
 shapedArrFromList :: [Int] -> [Scalar] -> Array
 shapedArrFromList shape cells
     | size /= length cells = undefined
