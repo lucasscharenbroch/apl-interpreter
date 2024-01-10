@@ -190,6 +190,7 @@ showForkHelper (s1, p1) (s2, p2) (s3, p3) = (res, padSz)
 showFtnHelper :: FnTreeNode -> (String, Int) -- node -> (shown, amount-of-padding)
 showFtnHelper (FnLeafFn fn) = (show fn, 0)
 showFtnHelper (FnLeafArr arr) = (show arr, 0)
+showFtnHelper (FnLeafVar s) = (s, 0)
 showFtnHelper (FnInternalMonOp op fn) = showMonTreeHelper (showFtnHelper fn) (show op)
 showFtnHelper (FnInternalDyadOp op f1 f2) = showDyadTreeHelper (showFtnHelper f1) (showFtnHelper f2) (show op)
 showFtnHelper (FnInternalAtop f1 f2) = showAtopHelper h1 h2
@@ -215,6 +216,7 @@ singleBoxify x = boxify [xheight] [xwidth] [[leftJustify xheight xwidth xlines]]
 
 showAtnHelper :: ArrTreeNode -> (String, Int)
 showAtnHelper (ArrLeaf a) = (show a, 0)
+showAtnHelper (ArrLeafVar s) = (s, 0)
 showAtnHelper (ArrNiladicFn name _) = (name, 0)
 showAtnHelper (ArrInternalMonFn f a) = showMonTreeHelper (showAtnHelper a) boxedf
     where boxedf = singleBoxify $ show f
@@ -229,8 +231,8 @@ showAtnHelper (ArrInternalAssignment id a) = showMonTreeHelper (showAtnHelper a)
 showAtnHelper (ArrInternalModAssignment id f a) = showMonTreeHelper (showAtnHelper a) (id ++ " " ++ show f ++ "←")
 showAtnHelper (ArrInternalQuadAssignment a) = showMonTreeHelper (showAtnHelper a) ("⎕ ←")
 showAtnHelper (ArrInternalQuadIdAssignment id a) = showMonTreeHelper (showAtnHelper a) ("⎕" ++ id ++ " ←")
-showAtnHelper (ArrInternalImplCat a1 a2) = showDyadTreeHelper (showAtnHelper a1) (showAtnHelper a2) name
-    where name = singleBoxify ")("
+showAtnHelper (ArrInternalImplCat a1 a2) = showDyadTreeHelper (showAtnHelper a1) (showAtnHelper a2) (singleBoxify ")(")
+showAtnHelper (ArrInternalImplGroup atn) = showAtnHelper atn
 
 instance Show ArrTreeNode where
     show = fst . showAtnHelper

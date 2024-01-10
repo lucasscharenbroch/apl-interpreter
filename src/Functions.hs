@@ -53,9 +53,6 @@ instance SubEvalM RandAndIoM where
 
 {- Specialized Functions (non-primitive) -}
 
-implicitGroup :: Array -> Array
-implicitGroup = id
-
 getString :: StateT IdMap IO Array
 getString = listToArr . map ScalarCh <$> (lift $ getLine)
 

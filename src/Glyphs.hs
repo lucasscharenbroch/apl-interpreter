@@ -81,7 +81,6 @@ pureDyadOpOptA name o = mkDyadOpOptA name (Identity .: o)
 {- Functions -}
 
 -- specialized
-fImplicitGroup = pureMonFn (mkFnInfoM ")(") F.implicitGroup
 fGetString = F.getString
 
 -- double-as-operators
@@ -152,8 +151,8 @@ fFormat = pureMonFn (mkFnInfoM "⍕") F.format
 fDisclose = mkAmbivFn (mkFnInfoA "⊃") {fnCanSelectAM = True, fnCanSelectAD = True} (Identity . F.first) F.pick
 fEnclose = mkAmbivFn (mkFnInfoA "⊂") {fnOnAxisAD = partitionedEncloseOnAxis} (Identity . F.enclose) F.partitionedEncloseLast
 fPartition = mkAmbivFn (mkFnInfoA "⊆") {fnOnAxisAD = partitionOnAxis} (Identity . F.nest) F.partitionLast
-fComma = mkAmbivFn (mkFnInfoA ",") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAD = catenateOnAxis} (Identity . F.ravel) F.catenateLast
-fCommaBar = mkAmbivFn (mkFnInfoA "⍪") {fnCanSelectAM = True, fnCanSelectAD = True, fnOnAxisAD = catenateOnAxis} (Identity . F.table) F.catenateFirst
+fComma = mkAmbivFn (mkFnInfoA ",") {fnCanSelectAM = True, fnOnAxisAD = catenateOnAxis} (Identity . F.ravel) F.catenateLast
+fCommaBar = mkAmbivFn (mkFnInfoA "⍪") {fnCanSelectAM = True, fnOnAxisAD = catenateOnAxis} (Identity . F.table) F.catenateFirst
 fSquad = mkDyadFn (mkFnInfoD "⌷") {fnCanSelectD = True} F.index
 fReplicate = mkDyadFn (mkFnInfoD "/") {fnOnAxisD = replicateOnAxis} F.replicateLast
 fReplicateFirst = mkDyadFn (mkFnInfoD "⌿") {fnOnAxisD = replicateOnAxis} F.replicateFirst

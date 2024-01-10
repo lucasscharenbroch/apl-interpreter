@@ -192,19 +192,19 @@ matchComment = matchCh '⍝' *> matchMax [matchAnyTokenExcept [ChTok '\n']] *> m
 matchCommentOrEoe :: MatchFn ()
 matchCommentOrEoe = matchOne [matchComment, matchEoe]
 
-mapGetIf :: String -> (IdEntry -> Maybe a) -> MatchFn a
-mapGetIf s f = do
+mapGetIf :: String -> (IdEntry -> Bool) -> MatchFn String
+mapGetIf id f = do
     idm <- getIdm
-    case mapLookup s idm of
+    case mapLookup id idm of
         Nothing -> mzero
-        Just entry -> case f entry of
-            Nothing -> mzero
-            Just x -> return x
+        Just entry -> if f entry
+                      then return id
+                      else mzero
 
-matchIdWith :: (IdEntry -> Maybe a) -> MatchFn a
-matchIdWith f = matchId >>= \s -> mapGetIf s f
+matchIdWith :: (IdEntry -> Bool) -> MatchFn String
+matchIdWith f = matchId >>= \id -> mapGetIf id f
 
-matchSpecialIdWith :: Token -> String -> (IdEntry -> Maybe a) -> MatchFn a
+matchSpecialIdWith :: Token -> String -> (IdEntry -> Bool) -> MatchFn String
 matchSpecialIdWith specTok s f = do
     matchA $ \t -> if t == specTok then Just () else Nothing
     mapGetIf s f
@@ -391,13 +391,15 @@ parseOpLike directive = case directive of
         AnyOpLike -> matchOne allOpMatchFns
         NonOverloadedOpLike -> matchOne nonOverloadedOpMatchFns
     where nonOverloadedOpMatchFns = [
-                  mkOpLike <$> parseOp,
+                  join $ mkOpLike <$> parseOp,
                   OpLikeM . (flip FnInternalAxisSpec) <$> (matchCh '[' *> parseDerArr <* matchCh ']')
               ]
-          allOpMatchFns = nonOverloadedOpMatchFns ++ [mkOpLike . OpLeaf . fst <$> parseOpOrFn]
-          mkOpLike otn = case unwrapOpTree otn of
-              MonOp _ _ -> OpLikeM $ FnInternalMonOp otn
-              DyadOp _ _ -> OpLikeD $ FnInternalDyadOp otn
+          allOpMatchFns = nonOverloadedOpMatchFns ++ [join $ mkOpLike . OpLeaf . fst <$> parseOpOrFn]
+          mkOpLike :: OpTreeNode -> MatchFn OpLike
+          mkOpLike otn = do idm <- getIdm
+                            if opTreeIsMonadic idm otn
+                            then return . OpLikeM $ FnInternalMonOp otn
+                            else return . OpLikeD $ FnInternalDyadOp otn
 
 parseOp :: MatchFn OpTreeNode
 parseOp = matchOne [
@@ -405,14 +407,14 @@ parseOp = matchOne [
         -- dfn_decl
         dfnDeclToOp =<< parseDfnDecl,
         -- ∇∇
-        matchSpecialIdWith DDTok "∇∇" idEntryToOtn,
+        OpLeafVar <$> matchSpecialIdWith DDTok "∇∇" idEntryIsOtn,
         parseOpAss,
-        matchIdWith (idEntryToOtn),
+        OpLeafVar <$> matchIdWith (idEntryIsOtn),
         OpInternalDummyNode <$> parseParentheticalOtn
     ]
-    where idEntryToOtn (IdOp o) = Just (OpLeaf o)
-          idEntryToOtn (IdDop toks is_dy) = Just . OpLeaf $ mkDop toks is_dy
-          idEntryToOtn _ = Nothing
+    where idEntryIsOtn (IdOp o) = True
+          idEntryIsOtn (IdDop toks is_dy) = True
+          idEntryIsOtn _ = False
           dfnDeclToOp (toks, True, is_dy) = return . OpLeaf $ mkDop toks is_dy
           dfnDeclToOp _ = mzero
 
@@ -426,25 +428,25 @@ parseFn :: MatchFn FnTreeNode
 parseFn = matchOne [
         matchOne $ map (\(c, f) -> (\_ -> FnLeafFn f) <$> matchCh c) functionGlyphs,
         -- ⍺⍺ | ⍵⍵
-        matchSpecialIdWith (AATok) "⍺⍺" (idEntryToFnTree),
-        matchSpecialIdWith (WWTok) "⍵⍵" (idEntryToFnTree),
+        FnLeafVar <$> matchSpecialIdWith (AATok) "⍺⍺" (idEntryIsFnTree),
+        FnLeafVar <$> matchSpecialIdWith (WWTok) "⍵⍵" (idEntryIsFnTree),
         -- ∇
-        matchSpecialIdWith (ChTok '∇') "∇" idEntryToFnTree,
+        FnLeafVar <$> matchSpecialIdWith (ChTok '∇') "∇" idEntryIsFnTree,
         -- dfn_decl
         dfnDeclToFn =<< parseDfnDecl,
         -- ID ← train
         parseFnAss,
         -- ID
-        matchIdWith (idEntryToFnTree),
+        FnLeafVar <$> matchIdWith (idEntryIsFnTree),
         -- op_or_fn
         (FnLeafFn . snd) <$> parseOpOrFn,
         -- (train)
         FnInternalDummyNode <$> parseParentheticalFtn
     ]
-    where idEntryToFnTree (IdFn f) = Just $ FnLeafFn f
-          idEntryToFnTree (IdDfn toks) = Just . FnLeafFn $ mkDfn toks Nothing Nothing Nothing
-          idEntryToFnTree (IdDerDfn toks aa ww dd) = Just . FnLeafFn $ mkDfn toks aa ww dd
-          idEntryToFnTree _ = Nothing
+    where idEntryIsFnTree (IdFn f) = True
+          idEntryIsFnTree (IdDfn toks) = True
+          idEntryIsFnTree (IdDerDfn toks aa ww dd) = True
+          idEntryIsFnTree _ = False
           dfnDeclToFn (toks, False, False) = return . FnLeafFn $ mkDfn toks Nothing Nothing Nothing
           dfnDeclToFn _ = mzero
 
@@ -477,24 +479,23 @@ parseScalar = matchOne [
             -- STR
             (toScalarStr . map ScalarCh) <$> matchStrLiteral,
             -- ⍞
-            (\_ -> implGroup $ ArrNiladicFn "⍞" fGetString) <$> matchCh '⍞',
+            (\_ -> ArrInternalImplGroup $ ArrNiladicFn "⍞" fGetString) <$> matchCh '⍞',
             -- ID
-            implGroup <$> matchIdWith (idEntryToArrTree),
+            ArrInternalImplGroup . ArrLeafVar <$> matchIdWith (idEntryIsArrTree),
             -- ⎕ID
-            (matchCh '⎕' *> matchId) >>= \id -> return . implGroup $ ArrNiladicFn ("⎕" ++ id) (qget . getQuadName $ id),
+            (matchCh '⎕' *> matchId) >>= \id -> return . ArrInternalImplGroup $ ArrNiladicFn ("⎕" ++ id) (qget . getQuadName $ id),
             -- ⍺ | ⍵
-            matchSpecialIdWith (ChTok '⍺') "⍺" (idEntryToArrTree),
-            matchSpecialIdWith (ChTok '⍵') "⍵" (idEntryToArrTree),
+            ArrLeafVar <$> matchSpecialIdWith (ChTok '⍺') "⍺" (idEntryIsArrTree),
+            ArrLeafVar <$> matchSpecialIdWith (ChTok '⍵') "⍵" (idEntryIsArrTree),
             -- ⍺⍺ | ⍵⍵
-            matchSpecialIdWith AATok "⍺⍺" (idEntryToArrTree),
-            matchSpecialIdWith WWTok "⍵⍵" (idEntryToArrTree),
+            ArrLeafVar <$> matchSpecialIdWith AATok "⍺⍺" (idEntryIsArrTree),
+            ArrLeafVar <$> matchSpecialIdWith WWTok "⍵⍵" (idEntryIsArrTree),
             -- ⍬
-            (\_ -> implGroup $ (ArrLeaf . listToArr) []) <$> matchCh '⍬',
+            (\_ -> ArrInternalImplGroup $ (ArrLeaf . listToArr) []) <$> matchCh '⍬',
             -- (der_arr)
-            implGroup <$> parseParentheticalAtn
+            ArrInternalImplGroup <$> parseParentheticalAtn
         ]
     where toScalarStr (c:[]) = ArrLeaf . listToArr $ [c]
-          toScalarStr s = implGroup (ArrLeaf . listToArr $ s)
-          idEntryToArrTree (IdArr a) = Just $ ArrLeaf a
-          idEntryToArrTree _ = Nothing
-          implGroup = ArrInternalMonFn (FnLeafFn fImplicitGroup)
+          toScalarStr s = ArrInternalImplGroup (ArrLeaf . listToArr $ s)
+          idEntryIsArrTree (IdArr a) = True
+          idEntryIsArrTree _ = False

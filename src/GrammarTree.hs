@@ -160,6 +160,7 @@ type NiladicFn = StateT IdMap IO Array
 -- "function tree": a tree that makes up a derived function:
 -- the internal nodes are operators, and the leaves are functions or (derived) arrays
 data FnTreeNode = FnLeafFn Function
+                | FnLeafVar String
                 | FnLeafArr ArrTreeNode
                 | FnInternalMonOp OpTreeNode FnTreeNode
                 | FnInternalDyadOp OpTreeNode FnTreeNode FnTreeNode
@@ -172,27 +173,39 @@ data FnTreeNode = FnLeafFn Function
 
 -- "array tree": a tree that makes up a derived array
 data ArrTreeNode = ArrLeaf Array
+                 | ArrLeafVar String
                  | ArrNiladicFn String NiladicFn
                  | ArrInternalSubscript ArrTreeNode [Maybe ArrTreeNode]
                  | ArrInternalAssignment String ArrTreeNode
                  | ArrInternalModAssignment String FnTreeNode ArrTreeNode
+                 | ArrInternalSelAssignment ArrTreeNode ArrTreeNode
                  | ArrInternalQuadAssignment ArrTreeNode
                  | ArrInternalQuadIdAssignment String ArrTreeNode
                  | ArrInternalMonFn FnTreeNode ArrTreeNode
                  | ArrInternalDyadFn FnTreeNode ArrTreeNode ArrTreeNode
                  | ArrInternalImplCat ArrTreeNode ArrTreeNode
+                 | ArrInternalImplGroup ArrTreeNode
 
-data OpTreeNode = OpLeaf Operator -- not really a tree, more like a linked-list of assignments
+data OpTreeNode = OpLeaf Operator -- linked-list of assignments
+                | OpLeafVar String
                 | OpInternalAssignment String OpTreeNode
                 | OpInternalQuadAssignment OpTreeNode
                 | OpInternalDummyNode OpTreeNode -- does nothing except prevent an assignment
                                                  -- from being matched (in order to allow printing)
 
-unwrapOpTree :: OpTreeNode -> Operator
-unwrapOpTree (OpLeaf o) = o
-unwrapOpTree (OpInternalAssignment _ otn) = unwrapOpTree otn
-unwrapOpTree (OpInternalQuadAssignment otn) = unwrapOpTree otn
-unwrapOpTree (OpInternalDummyNode otn) = unwrapOpTree otn
+opTreeIsMonadic :: IdMap -> OpTreeNode -> Bool
+opTreeIsMonadic _ (OpLeaf o) = case o of
+    MonOp _ _ -> True
+    DyadOp _ _ -> False
+opTreeIsMonadic idm (OpLeafVar id) = case mapLookup id idm of
+    Just (IdOp o) -> case o of
+        MonOp _ _ -> True
+        DyadOp _ _ -> False
+    Just (IdDop _ isDy) -> not isDy
+    Nothing -> undefined
+opTreeIsMonadic idm (OpInternalAssignment _ otn) = opTreeIsMonadic idm otn
+opTreeIsMonadic idm (OpInternalQuadAssignment otn) = opTreeIsMonadic idm otn
+opTreeIsMonadic idm (OpInternalDummyNode otn) = opTreeIsMonadic idm otn
 
 {- Id Map -}
 

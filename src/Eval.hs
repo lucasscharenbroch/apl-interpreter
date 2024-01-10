@@ -202,6 +202,12 @@ evalAxisSpec f a = case f of
 
 evalArrTree :: ArrTreeNode -> StateT IdMap IO Array
 evalArrTree (ArrLeaf a) = return a
+evalArrTree (ArrLeafVar id) = do
+    idm <- get
+    case mapLookup id idm of
+        Nothing -> throw . NameError $ "undefined name: `" ++ id ++ "`"
+        Just (IdArr a) -> return a
+        Just _ -> throw . NameError $ "invalid class (expected array): `" ++ id ++ "`"
 evalArrTree (ArrInternalMonFn ft at) = do
     a <- evalArrTree at
     f <- expectFunc <$> evalFnTree ft
@@ -249,19 +255,28 @@ evalArrTree (ArrInternalImplCat at1 at2) = do
     a2 <- evalArrTree at2
     a1 <- evalArrTree at1
     let a2' = case at2 of
-            ArrInternalMonFn (FnLeafFn fImplicitGroup) _ -> listToArr [maybeEnclose a2]
+            ArrInternalImplGroup _ -> listToArr [maybeEnclose a2]
             _ -> a2
     let a1' = case at1 of
-            ArrInternalMonFn (FnLeafFn fImplicitGroup) _ -> listToArr [maybeEnclose a1]
+            ArrInternalImplGroup _ -> listToArr [maybeEnclose a1]
             _ -> a1
     return $ arrCat a1' a2'
     where maybeEnclose arr = case arrToList arr of
               (s:[]) -> s
               _ -> ScalarArr arr
+evalArrTree (ArrInternalImplGroup atn) = evalArrTree atn
 
 evalFnTree :: FnTreeNode -> StateT IdMap IO (Either Array Function)
 evalFnTree (FnLeafFn ftn) = return $ Right ftn
 evalFnTree (FnLeafArr atn) = Left <$> evalArrTree atn
+evalFnTree (FnLeafVar id) = do
+    idm <- get
+    case mapLookup id idm of
+        Nothing -> throw . NameError $ "undefined name: `" ++ id ++ "`"
+        Just (IdFn f) -> return . Right $ f
+        Just (IdDfn toks) -> return . Right $ mkDfn toks Nothing Nothing Nothing
+        Just (IdDerDfn toks aa ww dd) -> return . Right $ mkDfn toks aa ww dd
+        Just _ -> throw . NameError $ "invalid class (expected function): `" ++ id ++ "`"
 evalFnTree orig@(FnInternalMonOp otn ft) = evalOpTree otn >>= \x -> case x of
     (MonOp _ o) -> do
         efa <- evalFnTree ft
@@ -294,6 +309,13 @@ evalFnTree (FnInternalDummyNode next) = evalFnTree next
 
 evalOpTree :: OpTreeNode -> StateT IdMap IO Operator
 evalOpTree (OpLeaf o) = return o
+evalOpTree (OpLeafVar id) = do
+    idm <- get
+    case mapLookup id idm of
+        Nothing -> throw . NameError $ "undefined name: `" ++ id ++ "`"
+        Just (IdOp o) -> return o
+        Just (IdDop toks is_dy) -> return $ mkDop toks is_dy
+        Just _ -> throw . NameError $ "invalid class (expected operator): `" ++ id ++ "`"
 evalOpTree (OpInternalAssignment id next) = do
     o <- evalOpTree next
     idm <- get
