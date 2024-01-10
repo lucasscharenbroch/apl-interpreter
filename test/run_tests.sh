@@ -28,6 +28,8 @@ fi
 COL1=71
 
 dyalog_test_files=(
+        "selective_assignment"
+        "dfns_dops"
         "general_ops"
         "general_fns"
         "scan_reduce"
@@ -40,7 +42,6 @@ dyalog_test_files=(
         "modified_assignment"
         "numeric_fns"
         "simple_fns"
-        "dfns_dops"
         "multi_expr_line"
         "function_tree"
         "basic_assignment"

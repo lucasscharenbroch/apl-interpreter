@@ -14,6 +14,8 @@ import Control.Applicative (liftA2)
 import Exceptions
 import Control.Exception
 import Util
+import {-# SOURCE #-} qualified Functions as F
+import Data.Function
 
 {- Helpers -}
 
@@ -177,6 +179,59 @@ evalArrSubscript iO lhs ixs = partialFlatten $ shapedArrFromList shape' cells'
                    Nothing -> [0..(i - 1)]
                    Just a -> map (+(-1*iO)) $ arrToIntVec a
 
+{- Selective Assignment -}
+
+evalArrSelAss :: ArrTreeNode -> ArrTreeNode -> StateT IdMap IO Array
+evalArrSelAss lhs rhs = case lhs of
+    ArrInternalImplGroup lhs'
+        | ArrInternalImplGroup rhs' <- rhs -> evalArrSelAss lhs' rhs'
+        | otherwise -> evalArrSelAss lhs' rhs
+    ArrInternalImplCat ll lr
+        | ArrInternalImplCat rl rr <- rhs -> join $ evalArrTree .: (on ArrInternalImplCat ArrLeaf) <$> evalArrSelAss ll rl <*> evalArrSelAss lr rr
+        | otherwise -> throw . SyntaxError $ "bad selective assignment (lhs is implicit cat, rhs is not)"
+    ArrLeafVar id -> evalArrTree $ ArrInternalAssignment id rhs
+    _ -> do
+        id <- getSelectedVar lhs
+        idm <- get
+        let varArr = case mapLookup id idm of
+                Nothing -> throw . NameError $ "(←): undefined name: `" ++ id ++ "`"
+                Just (IdArr a) -> a
+                Just _ -> throw . NameError $ "(←): invalid class (expected array): `" ++ id ++ "`"
+        rhsEvaluated <- evalArrTree rhs
+        iotaShapeVar <- F.toEvalM . F.iota $ F.shapeOf varArr
+        lhs' <- evalArrTree $ arrTreeSubVar lhs id iotaShapeVar
+        if shape lhs' /= shape rhsEvaluated then throw . SyntaxError $ "(←): mismatched shapes"
+        else do iO <- arrToInt <$> getQIo
+                let varArr' = arrModL varArr $ zipWith (,) (map (map (+(-1*iO)) . arrToIntVec . scalarToArr) . arrToList $ lhs') (arrToList rhsEvaluated)
+                put $ mapInsert id (IdArr varArr') idm
+                return rhsEvaluated
+    where getSelectedVar :: ArrTreeNode -> StateT IdMap IO String -- also asserts that the argument is selectable
+          getSelectedVar (ArrLeafVar id) = return id
+          getSelectedVar (ArrInternalSubscript atn _) = getSelectedVar atn
+          getSelectedVar (ArrInternalMonFn ftn atn) = do f <- expectFunc <$> evalFnTree ftn
+                                                         if fnCanSelect (fnCanSelectAM) f
+                                                         then getSelectedVar atn
+                                                         else throw . SyntaxError $ "(←): internal function can't select: (\n" ++ (show ftn) ++ "\n)"
+          getSelectedVar (ArrInternalDyadFn ftn _ atn) = do f <- expectFunc <$> evalFnTree ftn
+                                                            if fnCanSelect (fnCanSelectAD) f
+                                                            then getSelectedVar atn
+                                                            else throw . SyntaxError $ "(←): internal function can't select: (\n" ++ (show ftn) ++ "\n)"
+          getSelectedVar (ArrInternalImplGroup atn) = getSelectedVar atn
+          getSelectedVar _ = throw . SyntaxError $ "(←): bad selective assignment: not homogeneous (non-variable array)"
+          arrTreeSubVar :: ArrTreeNode -> String -> Array -> ArrTreeNode
+          arrTreeSubVar (ArrLeafVar s) id sub
+              | s == id = ArrLeaf sub
+              | otherwise = undefined
+          arrTreeSubVar (ArrInternalSubscript atn ixs) id sub = ArrInternalSubscript (arrTreeSubVar atn id sub) ixs
+          arrTreeSubVar (ArrInternalMonFn fn atn) id sub = ArrInternalMonFn fn (arrTreeSubVar atn id sub)
+          arrTreeSubVar (ArrInternalDyadFn fn atn1 atn2) id sub = ArrInternalDyadFn fn atn1 (arrTreeSubVar atn2 id sub)
+          arrTreeSubVar (ArrInternalImplGroup atn) id sub = ArrInternalImplGroup (arrTreeSubVar atn id sub)
+          arrTreeSubVar x _ _ = throw . SyntaxError $ "err: " ++ (show x) -- TODO remove
+          fnCanSelect ambivSelector fn = case fn of
+              MonFn i _ -> fnCanSelectM i
+              DyadFn i _ -> fnCanSelectD i
+              AmbivFn i _ _ -> ambivSelector i
+
 {- Axis Spec -}
 
 evalAxisSpec :: Function -> Array -> Function
@@ -239,6 +294,7 @@ evalArrTree (ArrInternalModAssignment id f rhs) = do
     idm' <- get
     put $! mapInsert id (IdArr $! res) idm'
     return rhs'
+evalArrTree (ArrInternalSelAssignment lhs rhs) = evalArrSelAss lhs rhs
 evalArrTree (ArrInternalQuadAssignment atn) = do
     a <- evalArrTree atn
     lift $ putStrLn $ show a

@@ -229,10 +229,11 @@ showAtnHelper (ArrInternalSubscript a is) = showDyadTreeHelper (showAtnHelper a)
               Just x -> show x
 showAtnHelper (ArrInternalAssignment id a) = showMonTreeHelper (showAtnHelper a) (id ++ " ←")
 showAtnHelper (ArrInternalModAssignment id f a) = showMonTreeHelper (showAtnHelper a) (id ++ " " ++ show f ++ "←")
+showAtnHelper (ArrInternalSelAssignment l r) = showDyadTreeHelper (showAtnHelper l) (showAtnHelper r) ("←")
 showAtnHelper (ArrInternalQuadAssignment a) = showMonTreeHelper (showAtnHelper a) ("⎕ ←")
 showAtnHelper (ArrInternalQuadIdAssignment id a) = showMonTreeHelper (showAtnHelper a) ("⎕" ++ id ++ " ←")
 showAtnHelper (ArrInternalImplCat a1 a2) = showDyadTreeHelper (showAtnHelper a1) (showAtnHelper a2) (singleBoxify ")(")
-showAtnHelper (ArrInternalImplGroup atn) = showAtnHelper atn
+showAtnHelper (ArrInternalImplGroup atn) = showMonTreeHelper (showAtnHelper atn) (singleBoxify "()")
 
 instance Show ArrTreeNode where
     show = fst . showAtnHelper

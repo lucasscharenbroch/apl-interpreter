@@ -15,7 +15,7 @@ import QuadNames
  -
  - expr => [der_arr | train | op] [⍝ <ignore-until-eoe>] (eoe)
  -
- - dfn_expr => [der_arr | guard | alpha_ass | fn_ass | op_ass ] [⍝ <ignore-until-eoe>] (eoe)
+ - dfn_expr => [alpha_ass | der_arr | guard | fn_ass | op_ass ] [⍝ <ignore-until-eoe>] (eoe)
  -
  - dfn_decl => { <skip tokens> }             (result is operator iff ⍺⍺ or ⍵⍵ ∊ tokens)
  -
@@ -32,6 +32,7 @@ import QuadNames
  -         => ID der_fn ← der_arr
  -         => ⎕ID ← der_arr
  -         => ⎕ ← der_arr
+ -         => arr ← der_arr
  -
  - train => [df] {(arr|df) df} df            (where df = der_fn)
  -
@@ -209,6 +210,14 @@ matchSpecialIdWith specTok s f = do
     matchA $ \t -> if t == specTok then Just () else Nothing
     mapGetIf s f
 
+matchUnassignedId :: MatchFn String
+matchUnassignedId = do
+    id <- matchId
+    idm <- getIdm
+    case mapLookup id idm of
+        Nothing -> return id
+        _ -> mzero
+
 matchAnyTokenExcept :: [Token] -> MatchFn Token
 matchAnyTokenExcept blacklist = matchA $ \t -> if t `elem` blacklist then Nothing else Just t
 
@@ -252,6 +261,7 @@ parseExpr = matchOne [
     ]
     where mkResAtn a@(ArrInternalAssignment _ _) = ResAtn a False
           mkResAtn a@(ArrInternalModAssignment _ _ _) = ResAtn a False
+          mkResAtn a@(ArrInternalSelAssignment _ _) = ResAtn a False
           mkResAtn a@(ArrInternalQuadAssignment _) = ResAtn a False
           mkResAtn a@(ArrInternalQuadIdAssignment _ _) = ResAtn a False
           mkResAtn a = ResAtn a True
@@ -287,9 +297,9 @@ parseParentheticalOtn = parseParenthetical >>= \res -> case res of
 
 parseDfnExpr :: MatchFn DfnExprResult
 parseDfnExpr = matchOne [
+        DResDefaultAlpha <$> parseAlphaAss <* matchCommentOrEoe,
         mkDResAtn <$> parseDerArr <* matchCommentOrEoe,
         (\(a1, a2) -> DResCond a1 a2) <$> parseGuard <* matchCommentOrEoe,
-        DResDefaultAlpha <$> parseAlphaAss <* matchCommentOrEoe,
         DResFtn <$> parseFnAss <* matchCommentOrEoe,
         DResOtn <$> parseOpAss <* matchCommentOrEoe,
         (\_ -> DResNull) <$> matchCommentOrEoe
@@ -342,7 +352,8 @@ parseArrAss = matchOne [
         ArrInternalAssignment <$> matchId <*> (matchCh '←' *> parseDerArr), -- ID ← da
         ArrInternalModAssignment <$> matchId <*> parseDerFn <*> (matchCh '←' *> parseDerArr), -- ID df ← da
         ArrInternalQuadIdAssignment <$> (matchCh '⎕' *> matchId) <*> (matchCh '←' *> parseDerArr), -- ⎕ID ← der_arr
-        ArrInternalQuadAssignment <$> (matchCh '⎕' *> matchCh '←' *> parseDerArr) -- ⎕ ← der_arr
+        ArrInternalQuadAssignment <$> (matchCh '⎕' *> matchCh '←' *> parseDerArr), -- ⎕ ← der_arr
+        ArrInternalSelAssignment <$> parseArr <*> (matchCh '←' *> parseDerArr) -- arr ← der_arr
     ]
 
 parseTrain :: MatchFn FnTreeNode
@@ -481,7 +492,7 @@ parseScalar = matchOne [
             -- ⍞
             (\_ -> ArrInternalImplGroup $ ArrNiladicFn "⍞" fGetString) <$> matchCh '⍞',
             -- ID
-            ArrInternalImplGroup . ArrLeafVar <$> matchIdWith (idEntryIsArrTree),
+            ArrInternalImplGroup . ArrLeafVar <$> matchOne [matchIdWith (idEntryIsArrTree), matchUnassignedId],
             -- ⎕ID
             (matchCh '⎕' *> matchId) >>= \id -> return . ArrInternalImplGroup $ ArrNiladicFn ("⎕" ++ id) (qget . getQuadName $ id),
             -- ⍺ | ⍵
