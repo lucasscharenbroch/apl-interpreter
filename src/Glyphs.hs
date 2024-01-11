@@ -163,6 +163,7 @@ fExpandFirst = mkDyadFn (mkFnInfoD "⍀") {fnOnAxisD = expandOnAxis} F.expandFir
 fIotaUnderbar = mkAmbivFn (mkFnInfoA "⍸") F.where_ F.intervalIndex
 fDownArrow = mkAmbivFn (mkFnInfoA "↓") {fnOnAxisAM = splitOnAxis, fnCanSelectAD = True} F.splitLast (Identity .: F.drop_)
 fUpArrow = mkAmbivFn (mkFnInfoA "↑") {fnOnAxisAM = mixOnAxis} F.mixLast (Identity .: F.take_)
+fEpsilonUnderbar = pureDyadFn (mkFnInfoD "⍷") F.find_
 
 functionGlyphs :: [(Char, Function)]
 functionGlyphs = [
@@ -215,7 +216,8 @@ functionGlyphs = [
         ('⌷', fSquad),
         ('⍸', fIotaUnderbar),
         ('↓', fDownArrow),
-        ('↑', fUpArrow)
+        ('↑', fUpArrow),
+        ('⍷', fEpsilonUnderbar)
     ]
 
 {- Operators -}

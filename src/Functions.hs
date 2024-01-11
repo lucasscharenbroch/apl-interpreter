@@ -627,6 +627,17 @@ factorial = arithFnM (_factorial)
               | n < 0 = throw $ DomainError "(!): arguments should be nonnegative"
               | otherwise = fromIntegral . foldr (*) 1 $ [1..(Prelude.floor n)]
 
+find_ :: Array -> Array -> Array
+find_ x y
+    | arrRank x > arrRank y = shapedArrFromList (shape y) $ Prelude.replicate (arrNetSize y) (ScalarNum 0)
+    | arrRank x < arrRank y = find_ (x {shape = Prelude.replicate (arrRank y - arrRank x) 1 ++ shape x}) y
+    | otherwise = shapedArrFromList (shape y) . map (subarrMatch . toIndexList) $ [0..arrNetSize y - 1]
+    where indexMod = tail . scanr (*) 1 $ shape y
+          toIndexList i = zipWith (\e m -> i `div` m `mod` e) (shape y) indexMod
+          subarrMatch il = boolToScalar $ idxListInRange il && x == (take_ (intVecToArr (shape x)) . drop_ (intVecToArr il) $ y)
+          idxListInRange = all id . zipWith (<=) (shape x) . zipWith (-) (shape y)
+          intVecToArr = listToArr . map (ScalarNum . fromIntegral)
+
 first :: Array -> Array
 first x = case arrToList x of
     [] -> doubleToScalarArr 0
