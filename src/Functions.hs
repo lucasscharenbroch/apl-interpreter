@@ -182,7 +182,7 @@ partition ax x y
     where _partition :: [Int] -> [Scalar] -> [Scalar]
           _partition [] [] = []
           _partition ns ss
-              | length ns == 1 = _partition (Prelude.replicate (length ss) (head ns)) ss
+              | length ns == 1 && length ss > 1 = _partition (Prelude.replicate (length ss) (head ns)) ss
               | length ns /= length ss = throw . LengthError $ "(⊆): mismatched left and right argument lengths"
               | any (<0) ns = throw . DomainError $ "(⊆): left argument should be nonnegative"
               | otherwise = map joinScalars . filter (/=[]) . map (map fst . filter ((/=0) . snd)) . groupAdj (on (>=) snd) $ zip ss ns
@@ -614,7 +614,10 @@ enlist = listToArr . concat . map _flatten . arrToList
               _ -> [s]
 
 equ :: Array -> Array -> Array
-equ = arithFnD (\n m -> fromIntegral . fromEnum $ n == m)
+equ x y
+    | shape x' /= shape y' = throw . LengthError $ "(=): mismatched lengths"
+    | otherwise = arrZipWith (boolToScalar .: (==)) x' y'
+    where (x', y') = rankMorph (x, y)
 
 exponential :: Array -> Array
 exponential = arithFnM (exp)
