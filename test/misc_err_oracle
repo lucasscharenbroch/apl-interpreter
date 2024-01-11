@@ -97,3 +97,16 @@ Length Error: (@): mismatched lengths of left and right arguments/results
 Length Error: (@): mismatched lengths of left and right arguments/results
 Length Error: (@): mismatched lengths of left and right arguments/results
 Syntax Error: (@): ⍺⍺ is array, so derived function is monadic
+Syntax Error: (←): bad selective assignment: not homogeneous (non-variable array)
+Syntax Error: (←): internal function can't select: (
+,
+)
+1
+2
+3 4
+Rank Error: (↓): invalid axis
+Rank Error: invalid axis
+Length Error: (↓): mismatched argument lengths
+Length Error: (↑): mismatched argument lengths
+Rank Error: (↑): invalid axis
+Rank Error: (↑): invalid axis

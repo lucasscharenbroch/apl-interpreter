@@ -105,6 +105,8 @@ partitionOnAxis = Just (\ax -> mkFuncD $ F.partition ax)
 catenateOnAxis = Just (\ax -> mkFuncD $ F.catenate ax)
 replicateOnAxis = Just (\ax -> mkFuncD $ F.replicate ax)
 expandOnAxis = Just (\ax -> mkFuncD $ F.expand ax)
+splitOnAxis = Just (\ax -> mkFuncM $ F.split ax)
+mixOnAxis = Just (\ax -> mkFuncM $ F.mix ax)
 
 -- primitive
 fPlus = pureAmbivFn (mkFnInfoA "+") {fnIdAD = Just $ ScalarNum 0} F.conjugate F.add
@@ -159,6 +161,8 @@ fReplicateFirst = mkDyadFn (mkFnInfoD "⌿") {fnOnAxisD = replicateOnAxis} F.rep
 fExpand = mkDyadFn (mkFnInfoD "\\") {fnOnAxisD = expandOnAxis} F.expandLast
 fExpandFirst = mkDyadFn (mkFnInfoD "⍀") {fnOnAxisD = expandOnAxis} F.expandFirst
 fIotaUnderbar = mkAmbivFn (mkFnInfoA "⍸") F.where_ F.intervalIndex
+fDownArrow = mkAmbivFn (mkFnInfoA "↓") {fnOnAxisAM = splitOnAxis, fnCanSelectAD = True} F.splitLast (Identity .: F.drop_)
+fUpArrow = mkAmbivFn (mkFnInfoA "↑") {fnOnAxisAM = mixOnAxis} F.mixLast (Identity .: F.take_)
 
 functionGlyphs :: [(Char, Function)]
 functionGlyphs = [
@@ -209,8 +213,9 @@ functionGlyphs = [
         (',', fComma),
         ('⍪', fCommaBar),
         ('⌷', fSquad),
-        ('⍸', fIotaUnderbar)
-        -- TODO big list of functions
+        ('⍸', fIotaUnderbar),
+        ('↓', fDownArrow),
+        ('↑', fUpArrow)
     ]
 
 {- Operators -}
@@ -242,7 +247,6 @@ operatorGlyphs = [
         ('⍣', oPower),
         ('.', oInnerProduct),
         ('@', oAt)
-        -- TODO big list of operators
     ]
 
 opOrFnGlyphs :: [(Char, Operator, Function)]

@@ -5,6 +5,7 @@ import Eval
 import GrammarTree
 import Data.Fixed (mod')
 import Control.Monad
+import Control.Applicative
 import System.Random
 import System.Random.Stateful
 import Data.Functor.Identity
@@ -121,6 +122,29 @@ expand ax x y = do iO <- ask
               | otherwise = Prelude.replicate (abs n) zero ++ _expandRec ns [] zero
           _expandRec [] _ _ = throw . LengthError $ "(\\): number of positive ints in left arg ≠ number of subarrays in right arg"
 
+mix :: Double -> Array -> IdxOriginM Array
+mix ax y = do iO <- ask
+              let ax' = (Prelude.ceiling ax) - iO + 1
+              let elemShape' = case foldr shapeMax [] . map (_shape) . arrToList $ y of
+                                   [1] -> []
+                                   x -> x
+              let elemShape'arr = listToArr . map intToScalar $ elemShape'
+              let shape' = (shape y) ++ elemShape'
+              let elemRank' = length elemShape'
+              let reorderedAxes = if ax' < 1 || ax' > 1 + arrRank y then throw . RankError $ "(↑): invalid axis"
+                                  else [1..ax' - 1] ++ [i + elemRank' | i <- [ax'..arrRank y]] ++ [i + ax' - 1 | i <- [1..elemRank']]
+              return . arrReorderAxes reorderedAxes . shapedArrFromList shape' . concat . map (arrToList . _take elemShape'arr . scalarToArr) . arrToList $ y
+    where _shape s = case s of
+                         ScalarArr a -> shape a
+                         _ -> [1]
+          shapeMax s1 s2
+              | length s1 < length s2 = shapeMax (Prelude.replicate (length s2 - length s1) 0 ++ s1) s2
+              | length s1 > length s2 = shapeMax s1 (Prelude.replicate (length s1 - length s2) 0 ++ s2)
+              | otherwise = zipWith max s1 s2
+          _take a b
+              | arrRank b < (head $ shape a) = take_ a $ b {shape = Prelude.replicate ((head $ shape a) - arrRank b) 1 ++ (shape b)}
+              | otherwise = take_ a b
+
 partitionedEnclose :: Double -> Array -> Array -> IdxOriginM Array
 partitionedEnclose ax x y
     | not . isIntegral $ ax = throw . RankError $ "(⊂): invalid axis"
@@ -220,6 +244,16 @@ rotate ax x y
                                b' = Prelude.reverse b
                   _ -> throw . DomainError $ "(⌽): expected scalar array as left argument"
 
+split :: Double -> Array -> IdxOriginM Array
+split ax y
+    | not . isIntegral $ ax = throw . RankError $ "(↓): invalid axis"
+    | otherwise = do iO <- ask
+                     let ax' = (Prelude.floor ax) - iO + 1
+                     let shape' = if arrRank y == 1 then [1] else take (ax' - 1) (shape y) ++ drop ax' (shape y)
+                     if ax' < iO || ax' > (iO + (arrRank y)) then throw . RankError $ "(↓): invalid axis"
+                     else if shape y == [1] then return y
+                     else return $ shapedArrFromList shape' . map ScalarArr . vecsAlongAxis ax' $ y
+
 {- First/Last -Axis Functions -}
 
 catenateFirst :: Array -> Array -> IdxOriginM Array
@@ -233,6 +267,9 @@ expandFirst x y = ask >>= \iO -> Functions.expand (fromIntegral iO) x y
 
 expandLast :: Array -> Array -> IdxOriginM Array
 expandLast x y = ask >>= \iO -> Functions.expand (fromIntegral $ iO + (arrRank y) - 1) x y
+
+mixLast :: Array -> IdxOriginM Array
+mixLast y = ask >>= \iO -> mix (fromIntegral $ iO + (arrRank y)) y
 
 partitionLast :: Array -> Array -> IdxOriginM Array
 partitionLast x y = ask >>= \iO -> Functions.partition (fromIntegral $ iO + (arrRank y) - 1) x y
@@ -257,6 +294,9 @@ rotateFirst x y = ask >>= \iO -> rotate (fromIntegral iO) x y
 
 rotateLast :: Array -> Array -> IdxOriginM Array
 rotateLast x y = ask >>= \iO -> rotate (fromIntegral $ iO + (arrRank y) - 1) x y
+
+splitLast :: Array -> IdxOriginM Array
+splitLast y = ask >>= \iO -> Functions.split (fromIntegral $ iO + (arrRank y) - 1) y
 
 {- EvalM Functions -}
 
@@ -528,6 +568,23 @@ divide = arithFnD _divide
     where _divide _ 0 = throw $ DomainError "division by zero"
           _divide n m = n / m
 
+drop_ :: Array -> Array -> Array
+drop_ x y
+    | netSz' == 0 = zilde
+    | otherwise = shapedArrFromList shape' . map idxRes $ [0..(netSz' - 1)]
+    where _x' = arrToIntVec x
+          (x', y') = case (length _x') - (arrRank y) of
+                         0 -> (_x', y)
+                         n
+                          | n < 0 -> (_x' ++ Prelude.replicate (-1 * n) 0, y)
+                          | n > 0 -> if arrNetSize y == 1 then (_x', y {shape = (shape y ++ Prelude.replicate (abs n) 1)})
+                                     else throw . LengthError $ "(↓): mismatched argument lengths"
+          shape' = zipWith (max 0 .: on (-) abs) (shape y') x'
+          netSz' = foldr (*) 1 shape'
+          idxRes i = arrIndex y . zipWith (+) offsets . map (\(e, m) -> i `div` m `mod` e) $ zip shape' indexMod
+          indexMod = tail . scanr (*) 1 $ shape'
+          offsets = map (max 0) x'
+
 encode :: Array -> Array -> Array
 encode x y = arrReorderAxes reorderedAxes . shapedArrFromList shape' . concat . map arrToList $ encodings
     where y' = arrToIntVec y
@@ -726,6 +783,30 @@ subtract = arithFnD (-)
 table :: Array -> Array
 table x = x {shape = shape'}
     where shape' = [head $ shape x, foldr (*) 1 (tail . shape $ x)]
+
+take_ :: Array -> Array -> Array
+take_ x y
+    | netSz' == 0 = zilde
+    | otherwise = shapedArrFromList shape' . map idxRes $ [0..(netSz' - 1)]
+    where _x' = arrToIntVec x
+          (x', y') = case (length _x') - (arrRank y) of
+                         0 -> (_x', y)
+                         n
+                          | n < 0 -> (_x' ++ drop (length _x') (shape y), y)
+                          | n > 0 -> if arrNetSize y == 1 then (_x', y {shape = (shape y ++ Prelude.replicate (abs n) 1)})
+                                     else throw . LengthError $ "(↑): mismatched argument lengths"
+          shape' = map abs x'
+          netSz' = foldr (*) 1 shape'
+          idxRes i = arrIndex' y . zipWith (+) offsets . map (\(e, m) -> i `div` m `mod` e) $ zip shape' indexMod
+          indexMod = tail . scanr (*) 1 $ shape'
+          offsets = zipWith (\e i -> if i >= 0 then 0 else e + i) (shape y') x'
+          arrIndex' y is = if arrIndexInRange y' is
+                           then arrIndex y is
+                           else ScalarNum 0 -- poor-man's fill element
+          direction n
+              | n == 0 = 0
+              | n < 0 = -1
+              | n > 0 = 1
 
 tally :: Array -> Array
 tally a

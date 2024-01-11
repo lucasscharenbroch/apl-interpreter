@@ -168,6 +168,13 @@ unAlongAxis ax subArrs
                         idxList' = take ax' idxList ++ drop (ax' + 1) idxList
               ax' = ax - _iO
 
+vecsAlongAxis :: Int -> Array -> [Array]
+vecsAlongAxis ax a = map listToArr $ vecs
+    where subArrs = alongAxis ax a
+          subArrShape = if length subArrs == 0 then [0] else shape (head subArrs)
+          subArrNetSz = foldr (*) 1 subArrShape
+          vecs = foldr (zipWith (:)) (replicate subArrNetSz []) $ map arrToList subArrs
+
 mapVecsAlongAxis :: Int -> ([Scalar] -> [Scalar]) -> Array -> Array
 mapVecsAlongAxis ax f a = if length subArrs' == 1 then subArrs' !! 0 else unAlongAxis ax subArrs'
     where subArrs = alongAxis ax a
