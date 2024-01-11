@@ -26,5 +26,6 @@ An implementation of [APL](https://en.wikipedia.org/wiki/APL_(programming_langua
 
 ## User Interface
 - Configurable REPL ([Haskeline](https://hackage.haskell.org/package/haskeline-0.8.2.1/docs/System-Console-Haskeline.html))
+    - Tab-Completion for Glyphs
 - Pretty-Printing for Arrays (boxing) and Derived Functions (trees)
 - `-v` option for printing syntax trees before evaluation
