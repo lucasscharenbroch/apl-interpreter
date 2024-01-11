@@ -110,3 +110,5 @@ Length Error: (↓): mismatched argument lengths
 Length Error: (↑): mismatched argument lengths
 Rank Error: (↑): invalid axis
 Rank Error: (↑): invalid axis
+Rank Error: mismatched ranks (rank morph)
+Length Error: (⍤): expected rank vector of 1 ≤ length ≤ 3

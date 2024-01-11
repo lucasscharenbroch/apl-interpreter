@@ -233,7 +233,7 @@ alongRank r a
     | otherwise = shapedArrFromList outerShape . map (ScalarArr . shapedArrFromList innerShape) . groupsOf groupSz . arrToList $ a
         where outerShape = take n $ shape a
               innerShape = drop n $ shape a
-              n = (length $ shape a) - r
+              n = if r >= 0 then (length $ shape a) - r else -1 * r
               groupSz = foldr (*) 1 innerShape
 
 arrReorderAxes :: [Int] -> Array -> Array

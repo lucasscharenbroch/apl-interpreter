@@ -205,8 +205,23 @@ atop l r = case (l, r) of
         (AmbivFn _ fF _, DyadFn _ gF) -> autoInfoDyadFnD "⍤" l r (atopMD fF gF)
         (AmbivFn _ fF _, AmbivFn _ gMF gDF) -> autoInfoAmbivFnD "⍤" l r (atopMM fF gMF) (atopMD fF gDF)
         _ -> throw . SyntaxError $ "(⍤): invalid arity of argument functions"
-    -- TODO rank
+    (Right f, Left a) -> autoInfoAmbivFnD "⍤" f a (_rankM f p q r) (_rankD f p q r)
+        where (p, q, r) = case arrToIntVec a of
+                               (x:[]) -> (x, x, x)
+                               (x:y:[]) -> (x, y, x)
+                               (x:y:z:[]) -> (x, y, z)
+                               _ -> throw . LengthError $ "(⍤): expected rank vector of 1 ≤ length ≤ 3"
     _ -> throw . SyntaxError $ "(⍤): invalid argument types"
+    where _rankM f p _ _ y = fmap partialFlatten . join . fmap (F.toEvalM . F.mixLast) . arrMapM (fmap ScalarArr . f' . scalarToArr) . alongRank p $ y
+              where f' = getMonFn f
+          _rankD f _ q r x y = fmap partialFlatten . join . fmap (F.toEvalM . F.mixLast) $ arrZipWithM (fmap ScalarArr .: on f' scalarToArr) x' y'
+              where (x', y') = extend (alongRank q x, alongRank r y)
+                    f' = getDyadFn f
+          extend (x, y)
+              | shape x == [1] = (shapedArrFromList (shape y) $ replicate (arrNetSize y) (x `GrammarTree.at` 0), y)
+              | shape y == [1] = (x, shapedArrFromList (shape x) $ replicate (arrNetSize x) (y `GrammarTree.at` 0))
+              | shape x == shape y = (x, y)
+              | otherwise = throw . LengthError $ "(⍤): mismatched left and right argument shapes"
 
 jot :: (Either Array Function) -> (Either Array Function) -> Function
 jot l r = case (l, r) of

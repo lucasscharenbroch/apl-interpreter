@@ -28,10 +28,10 @@ fi
 COL1=71
 
 dyalog_test_files=(
+        "general_ops"
         "general_fns"
         "selective_assignment"
         "dfns_dops"
-        "general_ops"
         "scan_reduce"
         "rand"
         "index"
