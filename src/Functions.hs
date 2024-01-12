@@ -742,7 +742,10 @@ negate :: Array -> Array
 negate = arithFnM (Prelude.negate)
 
 neq :: Array -> Array -> Array
-neq = arithFnD (\n m -> fromIntegral . fromEnum $ n /= m)
+neq x y
+    | shape x' /= shape y' = throw . LengthError $ "(≠): mismatched lengths"
+    | otherwise = arrZipWith (boolToScalar .: (/=)) x' y'
+    where (x', y') = rankMorph (x, y)
 
 nest :: Array -> Array
 nest x

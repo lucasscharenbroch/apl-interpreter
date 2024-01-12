@@ -190,6 +190,7 @@ at l r = autoInfoAmbivFnD "@" l r (_at Nothing) (\x -> _at $ Just x)
                                      else arrToList $ vals
                          let selectedIndices' = map (map (+(-1*iO)). arrToIntVec . scalarToArr) . arrToList $ selectedIndices
                          if not . all (arrIndexInRange y) $ selectedIndices' then throw . LengthError $ "(@): index out of range"
+                         else if length vals' == 0 || length selectedIndices' == 0 then return y
                          else if length vals' /= length selectedIndices' then throw . LengthError $ "(@): mismatched lengths of left and right arguments/results"
                          else return $ arrModL y (zipWith (,) selectedIndices' vals')
           validateBoolArr a
