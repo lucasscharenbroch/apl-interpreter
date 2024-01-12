@@ -188,7 +188,12 @@ evalArrSelAss lhs rhs = case lhs of
         | otherwise -> evalArrSelAss lhs' rhs
     ArrInternalImplCat ll lr
         | ArrInternalImplCat rl rr <- rhs -> join $ evalArrTree .: (on ArrInternalImplCat ArrLeaf) <$> evalArrSelAss ll rl <*> evalArrSelAss lr rr
-        | otherwise -> throw . SyntaxError $ "bad selective assignment (lhs is implicit cat, rhs is not)"
+        | otherwise -> do rhs' <- evalArrTree rhs
+                          if shape rhs' == [0] || arrRank rhs' /= 1 then throw . SyntaxError $ "bad selective assignment (lhs is implicit cat, rhs is not cons)"
+                          else let rl = ArrLeaf . scalarToArr . head . arrToList $ rhs'
+                                   rr = ArrLeaf . listToArr_ . tail . arrToList $ rhs'
+                               in join $ evalArrTree .: (on ArrInternalImplCat ArrLeaf) <$> evalArrSelAss ll rl <*> evalArrSelAss lr rr
+
     ArrLeafVar id -> evalArrTree $ ArrInternalAssignment id rhs
     _ -> do
         id <- getSelectedVar lhs

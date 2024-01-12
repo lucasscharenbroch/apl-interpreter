@@ -324,6 +324,10 @@ scalarToArr s = case s of
 scalarToArr_ :: Scalar -> Array
 scalarToArr_ = listToArr . (:[])
 
+listToArr_ :: [Scalar] -> Array
+listToArr_ (ScalarArr a:[]) = a
+listToArr_ l = listToArr l
+
 arrToScalar :: Array -> Scalar
 arrToScalar a
     | shape a == [1] = a `at` 0
