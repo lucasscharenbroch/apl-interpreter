@@ -2,6 +2,8 @@
 
 An implementation of [APL](https://en.wikipedia.org/wiki/APL_(programming_language)), written in Haskell.
 
+![apl-intpreter, solving day 7 of Advent of Code '23](screenshot.png)
+
 ## Supported Syntax
 - All primitives, except ⌹, ⌺, and ⌸
     - Functions
